@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Prism — Global Revenue Intelligence</title>
+
+  <!-- Fonts: Playfair Display + Source Sans 3 + JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    /* === COPPER DARK PALETTE === */
+    :root {
+      --bg-deep: #0f0e0d;
+      --bg-surface: #1a1816;
+      --bg-elevated: #252220;
+      --bg-overlay: #322e2b;
+
+      --text-primary: #e8e4df;
+      --text-secondary: #b5aea5;
+      --text-muted: #7a746c;
+      --text-link: #d4a574;
+
+      --accent: #d4a574;
+      --accent-emphasis: #c4956a;
+      --accent-subtle: rgba(212, 165, 116, 0.15);
+
+      --success: #7eb563;
+      --success-subtle: rgba(126, 181, 99, 0.15);
+      --warning: #d4a574;
+      --warning-subtle: rgba(212, 165, 116, 0.15);
+      --error: #c75d5d;
+      --error-subtle: rgba(199, 93, 93, 0.15);
+
+      --border: #322e2b;
+      --border-emphasis: #453f3b;
+
+      --prism-blue: #6ba3c7;
+      --prism-green: #7eb563;
+      --prism-amber: #d4a574;
+      --prism-red: #c75d5d;
+
+      --font-display: 'Playfair Display', serif;
+      --font-body: 'Source Sans 3', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+
+      --text-xs: 0.75rem;
+      --text-sm: 0.875rem;
+      --text-base: 1rem;
+      --text-lg: 1.125rem;
+      --text-xl: 1.25rem;
+      --text-2xl: 1.5rem;
+      --text-3xl: 1.875rem;
+      --text-4xl: 2.25rem;
+      --text-5xl: 3rem;
+
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-10: 2.5rem;
+      --space-12: 3rem;
+      --space-16: 4rem;
+
+      --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      --duration-fast: 0.15s;
+      --duration-normal: 0.3s;
+      --duration-slow: 0.5s;
+    }
+
+    /* === RESET === */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+    body {
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: 1.6;
+      color: var(--text-primary);
+      background: var(--bg-deep);
+      min-height: 100vh;
+    }
+
+    .bg-mesh {
+      background:
+        radial-gradient(ellipse at 15% 20%, rgba(212, 165, 116, 0.04) 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 80%, rgba(107, 163, 199, 0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(126, 181, 99, 0.015) 0%, transparent 60%),
+        var(--bg-deep);
+    }
+
+    /* === TYPOGRAPHY === */
+    h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; line-height: 1.2; color: var(--text-primary); }
+    h1 { font-size: var(--text-5xl); letter-spacing: -0.02em; }
+    h2 { font-size: var(--text-4xl); }
+    h3 { font-size: var(--text-2xl); }
+    h4 { font-size: var(--text-xl); }
+    p { margin-bottom: var(--space-4); }
+    a { color: var(--accent); text-decoration: none; transition: color var(--duration-fast) ease; }
+    a:hover { color: var(--accent-emphasis); }
+    code, pre { font-family: var(--font-mono); font-size: 0.9em; }
+
+    /* === ANIMATIONS === */
+    @keyframes fadeSlideUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes shimmer {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 0.8; }
+    }
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(199, 93, 93, 0.3); }
+      50% { box-shadow: 0 0 12px 2px rgba(199, 93, 93, 0.15); }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes countUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .animate-in {
+      animation: fadeSlideUp var(--duration-slow) var(--ease-out) forwards;
+      opacity: 0;
+    }
+    .stagger > *:nth-child(1) { animation-delay: 0ms; }
+    .stagger > *:nth-child(2) { animation-delay: 60ms; }
+    .stagger > *:nth-child(3) { animation-delay: 120ms; }
+    .stagger > *:nth-child(4) { animation-delay: 180ms; }
+    .stagger > *:nth-child(5) { animation-delay: 240ms; }
+    .stagger > *:nth-child(6) { animation-delay: 300ms; }
+    .stagger > *:nth-child(7) { animation-delay: 360ms; }
+    .stagger > *:nth-child(8) { animation-delay: 420ms; }
+
+    /* === LAYOUT === */
+    .container { width: 100%; max-width: 1920px; margin: 0 auto; padding: 0 var(--space-8); }
+
+    /* === PRISM SIGNATURE === */
+    .prism-bar {
+      height: 3px;
+      background: linear-gradient(to right, var(--prism-blue) 0%, var(--prism-green) 30%, var(--prism-amber) 70%, var(--prism-red) 100%);
+    }
+    .prism-gradient-text {
+      background: linear-gradient(90deg, var(--prism-blue), var(--prism-green), var(--prism-amber), var(--prism-red));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* === HEADER === */
+    .header {
+      padding: var(--space-6) 0 var(--space-4);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: var(--space-8);
+      animation: fadeSlideUp var(--duration-slow) var(--ease-out);
+    }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-6);
+    }
+    .header-left { display: flex; align-items: center; gap: var(--space-4); }
+    .header-logo {
+      font-size: var(--text-4xl);
+      font-family: var(--font-display);
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+    .header-logo-bar {
+      width: 60px; height: 3px;
+      background: linear-gradient(to right, var(--prism-blue) 0%, var(--prism-green) 30%, var(--prism-amber) 70%, var(--prism-red) 100%);
+      border-radius: 2px;
+      margin-top: var(--space-1);
+    }
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+    }
+    .header-subtitle {
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .header-actions { display: flex; gap: var(--space-3); align-items: center; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+      border-radius: 5px;
+      font-family: var(--font-body);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--duration-fast) ease;
+      border: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .btn svg { width: 14px; height: 14px; }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg-deep);
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: var(--accent-emphasis); transform: translateY(-1px); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+    }
+    .btn-ghost:hover { background: var(--bg-elevated); color: var(--text-primary); }
+    .btn-export {
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+    }
+    .btn-export:hover { background: var(--bg-overlay); color: var(--text-primary); border-color: var(--accent); }
+
+    .date-selector {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: var(--space-2) var(--space-4);
+      border-radius: 5px;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      cursor: pointer;
+      transition: border-color var(--duration-fast) ease;
+    }
+    .date-selector:hover { border-color: var(--accent); }
+
+    /* === AI EXECUTIVE BRIEFING === */
+    .ai-briefing {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: var(--space-6) var(--space-8);
+      margin-bottom: var(--space-8);
+      position: relative;
+      overflow: hidden;
+      animation: fadeSlideUp var(--duration-slow) var(--ease-out);
+      animation-delay: 60ms;
+      opacity: 0;
+      animation-fill-mode: forwards;
+    }
+    .ai-briefing::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(to right, var(--prism-blue) 0%, var(--prism-green) 30%, var(--prism-amber) 70%, var(--prism-red) 100%);
+    }
+    .ai-briefing-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+    }
+    .ai-briefing-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      background: var(--accent-subtle);
+      color: var(--accent);
+      padding: var(--space-1) var(--space-3);
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+    }
+    .ai-briefing-badge .dot {
+      width: 6px; height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: shimmer 2s ease infinite;
+    }
+    .ai-briefing-title {
+      font-family: var(--font-display);
+      font-size: var(--text-lg);
+      color: var(--text-primary);
+    }
+    .ai-briefing-body {
+      font-size: var(--text-base);
+      color: var(--text-secondary);
+      line-height: 1.75;
+      max-width: 1100px;
+    }
+    .ai-briefing-body strong { color: var(--text-primary); font-weight: 600; }
+    .ai-briefing-body .highlight-up { color: var(--success); font-weight: 600; }
+    .ai-briefing-body .highlight-down { color: var(--error); font-weight: 600; }
+    .ai-briefing-body .highlight-accent { color: var(--accent); font-weight: 600; }
+
+    /* === STATS ROW === */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: var(--space-4);
+      margin-bottom: var(--space-8);
+    }
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      padding: var(--space-5);
+      border-radius: 8px;
+      transition: transform var(--duration-fast) ease, box-shadow var(--duration-fast) ease, border-color var(--duration-fast) ease;
+      position: relative;
+      overflow: hidden;
+      animation: fadeSlideUp var(--duration-slow) var(--ease-out) forwards;
+      opacity: 0;
+    }
+    .stat-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+      border-color: var(--border-emphasis);
+    }
+    .stat-card.accent-border-red { border-top: 3px solid var(--error); }
+    .stat-card.accent-border-green { border-top: 3px solid var(--success); }
+    .stat-card.accent-border-blue { border-top: 3px solid var(--prism-blue); }
+    .stat-card.accent-border-amber { border-top: 3px solid var(--accent); }
+
+    .stat-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: var(--space-2);
+    }
+    .stat-value-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-1); }
+    .stat-value {
+      font-size: var(--text-3xl);
+      font-family: var(--font-display);
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+    .stat-value.red { color: var(--error); }
+    .stat-value.green { color: var(--success); }
+    .stat-change {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .stat-change.up { color: var(--success); background: var(--success-subtle); }
+    .stat-change.down { color: var(--error); background: var(--error-subtle); }
+    .stat-change.flat { color: var(--text-muted); background: var(--bg-elevated); }
+    .stat-subtitle {
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      line-height: 1.3;
+    }
+    .stat-sparkline { margin-top: var(--space-3); }
+    .stat-sparkline svg { width: 100%; height: 32px; }
+    .stat-sparkline path {
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .stat-sparkline .sparkline-area {
+      stroke: none;
+      opacity: 0.15;
+    }
+
+    /* === REGION TABS === */
+    .region-tabs {
+      display: flex;
+      gap: var(--space-1);
+      margin-bottom: var(--space-8);
+      border-bottom: 1px solid var(--border);
+      animation: fadeSlideUp var(--duration-slow) var(--ease-out);
+      animation-delay: 200ms;
+    }
+    .region-tab {
+      padding: var(--space-3) var(--space-6);
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      cursor: pointer;
+      transition: color var(--duration-normal) ease;
+      border-bottom: 2px solid transparent;
+      position: relative;
+      bottom: -1px;
+    }
+    .region-tab:hover { color: var(--text-secondary); }
+    .region-tab.active {
+      color: var(--text-primary);
+      border-bottom: 2px solid;
+      border-image: linear-gradient(to right, var(--prism-blue), var(--prism-green), var(--prism-amber), var(--prism-red)) 1;
+    }
+    .region-count {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-left: var(--space-2);
+    }
+    .region-revenue {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--accent);
+      margin-left: var(--space-1);
+    }
+
+    /* === PIPELINE FUNNEL === */
+    .pipeline-section {
+      margin-bottom: var(--space-8);
+      animation: fadeSlideUp var(--duration-slow) var(--ease-out);
+      animation-delay: 280ms;
+      opacity: 0;
+      animation-fill-mode: forwards;
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-5);
+    }
+    .section-title {
+      font-family: var(--font-display);
+      font-size: var(--text-xl);
+      color: var(--text-primary);
+    }
+    .section-meta {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+    }
+
+    .funnel-container {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: var(--space-6);
+      overflow-x: auto;
+    }
+    .funnel-row {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      min-width: 900px;
+    }
+    .funnel-stage {
+      flex: 1;
+      text-align: center;
+      position: relative;
+      padding: var(--space-4) var(--space-3);
+    }
+    .funnel-stage-bar {
+      height: 48px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: var(--space-3);
+      position: relative;
+      transition: transform var(--duration-fast) ease;
+    }
+    .funnel-stage:hover .funnel-stage-bar { transform: scaleY(1.08); }
+    .funnel-stage-value {
+      font-family: var(--font-mono);
+      font-size: var(--text-lg);
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+    .funnel-stage-label {
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
+      font-weight: 600;
+      margin-bottom: var(--space-1);
+    }
+    .funnel-stage-revenue {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent);
+    }
+    .funnel-arrow {
+      color: var(--text-muted);
+      font-size: var(--text-xs);
+      font-family: var(--font-mono);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 0 var(--space-1);
+    }
+    .funnel-arrow .conv-rate {
+      font-size: 10px;
+      color: var(--success);
+      font-weight: 500;
+    }
+
+    /* === MAIN GRID (2x2) === */
+    .main-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-6);
+      margin-bottom: var(--space-8);
+    }
+    .panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      animation: fadeSlideUp var(--duration-slow) var(--ease-out) forwards;
+      opacity: 0;
+      transition: box-shadow var(--duration-fast) ease, border-color var(--duration-fast) ease;
+    }
+    .panel:hover { box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3); border-color: var(--border-emphasis); }
+    .panel:nth-child(1) { animation-delay: 340ms; }
+    .panel:nth-child(2) { animation-delay: 400ms; }
+    .panel:nth-child(3) { animation-delay: 460ms; }
+    .panel:nth-child(4) { animation-delay: 520ms; }
+
+    .panel-header {
+      padding: var(--space-5) var(--space-6);
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .panel-header::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 2px;
+    }
+    .panel-header.accent-green::after { background: linear-gradient(to right, var(--prism-green) 0%, transparent 100%); }
+    .panel-header.accent-red::after { background: linear-gradient(to right, var(--prism-red) 0%, transparent 100%); }
+    .panel-header.accent-amber::after { background: linear-gradient(to right, var(--prism-amber) 0%, transparent 100%); }
+    .panel-header.accent-blue::after { background: linear-gradient(to right, var(--prism-blue) 0%, transparent 100%); }
+
+    .panel-title { font-size: var(--text-lg); font-family: var(--font-display); font-weight: 700; color: var(--text-primary); margin: 0; }
+    .panel-count { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-muted); }
+
+    .panel-content {
+      padding: var(--space-5) var(--space-6);
+      flex: 1;
+      overflow-y: auto;
+      max-height: 420px;
+    }
+    .panel-content::-webkit-scrollbar { width: 5px; }
+    .panel-content::-webkit-scrollbar-track { background: var(--bg-surface); }
+    .panel-content::-webkit-scrollbar-thumb { background: var(--border-emphasis); border-radius: 3px; }
+    .panel-content::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+    /* === CHART BARS === */
+    .chart-item {
+      margin-bottom: var(--space-4);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .chart-label {
+      min-width: 160px;
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+    .chart-bar-container {
+      flex: 1;
+      background: var(--bg-elevated);
+      height: 22px;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+    .chart-bar {
+      height: 100%;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: var(--space-2);
+      transition: width 0.8s var(--ease-out);
+    }
+    .chart-bar.win { background: linear-gradient(90deg, var(--prism-green), rgba(126, 181, 99, 0.7)); }
+    .chart-bar.loss { background: linear-gradient(90deg, var(--prism-amber), var(--prism-red)); }
+    .chart-value {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+    .chart-revenue {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      min-width: 60px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* === RISK RADAR === */
+    .risk-item {
+      padding: var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: var(--space-3);
+      background: var(--bg-elevated);
+      transition: all var(--duration-fast) ease;
+      cursor: pointer;
+    }
+    .risk-item:hover { background: var(--bg-overlay); border-color: var(--border-emphasis); }
+    .risk-item.expanded { background: var(--bg-overlay); }
+    .risk-item.level-high { border-left: 3px solid var(--error); }
+    .risk-item.level-medium { border-left: 3px solid var(--accent); }
+
+    .risk-header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2); }
+    .risk-deal-info { display: flex; align-items: center; gap: var(--space-3); flex: 1; }
+    .risk-deal-id {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+    .risk-deal-id .id-label { font-size: 10px; color: var(--text-muted); font-weight: 400; letter-spacing: 0.5px; }
+    .risk-deal-value {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .risk-badges { display: flex; align-items: center; gap: var(--space-2); }
+    .risk-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+    .risk-badge.high { background: rgba(199, 93, 93, 0.2); color: var(--error); border: 1px solid rgba(199, 93, 93, 0.4); }
+    .risk-badge.medium { background: rgba(212, 165, 116, 0.2); color: var(--accent); border: 1px solid rgba(212, 165, 116, 0.4); }
+    .risk-region {
+      padding: 2px 6px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .risk-confidence {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--prism-blue);
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .risk-confidence .conf-bar {
+      width: 30px; height: 4px;
+      background: var(--bg-deep);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .risk-confidence .conf-fill { height: 100%; background: var(--prism-blue); border-radius: 2px; }
+
+    .risk-summary { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5; }
+    .risk-detail {
+      display: none;
+      margin-top: var(--space-3);
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--border);
+    }
+    .risk-item.expanded .risk-detail { display: block; }
+    .risk-action {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      background: var(--accent-subtle);
+      padding: var(--space-2) var(--space-3);
+      border-radius: 4px;
+      font-size: var(--text-xs);
+      color: var(--accent);
+      font-weight: 600;
+      margin-top: var(--space-2);
+    }
+    .risk-action svg { width: 12px; height: 12px; flex-shrink: 0; }
+    .risk-days-stalled {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--error);
+      margin-top: var(--space-2);
+    }
+
+    /* === MARKET SIGNALS === */
+    .signal-item {
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-elevated);
+      margin-bottom: var(--space-3);
+      transition: background-color var(--duration-fast) ease;
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-3);
+    }
+    .signal-item:hover { background: var(--bg-overlay); }
+    .signal-icon {
+      width: 28px; height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .signal-icon.up { background: var(--success-subtle); color: var(--success); }
+    .signal-icon.down { background: var(--error-subtle); color: var(--error); }
+    .signal-icon.flat { background: var(--bg-overlay); color: var(--text-secondary); }
+    .signal-text { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5; }
+
+    /* === WIN RATE TREND CHART === */
+    .trend-section {
+      margin-bottom: var(--space-8);
+      animation: fadeSlideUp var(--duration-slow) var(--ease-out) forwards;
+      animation-delay: 580ms;
+      opacity: 0;
+    }
+    .trend-chart-container {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: var(--space-6);
+    }
+    .trend-chart-container svg { width: 100%; height: 200px; }
+    .trend-chart-container .axis-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      fill: var(--text-muted);
+    }
+    .trend-chart-container .grid-line { stroke: var(--border); stroke-width: 0.5; }
+    .trend-chart-container .data-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .trend-chart-container .data-area { fill: url(#trendGradient); }
+    .trend-chart-container .data-dot { fill: var(--accent); stroke: var(--bg-surface); stroke-width: 2; }
+
+    /* === COMPETITOR SECTION (Enhanced) === */
+    .competitor-section {
+      margin-bottom: var(--space-8);
+      animation: fadeSlideUp var(--duration-slow) var(--ease-out) forwards;
+      animation-delay: 640ms;
+      opacity: 0;
+    }
+    .competitor-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: var(--space-4);
+    }
+    .competitor-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: var(--space-5);
+      transition: transform var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+    }
+    .competitor-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3); border-color: var(--border-emphasis); }
+    .competitor-top-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-4); }
+    .competitor-name { font-size: var(--text-base); font-weight: 600; color: var(--text-primary); }
+    .competitor-threat {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+    .competitor-threat.high { background: var(--error-subtle); color: var(--error); }
+    .competitor-threat.medium { background: var(--warning-subtle); color: var(--accent); }
+    .competitor-threat.low { background: var(--success-subtle); color: var(--success); }
+
+    .competitor-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); margin-bottom: var(--space-4); }
+    .competitor-stat { text-align: center; }
+    .competitor-stat-value { font-family: var(--font-mono); font-size: var(--text-lg); font-weight: 500; color: var(--text-primary); }
+    .competitor-stat-value.win { color: var(--success); }
+    .competitor-stat-value.loss { color: var(--error); }
+    .competitor-stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--font-mono); }
+
+    .competitor-fud {
+      background: var(--bg-elevated);
+      border-radius: 5px;
+      padding: var(--space-3);
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+    .competitor-fud-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: var(--space-1);
+    }
+
+    /* === AI RECOMMENDATIONS === */
+    .recommendations-section {
+      margin-bottom: var(--space-8);
+      animation: fadeSlideUp var(--duration-slow) var(--ease-out) forwards;
+      animation-delay: 700ms;
+      opacity: 0;
+    }
+    .reco-list { display: grid; gap: var(--space-3); }
+    .reco-item {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: var(--space-5);
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: var(--space-4);
+      align-items: center;
+      transition: border-color var(--duration-fast) ease;
+    }
+    .reco-item:hover { border-color: var(--border-emphasis); }
+    .reco-priority {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      font-weight: 600;
+    }
+    .reco-priority.p1 { background: var(--error-subtle); color: var(--error); }
+    .reco-priority.p2 { background: var(--warning-subtle); color: var(--accent); }
+    .reco-priority.p3 { background: var(--success-subtle); color: var(--success); }
+    .reco-body {}
+    .reco-title { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+    .reco-desc { font-size: var(--text-xs); color: var(--text-secondary); line-height: 1.5; }
+    .reco-impact {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--success);
+      background: var(--success-subtle);
+      padding: 3px 10px;
+      border-radius: 4px;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+
+    /* === PROCESSING METADATA === */
+    .processing-footer {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: var(--space-4) var(--space-6);
+      margin-bottom: var(--space-6);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-6);
+      animation: fadeSlideUp var(--duration-slow) var(--ease-out) forwards;
+      animation-delay: 760ms;
+      opacity: 0;
+    }
+    .processing-left { display: flex; align-items: center; gap: var(--space-6); }
+    .processing-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .processing-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+    }
+    .processing-dot.green { background: var(--success); }
+    .processing-dot.amber { background: var(--accent); }
+    .processing-dot.blue { background: var(--prism-blue); }
+
+    .data-quality-bar-wrap {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .data-quality-bar {
+      width: 120px;
+      height: 6px;
+      background: var(--bg-elevated);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .data-quality-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--prism-green), var(--prism-amber));
+      border-radius: 3px;
+    }
+
+    /* === UPLOAD PANEL (same as before) === */
+    .upload-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity var(--duration-normal) ease;
+    }
+    .upload-overlay.visible { opacity: 1; pointer-events: auto; }
+    .upload-modal {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 100%; max-width: 620px;
+      padding: var(--space-8);
+      transform: translateY(20px);
+      transition: transform var(--duration-normal) ease;
+    }
+    .upload-overlay.visible .upload-modal { transform: translateY(0); }
+    .upload-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); }
+    .upload-modal-header h2 { font-family: var(--font-display); font-size: var(--text-2xl); font-weight: 700; }
+    .upload-close { background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer; padding: var(--space-2); line-height: 1; transition: color var(--duration-fast) ease; }
+    .upload-close:hover { color: var(--text-primary); }
+    .upload-dropzone {
+      border: 2px dashed var(--border-emphasis);
+      border-radius: 10px;
+      padding: var(--space-12) var(--space-8);
+      text-align: center;
+      cursor: pointer;
+      transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease;
+      margin-bottom: var(--space-6);
+    }
+    .upload-dropzone:hover, .upload-dropzone.dragover { border-color: var(--accent); background: var(--accent-subtle); }
+    .upload-dropzone-icon { font-size: 48px; color: var(--text-muted); margin-bottom: var(--space-4); }
+    .upload-dropzone.dragover .upload-dropzone-icon { color: var(--accent); }
+    .upload-dropzone h3 { font-family: var(--font-display); font-size: var(--text-xl); margin-bottom: var(--space-2); color: var(--text-primary); }
+    .upload-dropzone p { font-size: var(--text-sm); color: var(--text-muted); margin: 0; }
+    .browse-link { color: var(--accent); text-decoration: underline; cursor: pointer; }
+    .upload-file-preview {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: var(--space-4) var(--space-6);
+      margin-bottom: var(--space-6);
+      display: none;
+    }
+    .upload-file-preview.visible { display: block; }
+    .upload-file-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); }
+    .upload-file-name { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-primary); font-weight: 500; }
+    .upload-file-size { font-size: var(--text-xs); color: var(--text-muted); }
+    .upload-file-meta { display: flex; gap: var(--space-6); font-size: var(--text-xs); color: var(--text-secondary); }
+    .upload-file-meta span { display: flex; align-items: center; gap: var(--space-2); }
+    .meta-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+    .meta-dot.green { background: var(--success); }
+    .meta-dot.amber { background: var(--accent); }
+    .meta-dot.blue { background: var(--prism-blue); }
+    .upload-col-preview { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border); }
+    .upload-col-preview-label { font-size: var(--text-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-family: var(--font-mono); margin-bottom: var(--space-3); }
+    .upload-col-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .upload-col-tag { background: var(--bg-overlay); color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px; padding: 3px 10px; border-radius: 4px; border: 1px solid var(--border); }
+    .upload-actions { display: flex; gap: var(--space-4); justify-content: flex-end; }
+    .upload-run-btn {
+      display: inline-flex; align-items: center; gap: var(--space-2);
+      background: var(--success); color: var(--bg-deep); border: none;
+      padding: var(--space-3) var(--space-8); border-radius: 6px;
+      font-family: var(--font-body); font-size: var(--text-sm); font-weight: 600;
+      cursor: pointer; transition: all var(--duration-fast) ease;
+      opacity: 0.4; pointer-events: none;
+    }
+    .upload-run-btn.ready { opacity: 1; pointer-events: auto; }
+    .upload-run-btn.ready:hover { filter: brightness(1.1); transform: scale(1.02); }
+    .upload-cancel-btn {
+      background: var(--bg-elevated); color: var(--text-secondary);
+      border: 1px solid var(--border); padding: var(--space-3) var(--space-6);
+      border-radius: 6px; font-family: var(--font-body); font-size: var(--text-sm);
+      cursor: pointer; transition: background-color var(--duration-fast) ease;
+    }
+    .upload-cancel-btn:hover { background: var(--bg-overlay); color: var(--text-primary); }
+    .upload-provider-row {
+      display: flex; align-items: center; gap: var(--space-4);
+      margin-bottom: var(--space-6); font-size: var(--text-sm); color: var(--text-secondary);
+    }
+    .upload-provider-select {
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      color: var(--text-primary); padding: var(--space-2) var(--space-4);
+      border-radius: 4px; font-family: var(--font-mono); font-size: var(--text-xs); cursor: pointer;
+    }
+
+    /* === RESPONSIVE === */
+    @media (max-width: 1440px) {
+      .stats-row { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 1280px) {
+      .header-row { flex-wrap: wrap; }
+      .main-grid { grid-template-columns: 1fr; }
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .stats-row { grid-template-columns: 1fr; }
+      .region-tabs { flex-wrap: wrap; }
+      .processing-footer { flex-direction: column; align-items: flex-start; }
+    }
+
+    /* === ACCESSIBILITY === */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+    :focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--accent); }
+  </style>
+</head>
+<body class="bg-mesh">
+  <div class="container">
+
+    <!-- ═══════════════════ HEADER ═══════════════════ -->
+    <header class="header">
+      <div class="header-row">
+        <div class="header-left">
+          <div>
+            <div class="header-logo">PRISM</div>
+            <div class="header-logo-bar"></div>
+          </div>
+          <div class="header-meta">
+            <span class="header-subtitle">Global Revenue Intelligence</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <select class="date-selector" id="dateSelector">
+            <option>Week of Feb 3, 2026</option>
+            <option>Week of Jan 27, 2026</option>
+            <option>Week of Jan 20, 2026</option>
+            <option>Week of Jan 13, 2026</option>
+          </select>
+          <button class="btn btn-export" onclick="alert('Export to PDF — coming in Phase 1.1')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Export PDF
+          </button>
+          <button class="btn btn-export" onclick="alert('Export to PPTX — coming in Phase 1.1')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            Export Slides
+          </button>
+          <button class="btn btn-primary" onclick="openUploadPanel()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Upload CSV
+          </button>
+        </div>
+      </div>
+      <div class="prism-bar" style="margin-top: var(--space-6);"></div>
+    </header>
+
+    <!-- ═══════════════════ AI EXECUTIVE BRIEFING ═══════════════════ -->
+    <div class="ai-briefing" id="aiBriefing">
+      <div class="ai-briefing-header">
+        <div class="ai-briefing-badge"><span class="dot"></span> AI-GENERATED BRIEFING</div>
+        <span class="ai-briefing-title">Weekly Intelligence Summary</span>
+      </div>
+      <div class="ai-briefing-body" id="briefingBody">
+        Global pipeline stands at <strong>$47.2M</strong> across <strong>347 opportunities</strong>, with a blended win rate of <span class="highlight-up">42%</span> — up 3 points from last quarter. The primary concern this week is a coordinated <span class="highlight-down">competitor FUD campaign on pricing</span> detected across 14 deals in NA and UK, predominantly from ServiceMax and ServiceTitan. Revenue at risk from flagged deals totals <span class="highlight-down">$4.2M</span>, with 5 deals classified as HIGH severity. Recommended immediate action: executive alignment calls on the top 3 at-risk opportunities (OPP #4782, #3291, #2847) which represent <span class="highlight-accent">$2.8M</span> in combined pipeline value. Positive signal: <span class="highlight-up">demand for AI/automation features is accelerating</span>, now mentioned in 23% of active opportunities — this is a differentiation lever we should exploit in upcoming demos and proposals.
+      </div>
+    </div>
+
+    <!-- ═══════════════════ STATS ROW ═══════════════════ -->
+    <div class="stats-row stagger" id="statsRow">
+      <!-- Populated by JS -->
+    </div>
+
+    <!-- ═══════════════════ REGION TABS ═══════════════════ -->
+    <div class="region-tabs" id="regionTabs">
+      <button class="region-tab active" data-region="all">
+        All Regions <span class="region-count">(347)</span> <span class="region-revenue">$47.2M</span>
+      </button>
+      <button class="region-tab" data-region="na">
+        NA <span class="region-count">(187)</span> <span class="region-revenue">$26.1M</span>
+      </button>
+      <button class="region-tab" data-region="uk">
+        UK <span class="region-count">(94)</span> <span class="region-revenue">$13.4M</span>
+      </button>
+      <button class="region-tab" data-region="anz">
+        ANZ <span class="region-count">(66)</span> <span class="region-revenue">$7.7M</span>
+      </button>
+    </div>
+
+    <!-- ═══════════════════ PIPELINE FUNNEL ═══════════════════ -->
+    <div class="pipeline-section" id="pipelineSection">
+      <div class="section-header">
+        <span class="section-title">Pipeline Stage Progression</span>
+        <span class="section-meta">Avg. cycle: 38 days &nbsp;|&nbsp; Deals weighted by stage probability</span>
+      </div>
+      <div class="funnel-container" id="funnelContainer">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- ═══════════════════ MAIN 2x2 GRID ═══════════════════ -->
+    <div class="main-grid">
+
+      <!-- Win Themes -->
+      <div class="panel">
+        <div class="panel-header accent-green">
+          <h2 class="panel-title">Win Themes</h2>
+          <span class="panel-count" id="winThemeCount">146 wins analyzed</span>
+        </div>
+        <div class="panel-content" id="winThemes"><!-- JS --></div>
+      </div>
+
+      <!-- Loss Themes -->
+      <div class="panel">
+        <div class="panel-header accent-red">
+          <h2 class="panel-title">Loss Themes</h2>
+          <span class="panel-count" id="lossThemeCount">89 losses analyzed</span>
+        </div>
+        <div class="panel-content" id="lossThemes"><!-- JS --></div>
+      </div>
+
+      <!-- Risk Radar -->
+      <div class="panel">
+        <div class="panel-header accent-amber">
+          <h2 class="panel-title">Risk Radar</h2>
+          <span class="panel-count" id="riskCount">$4.2M at risk</span>
+        </div>
+        <div class="panel-content" id="riskRadar"><!-- JS --></div>
+      </div>
+
+      <!-- Market Signals -->
+      <div class="panel">
+        <div class="panel-header accent-blue">
+          <h2 class="panel-title">Market Signals</h2>
+          <span class="panel-count" id="signalCount">5 signals detected</span>
+        </div>
+        <div class="panel-content" id="marketSignals"><!-- JS --></div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════ WIN RATE TREND ═══════════════════ -->
+    <div class="trend-section" id="trendSection">
+      <div class="section-header">
+        <span class="section-title">Win Rate Trend</span>
+        <span class="section-meta">8-week rolling &nbsp;|&nbsp; By region</span>
+      </div>
+      <div class="trend-chart-container" id="trendChart">
+        <!-- SVG chart rendered by JS -->
+      </div>
+    </div>
+
+    <!-- ═══════════════════ COMPETITOR INTELLIGENCE ═══════════════════ -->
+    <div class="competitor-section" id="competitorSection">
+      <div class="section-header">
+        <span class="section-title">Competitor Intelligence</span>
+        <span class="section-meta">Win/Loss record &nbsp;|&nbsp; FUD tactics detected</span>
+      </div>
+      <div class="competitor-list" id="competitorList"><!-- JS --></div>
+    </div>
+
+    <!-- ═══════════════════ AI RECOMMENDATIONS ═══════════════════ -->
+    <div class="recommendations-section" id="recoSection">
+      <div class="section-header">
+        <span class="section-title">AI Recommended Actions</span>
+        <span class="section-meta">Prioritized by revenue impact</span>
+      </div>
+      <div class="reco-list" id="recoList"><!-- JS --></div>
+    </div>
+
+    <!-- ═══════════════════ PROCESSING FOOTER ═══════════════════ -->
+    <div class="processing-footer">
+      <div class="processing-left">
+        <div class="processing-item">
+          <span class="processing-dot green"></span>
+          347 opportunities analyzed
+        </div>
+        <div class="processing-item">
+          <span class="processing-dot blue"></span>
+          Claude Opus 4 &nbsp;·&nbsp; 42s processing
+        </div>
+        <div class="processing-item">
+          <span class="processing-dot amber"></span>
+          Feb 3, 2026 at 06:00 UTC
+        </div>
+      </div>
+      <div class="data-quality-bar-wrap">
+        <span class="processing-item">Data Quality</span>
+        <div class="data-quality-bar">
+          <div class="data-quality-fill" style="width: 87%;"></div>
+        </div>
+        <span class="processing-item">87%</span>
+      </div>
+    </div>
+
+  </div><!-- /.container -->
+
+  <!-- ═══════════════════ UPLOAD MODAL ═══════════════════ -->
+  <div class="upload-overlay" id="uploadOverlay" onclick="if(event.target===this)closeUploadPanel()">
+    <div class="upload-modal">
+      <div class="upload-modal-header">
+        <h2>Upload SFDC Export</h2>
+        <button class="upload-close" onclick="closeUploadPanel()">&times;</button>
+      </div>
+      <div class="upload-dropzone" id="uploadDropzone">
+        <div class="upload-dropzone-icon">&#8682;</div>
+        <h3>Drop your CSV file here</h3>
+        <p>or <span class="browse-link" id="browseTrigger">browse files</span> — .csv files up to 50 MB</p>
+        <input type="file" id="csvFileInput" accept=".csv" style="display:none;">
+      </div>
+      <div class="upload-file-preview" id="filePreview">
+        <div class="upload-file-info">
+          <span class="upload-file-name" id="fileName"></span>
+          <span class="upload-file-size" id="fileSize"></span>
+        </div>
+        <div class="upload-file-meta">
+          <span><span class="meta-dot green"></span> <span id="fileRows">—</span> rows</span>
+          <span><span class="meta-dot blue"></span> <span id="fileCols">—</span> columns</span>
+          <span><span class="meta-dot amber"></span> <span id="fileRegions">—</span> regions</span>
+        </div>
+        <div class="upload-col-preview" id="colPreview">
+          <div class="upload-col-preview-label">Detected Columns</div>
+          <div class="upload-col-tags" id="colTags"></div>
+        </div>
+      </div>
+      <div class="upload-provider-row">
+        <span>LLM Provider:</span>
+        <select class="upload-provider-select" id="providerSelect">
+          <option value="claude" selected>Claude (Opus 4) — Recommended</option>
+          <option value="gemini">Gemini (2.0 Flash) — Google Native</option>
+          <option value="openai">GPT-4o — OpenAI</option>
+        </select>
+      </div>
+      <div class="upload-actions">
+        <button class="upload-cancel-btn" onclick="closeUploadPanel()">Cancel</button>
+        <button class="upload-run-btn" id="runAnalysisBtn" onclick="runAnalysis()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Run Analysis
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ JAVASCRIPT ═══════════════════ -->
+  <script>
+    // ─── DATA ───────────────────────────────────────────────
+    const DATA = {
+      all: {
+        stats: {
+          pipeline: { value: '$47.2M', change: '+8%', dir: 'up', sub: 'Total weighted pipeline' },
+          winRate: { value: '42%', change: '+3pts', dir: 'up', sub: 'Blended win rate' },
+          atRisk: { value: '$4.2M', change: '+$1.1M', dir: 'down', sub: '12 deals flagged' },
+          velocity: { value: '38d', change: '-4d', dir: 'up', sub: 'Avg. close cycle' },
+          forecast: { value: '87%', change: '+2%', dir: 'up', sub: 'AI confidence score' },
+          threats: { value: '5', change: '+2', dir: 'down', sub: 'Active displacements' }
+        },
+        sparklines: {
+          pipeline: [38.2, 39.5, 41.0, 40.2, 43.8, 44.1, 45.9, 47.2],
+          winRate: [36, 38, 37, 39, 40, 38, 41, 42],
+          atRisk: [2.1, 2.8, 3.0, 2.5, 3.1, 3.8, 3.6, 4.2],
+          velocity: [46, 44, 43, 42, 41, 40, 39, 38],
+          forecast: [78, 80, 82, 83, 84, 85, 86, 87],
+          threats: [2, 3, 2, 4, 3, 3, 4, 5]
+        },
+        funnel: [
+          { stage: 'Discovery', count: 112, revenue: '$14.8M', color: 'var(--prism-blue)' },
+          { stage: 'Qualification', count: 87, revenue: '$11.4M', color: '#5f9abd' },
+          { stage: 'Demo / POC', count: 64, revenue: '$9.2M', color: 'var(--prism-green)' },
+          { stage: 'Proposal', count: 42, revenue: '$6.8M', color: '#a9b968' },
+          { stage: 'Negotiation', count: 28, revenue: '$3.8M', color: 'var(--prism-amber)' },
+          { stage: 'Closed Won', count: 14, revenue: '$1.2M', color: 'var(--success)' }
+        ],
+        winThemes: [
+          { label: 'Workflow Automation', pct: 28, revenue: '$5.4M' },
+          { label: 'Scheduling Flexibility', pct: 22, revenue: '$4.1M' },
+          { label: 'Mobile Field Experience', pct: 18, revenue: '$3.2M' },
+          { label: 'Integration Ecosystem', pct: 14, revenue: '$2.5M' },
+          { label: 'Customer Support', pct: 10, revenue: '$1.8M' },
+          { label: 'Implementation Speed', pct: 8, revenue: '$1.1M' }
+        ],
+        lossThemes: [
+          { label: 'Pricing vs Competition', pct: 31, revenue: '$4.8M' },
+          { label: 'Missing Asset Tracking', pct: 24, revenue: '$3.2M' },
+          { label: 'Implementation Timeline', pct: 16, revenue: '$2.1M' },
+          { label: 'Incumbent Loyalty', pct: 12, revenue: '$1.6M' },
+          { label: 'Reporting Limitations', pct: 10, revenue: '$1.2M' },
+          { label: 'Change Management', pct: 7, revenue: '$0.8M' }
+        ],
+        risks: [
+          { id: 4782, region: 'NA', level: 'HIGH', value: '$1.2M', confidence: 94, summary: 'Executive sponsor has gone silent — no activity in 3 weeks', action: 'Schedule CxO alignment call with VP Sales sponsorship', daysStalled: 21 },
+          { id: 3291, region: 'UK', level: 'HIGH', value: '$890K', confidence: 91, summary: 'Competitor displacement attempt — ServiceMax pricing FUD detected', action: 'Deploy competitive battlecard; arrange reference call', daysStalled: 14 },
+          { id: 2847, region: 'NA', level: 'HIGH', value: '$720K', confidence: 88, summary: 'Stalled at procurement — no technical validation scheduled', action: 'Engage procurement directly; propose accelerated POC', daysStalled: 18 },
+          { id: 5891, region: 'ANZ', level: 'HIGH', value: '$540K', confidence: 85, summary: 'Active competitor POC running in parallel with ServiceTitan', action: 'Fast-track demo; highlight mobile-first differentiators', daysStalled: 10 },
+          { id: 4521, region: 'UK', level: 'HIGH', value: '$680K', confidence: 82, summary: 'Budget reallocated to other priorities — viability questioned', action: 'ROI workshop with CFO; present 12-month payback model', daysStalled: 25 },
+          { id: 5103, region: 'ANZ', level: 'MEDIUM', value: '$380K', confidence: 78, summary: 'Negative sentiment shift in recent notes — budget concerns', action: 'Phased deployment proposal to reduce upfront cost', daysStalled: 8 },
+          { id: 4156, region: 'UK', level: 'MEDIUM', value: '$450K', confidence: 75, summary: 'Champion left organization — new stakeholder unengaged', action: 'Map new org chart; identify and engage new champion', daysStalled: 12 },
+          { id: 3672, region: 'NA', level: 'MEDIUM', value: '$310K', confidence: 72, summary: 'Requirements expanding without timeline adjustment — scope creep', action: 'Scope freeze meeting; document must-haves vs nice-to-haves', daysStalled: 7 },
+          { id: 2103, region: 'NA', level: 'MEDIUM', value: '$280K', confidence: 68, summary: 'Decision committee expanded from 3 to 7 — consensus risk', action: 'Multi-thread: assign SE to each stakeholder group', daysStalled: 9 },
+          { id: 3847, region: 'ANZ', level: 'MEDIUM', value: '$220K', confidence: 65, summary: 'Technical team skepticism on customization scope', action: 'Technical deep-dive session with solution architect', daysStalled: 6 }
+        ],
+        signals: [
+          { dir: 'up', text: 'Competitor FUD campaign on pricing detected across 14 deals in NA and UK — primarily ServiceMax and ServiceTitan' },
+          { dir: 'up', text: 'AI/Automation feature demand accelerating — now mentioned in 23% of active opportunities, up from 14% last quarter' },
+          { dir: 'flat', text: 'Mid-market consolidation trend continues — 8 prospects currently evaluating during active M&A activity' },
+          { dir: 'up', text: 'ANZ price sensitivity increasing — 3 deals citing budget freezes or delayed capex approval' },
+          { dir: 'up', text: 'API integration requests surging — 18 deals include integration requirements, up 40% from prior quarter' }
+        ],
+        competitors: [
+          { name: 'ServiceMax', threat: 'high', wins: 8, losses: 12, pending: 14, fud: 'Claiming 30% lower TCO with bundled IoT; pushing "enterprise-only" narrative against us' },
+          { name: 'ServiceTitan', threat: 'high', wins: 4, losses: 6, pending: 5, fud: 'Aggressive discounting in ANZ; offering 18-month free trial on residential module' },
+          { name: 'Job Logic', threat: 'medium', wins: 11, losses: 9, pending: 8, fud: 'Positioning as "simpler to implement"; highlighting our customization complexity' },
+          { name: 'Jobber', threat: 'low', wins: 14, losses: 3, pending: 2, fud: 'Limited enterprise play; mostly appearing in SMB segments we typically win' },
+          { name: 'In-House / Custom', threat: 'medium', wins: 6, losses: 8, pending: 4, fud: 'IT teams arguing "build vs buy" — typically stalls deals 6+ weeks' }
+        ],
+        recommendations: [
+          { priority: 'P1', title: 'Deploy emergency response on top 3 at-risk deals ($2.8M)', desc: 'OPP #4782, #3291, #2847 require immediate executive intervention. Schedule CxO calls this week.', impact: '+$2.8M save' },
+          { priority: 'P1', title: 'Counter ServiceMax pricing FUD with updated battlecard', desc: 'FUD detected in 14 deals. Distribute updated TCO comparison showing 3-year advantage.', impact: '14 deals protected' },
+          { priority: 'P2', title: 'Launch AI/Automation demo track for qualifying opportunities', desc: '23% of pipeline mentions automation. Create standardized demo flow highlighting AI capabilities.', impact: '+5% win rate est.' },
+          { priority: 'P2', title: 'Accelerate ANZ deals with phased deployment option', desc: 'Budget sensitivity in ANZ requires flexible commercial model. Propose Phase 1/Phase 2 split.', impact: '$1.1M pipeline unlock' },
+          { priority: 'P3', title: 'Host "Build vs. Buy" webinar targeting IT decision-makers', desc: '4 deals stalled by in-house build arguments. ROI content showing 18-month breakeven needed.', impact: '4 deals accelerated' }
+        ],
+        trendData: {
+          weeks: ['Dec 16', 'Dec 23', 'Dec 30', 'Jan 6', 'Jan 13', 'Jan 20', 'Jan 27', 'Feb 3'],
+          all: [36, 38, 37, 39, 40, 38, 41, 42],
+          na: [38, 40, 39, 41, 42, 40, 43, 44],
+          uk: [33, 35, 34, 36, 37, 35, 38, 39],
+          anz: [37, 39, 38, 40, 41, 39, 42, 42]
+        }
+      }
+    };
+
+    // Copy subsets for region filtering
+    DATA.na = JSON.parse(JSON.stringify(DATA.all));
+    DATA.na.stats.pipeline.value = '$26.1M';
+    DATA.na.stats.winRate.value = '44%';
+    DATA.na.stats.atRisk.value = '$2.5M';
+    DATA.na.stats.atRisk.sub = '6 deals flagged';
+    DATA.na.stats.threats.value = '3';
+    DATA.na.risks = DATA.all.risks.filter(r => r.region === 'NA');
+    DATA.na.signals = DATA.all.signals.filter((_, i) => [0, 1, 2].includes(i));
+
+    DATA.uk = JSON.parse(JSON.stringify(DATA.all));
+    DATA.uk.stats.pipeline.value = '$13.4M';
+    DATA.uk.stats.winRate.value = '39%';
+    DATA.uk.stats.atRisk.value = '$2.0M';
+    DATA.uk.stats.atRisk.sub = '4 deals flagged';
+    DATA.uk.stats.threats.value = '2';
+    DATA.uk.risks = DATA.all.risks.filter(r => r.region === 'UK');
+    DATA.uk.signals = DATA.all.signals.filter((_, i) => [0, 2].includes(i));
+
+    DATA.anz = JSON.parse(JSON.stringify(DATA.all));
+    DATA.anz.stats.pipeline.value = '$7.7M';
+    DATA.anz.stats.winRate.value = '42%';
+    DATA.anz.stats.atRisk.value = '$1.1M';
+    DATA.anz.stats.atRisk.sub = '3 deals flagged';
+    DATA.anz.stats.threats.value = '1';
+    DATA.anz.risks = DATA.all.risks.filter(r => r.region === 'ANZ');
+    DATA.anz.signals = DATA.all.signals.filter((_, i) => [3, 4].includes(i));
+
+    let currentRegion = 'all';
+
+    // ─── SPARKLINE GENERATOR ────────────────────────────────
+    function sparklineSVG(data, color, w = 140, h = 32) {
+      const min = Math.min(...data) * 0.95;
+      const max = Math.max(...data) * 1.05;
+      const range = max - min || 1;
+      const pts = data.map((v, i) => {
+        const x = (i / (data.length - 1)) * w;
+        const y = h - ((v - min) / range) * h;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      });
+      const line = `M${pts.join(' L')}`;
+      const area = `${line} L${w},${h} L0,${h} Z`;
+      return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+        <defs><linearGradient id="sg_${color.replace('#','')}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${color}" stop-opacity="0.3"/>
+          <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+        </linearGradient></defs>
+        <path d="${area}" class="sparkline-area" fill="url(#sg_${color.replace('#','')})" />
+        <path d="${line}" style="stroke:${color};" class="" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="${pts[pts.length-1].split(',')[0]}" cy="${pts[pts.length-1].split(',')[1]}" r="2.5" fill="${color}"/>
+      </svg>`;
+    }
+
+    // ─── RENDER STATS ───────────────────────────────────────
+    function renderStats(region) {
+      const d = DATA[region];
+      const s = d.stats;
+      const sp = d.sparklines || DATA.all.sparklines;
+      const colors = {
+        pipeline: '#d4a574',
+        winRate: '#7eb563',
+        atRisk: '#c75d5d',
+        velocity: '#6ba3c7',
+        forecast: '#d4a574',
+        threats: '#c75d5d'
+      };
+      const borders = {
+        pipeline: 'accent-border-amber',
+        winRate: 'accent-border-green',
+        atRisk: 'accent-border-red',
+        velocity: 'accent-border-blue',
+        forecast: 'accent-border-amber',
+        threats: 'accent-border-red'
+      };
+      const labels = {
+        pipeline: 'Pipeline Value',
+        winRate: 'Win Rate',
+        atRisk: 'Revenue at Risk',
+        velocity: 'Deal Velocity',
+        forecast: 'Forecast Confidence',
+        threats: 'Active Threats'
+      };
+
+      const statsRow = document.getElementById('statsRow');
+      statsRow.innerHTML = Object.entries(s).map(([key, stat], idx) => {
+        const valClass = key === 'atRisk' || key === 'threats' ? ' red' : key === 'winRate' ? ' green' : '';
+        const changeClass = stat.dir === 'up' && (key !== 'atRisk' && key !== 'threats') ? 'up' :
+                           stat.dir === 'down' && (key === 'atRisk' || key === 'threats') ? 'down' :
+                           stat.dir === 'up' && (key === 'atRisk' || key === 'threats') ? 'down' :
+                           stat.dir === 'down' ? 'up' : 'flat';
+        return `
+          <div class="stat-card ${borders[key]}" style="animation-delay: ${120 + idx * 60}ms;">
+            <div class="stat-label">${labels[key]}</div>
+            <div class="stat-value-row">
+              <div class="stat-value${valClass}">${stat.value}</div>
+              <span class="stat-change ${changeClass}">${stat.change}</span>
+            </div>
+            <div class="stat-subtitle">${stat.sub}</div>
+            <div class="stat-sparkline">${sparklineSVG(sp[key], colors[key])}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ─── RENDER FUNNEL ──────────────────────────────────────
+    function renderFunnel(region) {
+      const stages = DATA[region].funnel || DATA.all.funnel;
+      const maxCount = Math.max(...stages.map(s => s.count));
+      const container = document.getElementById('funnelContainer');
+
+      let html = '<div class="funnel-row">';
+      stages.forEach((stage, idx) => {
+        const barH = Math.max(30, (stage.count / maxCount) * 48);
+        const opacity = 0.5 + (stage.count / maxCount) * 0.5;
+        html += `
+          <div class="funnel-stage">
+            <div class="funnel-stage-label">${stage.stage}</div>
+            <div class="funnel-stage-bar" style="background: ${stage.color}; opacity: ${opacity.toFixed(2)}; height: ${barH}px;">
+              <span class="funnel-stage-value">${stage.count}</span>
+            </div>
+            <div class="funnel-stage-revenue">${stage.revenue}</div>
+          </div>
+        `;
+        if (idx < stages.length - 1) {
+          const convRate = ((stages[idx + 1].count / stage.count) * 100).toFixed(0);
+          html += `
+            <div class="funnel-arrow">
+              <span style="font-size:16px; color: var(--text-muted);">&#8594;</span>
+              <span class="conv-rate">${convRate}%</span>
+            </div>
+          `;
+        }
+      });
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    // ─── RENDER THEMES ──────────────────────────────────────
+    function renderThemes(containerId, themes, type) {
+      const el = document.getElementById(containerId);
+      el.innerHTML = themes.map(t => `
+        <div class="chart-item">
+          <div class="chart-label">${t.label}</div>
+          <div class="chart-bar-container">
+            <div class="chart-bar ${type}" style="width: ${t.pct}%;">
+              <span class="chart-value">${t.pct}%</span>
+            </div>
+          </div>
+          <div class="chart-revenue">${t.revenue}</div>
+        </div>
+      `).join('');
+    }
+
+    // ─── RENDER RISK RADAR ──────────────────────────────────
+    function renderRisks(region) {
+      const risks = DATA[region].risks;
+      const el = document.getElementById('riskRadar');
+      el.innerHTML = risks.map(r => `
+        <div class="risk-item level-${r.level.toLowerCase()}" onclick="this.classList.toggle('expanded')">
+          <div class="risk-header">
+            <div class="risk-deal-info">
+              <div class="risk-deal-id"><span class="id-label">OPP ID</span> #${r.id}</div>
+              <span class="risk-deal-value">${r.value}</span>
+              <span class="risk-region">${r.region}</span>
+            </div>
+            <div class="risk-badges">
+              <div class="risk-confidence" title="AI Confidence: ${r.confidence}%">
+                <div class="conf-bar"><div class="conf-fill" style="width:${r.confidence}%"></div></div>
+                ${r.confidence}%
+              </div>
+              <div class="risk-badge ${r.level.toLowerCase()}">${r.level}</div>
+            </div>
+          </div>
+          <div class="risk-summary">${r.summary}</div>
+          <div class="risk-detail">
+            <div class="risk-action">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              ${r.action}
+            </div>
+            <div class="risk-days-stalled">Stalled: ${r.daysStalled} days</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // ─── RENDER MARKET SIGNALS ──────────────────────────────
+    function renderSignals(region) {
+      const signals = DATA[region].signals;
+      const el = document.getElementById('marketSignals');
+      el.innerHTML = signals.map(s => {
+        const icon = s.dir === 'up' ? '&#8593;' : s.dir === 'down' ? '&#8595;' : '&#8594;';
+        const cls = s.dir === 'up' ? 'up' : s.dir === 'down' ? 'down' : 'flat';
+        return `
+          <div class="signal-item">
+            <div class="signal-icon ${cls}">${icon}</div>
+            <span class="signal-text">${s.text}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ─── RENDER TREND CHART ─────────────────────────────────
+    function renderTrendChart() {
+      const td = DATA.all.trendData;
+      const w = 900, h = 180, padL = 45, padR = 20, padT = 20, padB = 35;
+      const chartW = w - padL - padR;
+      const chartH = h - padT - padB;
+
+      const allVals = [...td.all, ...td.na, ...td.uk, ...td.anz];
+      const minV = Math.min(...allVals) - 3;
+      const maxV = Math.max(...allVals) + 3;
+      const rangeV = maxV - minV;
+
+      function toPath(vals) {
+        return vals.map((v, i) => {
+          const x = padL + (i / (vals.length - 1)) * chartW;
+          const y = padT + chartH - ((v - minV) / rangeV) * chartH;
+          return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(' ');
+      }
+
+      function toArea(vals) {
+        const path = toPath(vals);
+        const lastX = padL + chartW;
+        const firstX = padL;
+        return `${path} L${lastX},${padT + chartH} L${firstX},${padT + chartH} Z`;
+      }
+
+      const gridLines = [30, 35, 40, 45, 50].filter(v => v >= minV && v <= maxV);
+
+      let svg = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">`;
+      svg += `<defs>
+        <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#d4a574" stop-opacity="0.2"/>
+          <stop offset="100%" stop-color="#d4a574" stop-opacity="0"/>
+        </linearGradient>
+      </defs>`;
+
+      // Grid
+      gridLines.forEach(v => {
+        const y = padT + chartH - ((v - minV) / rangeV) * chartH;
+        svg += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" class="grid-line"/>`;
+        svg += `<text x="${padL - 8}" y="${y + 3}" text-anchor="end" class="axis-label">${v}%</text>`;
+      });
+
+      // X labels
+      td.weeks.forEach((label, i) => {
+        const x = padL + (i / (td.weeks.length - 1)) * chartW;
+        svg += `<text x="${x}" y="${h - 5}" text-anchor="middle" class="axis-label">${label}</text>`;
+      });
+
+      // Region lines (subtle)
+      const regionColors = { na: '#6ba3c7', uk: '#7eb563', anz: '#c75d5d' };
+      ['na', 'uk', 'anz'].forEach(r => {
+        svg += `<path d="${toPath(td[r])}" fill="none" stroke="${regionColors[r]}" stroke-width="1" stroke-opacity="0.4" stroke-dasharray="4,4"/>`;
+      });
+
+      // Main "All" line
+      svg += `<path d="${toArea(td.all)}" fill="url(#trendGradient)"/>`;
+      svg += `<path d="${toPath(td.all)}" fill="none" stroke="#d4a574" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+      // Dots on All line
+      td.all.forEach((v, i) => {
+        const x = padL + (i / (td.all.length - 1)) * chartW;
+        const y = padT + chartH - ((v - minV) / rangeV) * chartH;
+        svg += `<circle cx="${x}" cy="${y}" r="3" fill="#d4a574" stroke="#1a1816" stroke-width="2"/>`;
+      });
+
+      // Legend
+      const legendItems = [
+        { label: 'All Regions', color: '#d4a574', dash: false },
+        { label: 'NA', color: '#6ba3c7', dash: true },
+        { label: 'UK', color: '#7eb563', dash: true },
+        { label: 'ANZ', color: '#c75d5d', dash: true }
+      ];
+      legendItems.forEach((item, i) => {
+        const lx = padL + i * 120;
+        const ly = h - 25;
+        if (item.dash) {
+          svg += `<line x1="${lx}" y1="${ly}" x2="${lx + 20}" y2="${ly}" stroke="${item.color}" stroke-width="1.5" stroke-dasharray="4,4"/>`;
+        } else {
+          svg += `<line x1="${lx}" y1="${ly}" x2="${lx + 20}" y2="${ly}" stroke="${item.color}" stroke-width="2.5"/>`;
+        }
+        // Legend labels handled outside SVG for simplicity
+      });
+
+      svg += '</svg>';
+      document.getElementById('trendChart').innerHTML = svg +
+        `<div style="display:flex; gap: 24px; margin-top: 8px; padding-left: ${padL}px;">
+          <span style="font-family:var(--font-mono); font-size:11px; color:var(--accent); display:flex; align-items:center; gap:6px;">
+            <span style="width:20px; height:2px; background:var(--accent); display:inline-block; border-radius:1px;"></span> All Regions
+          </span>
+          <span style="font-family:var(--font-mono); font-size:11px; color:var(--prism-blue); display:flex; align-items:center; gap:6px;">
+            <span style="width:20px; height:0; border-top:2px dashed var(--prism-blue); display:inline-block;"></span> NA
+          </span>
+          <span style="font-family:var(--font-mono); font-size:11px; color:var(--prism-green); display:flex; align-items:center; gap:6px;">
+            <span style="width:20px; height:0; border-top:2px dashed var(--prism-green); display:inline-block;"></span> UK
+          </span>
+          <span style="font-family:var(--font-mono); font-size:11px; color:var(--prism-red); display:flex; align-items:center; gap:6px;">
+            <span style="width:20px; height:0; border-top:2px dashed var(--prism-red); display:inline-block;"></span> ANZ
+          </span>
+        </div>`;
+    }
+
+    // ─── RENDER COMPETITORS ─────────────────────────────────
+    function renderCompetitors(region) {
+      const comps = DATA[region].competitors || DATA.all.competitors;
+      const el = document.getElementById('competitorList');
+      el.innerHTML = comps.map(c => `
+        <div class="competitor-card">
+          <div class="competitor-top-row">
+            <div class="competitor-name">${c.name}</div>
+            <span class="competitor-threat ${c.threat}">${c.threat.toUpperCase()}</span>
+          </div>
+          <div class="competitor-stats">
+            <div class="competitor-stat">
+              <div class="competitor-stat-value win">${c.wins}</div>
+              <div class="competitor-stat-label">Wins</div>
+            </div>
+            <div class="competitor-stat">
+              <div class="competitor-stat-value loss">${c.losses}</div>
+              <div class="competitor-stat-label">Losses</div>
+            </div>
+            <div class="competitor-stat">
+              <div class="competitor-stat-value">${c.pending}</div>
+              <div class="competitor-stat-label">Active</div>
+            </div>
+          </div>
+          <div class="competitor-fud">
+            <div class="competitor-fud-label">Primary FUD Detected</div>
+            ${c.fud}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // ─── RENDER RECOMMENDATIONS ─────────────────────────────
+    function renderRecommendations(region) {
+      const recos = DATA[region].recommendations || DATA.all.recommendations;
+      const el = document.getElementById('recoList');
+      el.innerHTML = recos.map(r => `
+        <div class="reco-item">
+          <div class="reco-priority ${r.priority.toLowerCase()}">${r.priority}</div>
+          <div class="reco-body">
+            <div class="reco-title">${r.title}</div>
+            <div class="reco-desc">${r.desc}</div>
+          </div>
+          <div class="reco-impact">${r.impact}</div>
+        </div>
+      `).join('');
+    }
+
+    // ─── RENDER ALL ─────────────────────────────────────────
+    function renderDashboard(region) {
+      renderStats(region);
+      renderFunnel(region);
+      renderThemes('winThemes', DATA[region].winThemes || DATA.all.winThemes, 'win');
+      renderThemes('lossThemes', DATA[region].lossThemes || DATA.all.lossThemes, 'loss');
+      renderRisks(region);
+      renderSignals(region);
+      renderCompetitors(region);
+      renderRecommendations(region);
+    }
+
+    // ─── REGION TAB HANDLER ─────────────────────────────────
+    document.querySelectorAll('.region-tab').forEach(tab => {
+      tab.addEventListener('click', (e) => {
+        document.querySelectorAll('.region-tab').forEach(t => t.classList.remove('active'));
+        e.target.closest('.region-tab').classList.add('active');
+        currentRegion = e.target.closest('.region-tab').dataset.region;
+        renderDashboard(currentRegion);
+      });
+    });
+
+    // ─── INIT ───────────────────────────────────────────────
+    renderDashboard('all');
+    renderTrendChart();
+
+    // ─── UPLOAD PANEL LOGIC ─────────────────────────────────
+    const overlay = document.getElementById('uploadOverlay');
+    const dropzone = document.getElementById('uploadDropzone');
+    const fileInput = document.getElementById('csvFileInput');
+    const filePreview = document.getElementById('filePreview');
+    const runBtn = document.getElementById('runAnalysisBtn');
+
+    function openUploadPanel() { overlay.classList.add('visible'); }
+    function closeUploadPanel() { overlay.classList.remove('visible'); resetUpload(); }
+    function resetUpload() { filePreview.classList.remove('visible'); runBtn.classList.remove('ready'); dropzone.style.display = ''; fileInput.value = ''; }
+
+    document.getElementById('browseTrigger').addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault(); dropzone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.name.endsWith('.csv')) handleFile(file);
+    });
+    fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+    function handleFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target.result;
+        const lines = text.trim().split('\n');
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        const rowCount = lines.length - 1;
+        const regionCol = headers.findIndex(h => /region/i.test(h));
+        let regions = '—';
+        if (regionCol >= 0) {
+          const uniq = new Set();
+          lines.slice(1).forEach(line => { const cols = line.split(','); if (cols[regionCol]) uniq.add(cols[regionCol].replace(/^"|"$/g, '').trim()); });
+          regions = uniq.size;
+        }
+        document.getElementById('fileName').textContent = file.name;
+        document.getElementById('fileSize').textContent = formatBytes(file.size);
+        document.getElementById('fileRows').textContent = rowCount.toLocaleString();
+        document.getElementById('fileCols').textContent = headers.length;
+        document.getElementById('fileRegions').textContent = regions;
+        document.getElementById('colTags').innerHTML = headers.map(h => `<span class="upload-col-tag">${h}</span>`).join('');
+        dropzone.style.display = 'none';
+        filePreview.classList.add('visible');
+        runBtn.classList.add('ready');
+      };
+      reader.readAsText(file);
+    }
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    function runAnalysis() {
+      const provider = document.getElementById('providerSelect').value;
+      const names = { claude: 'Claude Opus 4', gemini: 'Gemini 2.0 Flash', openai: 'GPT-4o' };
+      runBtn.innerHTML = `<span style="display:inline-flex;align-items:center;gap:8px;"><svg style="width:16px;height:16px;animation:spin 1s linear infinite;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Analyzing with ${names[provider]}...</span>`;
+      runBtn.style.pointerEvents = 'none';
+      setTimeout(() => {
+        runBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><polyline points="20 6 9 17 4 12"/></svg> Analysis Complete';
+        runBtn.style.background = 'var(--success)';
+        setTimeout(() => closeUploadPanel(), 1500);
+      }, 3000);
+    }
+  </script>
+</body>
+</html>

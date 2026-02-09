@@ -1,0 +1,13 @@
+{
+  "name": "project-prism",
+  "version": "1.0.0",
+  "description": "Project Prism — Global Revenue Intelligence Engine",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix functions run build",
+    "serve": "firebase emulators:start",
+    "deploy": "firebase deploy",
+    "deploy:functions": "firebase deploy --only functions",
+    "deploy:hosting": "firebase deploy --only hosting"
+  }
+}

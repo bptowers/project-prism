@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build output
+lib/
+dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+.secret
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Firebase
+firebase-debug.log
+.firebase/
+.firebaserc
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Security
+service-account-key.json
+*.pem
+*.key

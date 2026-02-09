@@ -1,0 +1,390 @@
+/**
+ * Project Prism - Report Aggregation Module
+ * Aggregates analyzed opportunities into regional and global reports
+ */
+
+import {
+  AggregatedReport,
+  CompetitorActivity,
+  GlobalSummary,
+  OpportunityAnalysis,
+  RegionReport,
+  RiskDeal,
+  ThemeCount,
+} from "../types.js";
+
+/**
+ * Aggregation engine for building comprehensive reports
+ */
+export class Aggregator {
+  /**
+   * Aggregates analyzed opportunities into a comprehensive report
+   */
+  static aggregate(
+    analyses: OpportunityAnalysis[],
+    processingStartTime: string,
+    analysisProvider: string,
+    analysisModel: string,
+    dataQualityScore: number
+  ): AggregatedReport {
+    const reportDate = new Date().toISOString();
+    const reportId = `report_${Date.now()}`;
+
+    // Group analyses by region
+    const byRegion = this.groupByRegion(analyses);
+
+    // Generate region reports
+    const regions: Record<string, RegionReport> = {};
+    for (const [region, regionAnalyses] of Object.entries(byRegion)) {
+      regions[region] = this.generateRegionReport(region, regionAnalyses);
+    }
+
+    // Generate global summary
+    const global = this.generateGlobalSummary(analyses, regions);
+
+    return {
+      reportId,
+      reportDate,
+      period: this.getPeriodLabel(new Date()),
+      processingStartTime,
+      processingEndTime: new Date().toISOString(),
+      totalRecordsAnalyzed: analyses.length,
+      analysisProvider,
+      analysisModel,
+      regions,
+      global,
+      dataQuality: {
+        averageQualityScore: dataQualityScore,
+        totalPiiIssuesCaught: 0, // Set by pipeline
+      },
+    };
+  }
+
+  /**
+   * Groups analyses by region
+   */
+  private static groupByRegion(
+    analyses: OpportunityAnalysis[]
+  ): Record<string, OpportunityAnalysis[]> {
+    const grouped: Record<string, OpportunityAnalysis[]> = {};
+
+    for (const analysis of analyses) {
+      const region = analysis.region || "Unknown";
+      if (!grouped[region]) {
+        grouped[region] = [];
+      }
+      grouped[region].push(analysis);
+    }
+
+    return grouped;
+  }
+
+  /**
+   * Generates a regional report
+   */
+  private static generateRegionReport(
+    region: string,
+    analyses: OpportunityAnalysis[]
+  ): RegionReport {
+    const wins = analyses.filter((a) => a.winLossStatus === "won");
+    const losses = analyses.filter((a) => a.winLossStatus === "lost");
+    const active = analyses.filter((a) => a.winLossStatus === "active");
+
+    // Extract and rank themes
+    const winThemes = this.extractAndRankThemes(wins, "win");
+    const lossThemes = this.extractAndRankThemes(losses, "loss");
+
+    // Identify at-risk deals
+    const atRiskDeals = this.identifyAtRiskDeals(active);
+
+    // Aggregate competitor activity
+    const competitorActivity = this.aggregateCompetitors(analyses);
+
+    // Extract market signals
+    const marketSignals = this.extractMarketSignals(analyses);
+
+    // Calculate sentiment trend
+    const sentimentTrend = this.calculateSentimentTrend(analyses);
+
+    const winRate =
+      wins.length + losses.length > 0
+        ? wins.length / (wins.length + losses.length)
+        : 0;
+
+    return {
+      region,
+      totalOpportunities: analyses.length,
+      wins: wins.length,
+      losses: losses.length,
+      active: active.length,
+      winRate: Math.round(winRate * 100) / 100,
+      topWinThemes: winThemes,
+      topLossThemes: lossThemes,
+      atRiskDeals,
+      competitorActivity,
+      marketSignals,
+      sentimentTrend,
+    };
+  }
+
+  /**
+   * Generates global summary across all regions
+   */
+  private static generateGlobalSummary(
+    analyses: OpportunityAnalysis[],
+    regions: Record<string, RegionReport>
+  ): GlobalSummary {
+    const wins = analyses.filter((a) => a.winLossStatus === "won");
+    const losses = analyses.filter((a) => a.winLossStatus === "lost");
+    const active = analyses.filter((a) => a.winLossStatus === "active");
+
+    // Global themes
+    const topWinThemes = this.extractAndRankThemes(wins, "win", 5);
+    const topLossThemes = this.extractAndRankThemes(losses, "loss", 5);
+
+    // Global competitors
+    const topCompetitors = this.aggregateCompetitors(analyses, 8);
+
+    // Market signals
+    const emergingMarketSignals = this.extractMarketSignals(analyses);
+
+    // Global sentiment
+    const globalSentiment = this.calculateSentimentTrend(analyses);
+
+    // Risk counts
+    let highRiskCount = 0;
+    let mediumRiskCount = 0;
+
+    for (const region of Object.values(regions)) {
+      highRiskCount += region.atRiskDeals.filter(
+        (d) => d.riskLevel === "high"
+      ).length;
+      mediumRiskCount += region.atRiskDeals.filter(
+        (d) => d.riskLevel === "medium"
+      ).length;
+    }
+
+    const winRate =
+      wins.length + losses.length > 0
+        ? wins.length / (wins.length + losses.length)
+        : 0;
+
+    return {
+      totalOpportunities: analyses.length,
+      totalWins: wins.length,
+      totalLosses: losses.length,
+      totalActive: active.length,
+      globalWinRate: Math.round(winRate * 100) / 100,
+      topWinThemes,
+      topLossThemes,
+      topCompetitors,
+      emergingMarketSignals,
+      globalSentiment,
+      highRiskCount,
+      mediumRiskCount,
+    };
+  }
+
+  /**
+   * Extracts and ranks themes from analyses
+   */
+  private static extractAndRankThemes(
+    analyses: OpportunityAnalysis[],
+    type: "win" | "loss" | "neutral",
+    limit: number = 8
+  ): ThemeCount[] {
+    const themeCounts: Record<string, { count: number; examples: string[] }> =
+      {};
+
+    for (const analysis of analyses) {
+      const themes = analysis.themes[type] || [];
+      for (const theme of themes) {
+        if (!themeCounts[theme]) {
+          themeCounts[theme] = { count: 0, examples: [] };
+        }
+        themeCounts[theme].count++;
+
+        // Keep up to 3 example opportunity IDs
+        if (themeCounts[theme].examples.length < 3) {
+          themeCounts[theme].examples.push(analysis.opportunityId);
+        }
+      }
+    }
+
+    // Convert to ranked array
+    const ranked: ThemeCount[] = Object.entries(themeCounts)
+      .map(([theme, data]) => ({
+        theme,
+        count: data.count,
+        examples: data.examples,
+        percentage:
+          analyses.length > 0
+            ? Math.round((data.count / analyses.length) * 100)
+            : 0,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, limit);
+
+    return ranked;
+  }
+
+  /**
+   * Identifies at-risk active deals
+   */
+  private static identifyAtRiskDeals(activeDeals: OpportunityAnalysis[]): RiskDeal[] {
+    const atRisk: RiskDeal[] = [];
+
+    for (const deal of activeDeals) {
+      const riskLevel = deal.riskSignals.level;
+
+      if (riskLevel === "high" || riskLevel === "medium") {
+        atRisk.push({
+          opportunityId: deal.opportunityId,
+          accountName: deal.accountName,
+          opportunityName: deal.opportunityName,
+          riskLevel: riskLevel as "high" | "medium",
+          signals: deal.riskSignals.signals,
+          summary: deal.riskSignals.summary,
+          lastUpdated: deal.analysisDate,
+        });
+      }
+    }
+
+    // Sort by risk level (high first)
+    return atRisk.sort((a, b) => {
+      const levelOrder = { high: 0, medium: 1 };
+      return levelOrder[a.riskLevel] - levelOrder[b.riskLevel];
+    });
+  }
+
+  /**
+   * Aggregates competitor activity
+   */
+  private static aggregateCompetitors(
+    analyses: OpportunityAnalysis[],
+    limit: number = 10
+  ): CompetitorActivity[] {
+    const competitorMap: Record<
+      string,
+      { count: number; contexts: string[]; regions: Set<string> }
+    > = {};
+
+    for (const analysis of analyses) {
+      const competitors = analysis.competitors.mentioned;
+      const contexts = analysis.competitors.context;
+
+      for (let i = 0; i < competitors.length; i++) {
+        const competitor = competitors[i];
+
+        if (!competitorMap[competitor]) {
+          competitorMap[competitor] = {
+            count: 0,
+            contexts: [],
+            regions: new Set(),
+          };
+        }
+
+        competitorMap[competitor].count++;
+        competitorMap[competitor].regions.add(analysis.region);
+
+        // Keep up to 3 unique contexts
+        if (
+          contexts[i] &&
+          !competitorMap[competitor].contexts.includes(contexts[i])
+        ) {
+          if (competitorMap[competitor].contexts.length < 3) {
+            competitorMap[competitor].contexts.push(contexts[i]);
+          }
+        }
+      }
+    }
+
+    // Convert to array and sort by mention count
+    const ranked: CompetitorActivity[] = Object.entries(competitorMap)
+      .map(([competitor, data]) => ({
+        competitor,
+        mentionCount: data.count,
+        contexts: data.contexts,
+        regions: Array.from(data.regions),
+        lossRate: undefined, // Can be calculated if losses are tracked
+      }))
+      .sort((a, b) => b.mentionCount - a.mentionCount)
+      .slice(0, limit);
+
+    return ranked;
+  }
+
+  /**
+   * Extracts market signals
+   */
+  private static extractMarketSignals(
+    analyses: OpportunityAnalysis[]
+  ): string[] {
+    const signals = new Map<string, number>();
+
+    for (const analysis of analyses) {
+      for (const signal of analysis.marketSignals) {
+        signals.set(signal, (signals.get(signal) || 0) + 1);
+      }
+    }
+
+    // Return top signals (appearing in at least 2 analyses)
+    return Array.from(signals.entries())
+      .filter(([_, count]) => count >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .map(([signal]) => signal)
+      .slice(0, 10);
+  }
+
+  /**
+   * Calculates sentiment trend
+   */
+  private static calculateSentimentTrend(analyses: OpportunityAnalysis[]): {
+    average: number;
+    label: "positive" | "neutral" | "negative";
+  } {
+    if (analyses.length === 0) {
+      return { average: 0, label: "neutral" };
+    }
+
+    const sum = analyses.reduce((acc, a) => acc + a.sentiment.score, 0);
+    const average = sum / analyses.length;
+
+    let label: "positive" | "neutral" | "negative" = "neutral";
+    if (average > 0.2) {
+      label = "positive";
+    } else if (average < -0.2) {
+      label = "negative";
+    }
+
+    return {
+      average: Math.round(average * 100) / 100,
+      label,
+    };
+  }
+
+  /**
+   * Gets period label
+   */
+  private static getPeriodLabel(date: Date): string {
+    const month = date.toLocaleString("default", { month: "long" });
+    const year = date.getFullYear();
+    const weekNum = this.getWeekNumber(date);
+    return `Week ${weekNum}, ${month} ${year}`;
+  }
+
+  /**
+   * Calculates ISO week number
+   */
+  private static getWeekNumber(date: Date): number {
+    const d = new Date(
+      Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+    );
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(
+      ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7
+    );
+  }
+}

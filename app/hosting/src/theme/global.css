@@ -1,0 +1,76 @@
+/* === COPPER DARK DESIGN SYSTEM === */
+:root {
+  --bg-deep: #0f0e0d;
+  --bg-surface: #1a1816;
+  --bg-elevated: #252220;
+  --bg-overlay: #322e2b;
+
+  --text-primary: #e8e4df;
+  --text-secondary: #b5aea5;
+  --text-muted: #7a746c;
+  --text-link: #d4a574;
+
+  --accent: #d4a574;
+  --accent-emphasis: #c4956a;
+  --accent-subtle: rgba(212, 165, 116, 0.15);
+
+  --success: #7eb563;
+  --success-subtle: rgba(126, 181, 99, 0.15);
+  --warning: #d4a574;
+  --warning-subtle: rgba(212, 165, 116, 0.15);
+  --error: #c75d5d;
+  --error-subtle: rgba(199, 93, 93, 0.15);
+
+  --border: #322e2b;
+  --border-emphasis: #453f3b;
+
+  --prism-blue: #6ba3c7;
+  --prism-green: #7eb563;
+  --prism-amber: #d4a574;
+  --prism-red: #c75d5d;
+
+  --font-display: 'Playfair Display', serif;
+  --font-body: 'Source Sans 3', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+body {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--bg-deep);
+  min-height: 100vh;
+}
+
+#root {
+  background:
+    radial-gradient(ellipse at 15% 20%, rgba(212, 165, 116, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 80%, rgba(107, 163, 199, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(126, 181, 99, 0.015) 0%, transparent 60%),
+    var(--bg-deep);
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; line-height: 1.2; color: var(--text-primary); }
+a { color: var(--accent); text-decoration: none; }
+code, pre { font-family: var(--font-mono); font-size: 0.9em; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--bg-surface); }
+::-webkit-scrollbar-thumb { background: var(--border-emphasis); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* Focus */
+:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--accent); }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

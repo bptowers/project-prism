@@ -1,0 +1,35 @@
+{
+  "name": "project-prism-functions",
+  "version": "1.0.0",
+  "description": "Project Prism - Global Revenue Intelligence Engine (Cloud Functions)",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^5.0.0",
+    "@anthropic-ai/sdk": "^0.30.0",
+    "@google-cloud/vertexai": "^1.0.0",
+    "openai": "^4.0.0",
+    "csv-parse": "^5.5.0",
+    "pptxgenjs": "^3.12.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0",
+    "jest": "^29.0.0",
+    "@types/jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "eslint": "^8.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0"
+  }
+}

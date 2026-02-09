@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Reports — read by authenticated users, write by functions only
+    match /reports/{reportId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only Cloud Functions write
+    }
+    // Analyses — same pattern
+    match /analyses/{analysisId}/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    // Config — admin only
+    match /config/{configId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.token.admin == true;
+    }
+  }
+}

@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Prism — Global Revenue Intelligence Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0f0e0d;
+      --bg-surface: #1a1816;
+      --bg-elevated: #252220;
+      --bg-overlay: #322e2b;
+      --text-primary: #e8e4df;
+      --text-secondary: #b5aea5;
+      --text-muted: #7a746c;
+      --text-link: #d4a574;
+      --accent: #d4a574;
+      --accent-emphasis: #c4956a;
+      --accent-subtle: rgba(212, 165, 116, 0.15);
+      --success: #7eb563;
+      --success-subtle: rgba(126, 181, 99, 0.15);
+      --warning: #d4a574;
+      --warning-subtle: rgba(212, 165, 116, 0.15);
+      --error: #c75d5d;
+      --error-subtle: rgba(199, 93, 93, 0.15);
+      --info: #6ba3c7;
+      --info-subtle: rgba(107, 163, 199, 0.15);
+      --border: #322e2b;
+      --border-emphasis: #453f3b;
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-body: 'Source Sans 3', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --prism-gradient: linear-gradient(90deg, #6ba3c7, #7eb563, #d4a574, #c75d5d);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: var(--font-body);
+      color: var(--text-primary);
+      background: var(--bg-deep);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* Slide Deck */
+    .deck { position: relative; width: 100vw; height: 100vh; }
+    .slide {
+      position: absolute; top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      padding: 60px 80px;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.5s ease, transform 0.5s ease;
+      transform: translateX(40px);
+      background:
+        radial-gradient(ellipse at 20% 30%, rgba(212, 165, 116, 0.04) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 70%, rgba(107, 163, 199, 0.03) 0%, transparent 50%),
+        var(--bg-deep);
+    }
+    .slide.active {
+      opacity: 1; pointer-events: auto;
+      transform: translateX(0);
+    }
+    .slide.exiting {
+      opacity: 0;
+      transform: translateX(-40px);
+    }
+
+    /* Prism Bar */
+    .prism-bar {
+      height: 3px; width: 120px;
+      background: var(--prism-gradient);
+      border-radius: 2px;
+      margin: 16px 0;
+    }
+    .prism-bar.wide { width: 200px; }
+    .prism-bar.full { width: 100%; }
+
+    /* Navigation */
+    .nav-controls {
+      position: fixed; bottom: 30px; right: 40px;
+      display: flex; gap: 12px; z-index: 100;
+    }
+    .nav-btn {
+      width: 44px; height: 44px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-size: 18px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s ease;
+    }
+    .nav-btn:hover { background: var(--bg-overlay); color: var(--text-primary); border-color: var(--accent); }
+    .slide-counter {
+      position: fixed; bottom: 36px; left: 40px;
+      font-family: var(--font-mono); font-size: 13px;
+      color: var(--text-muted); z-index: 100;
+    }
+    .progress-bar {
+      position: fixed; top: 0; left: 0; height: 3px;
+      background: var(--prism-gradient);
+      z-index: 100; transition: width 0.4s ease;
+    }
+
+    /* Typography */
+    .slide-title {
+      font-family: var(--font-display);
+      font-size: 48px; font-weight: 700;
+      line-height: 1.15; margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+    .slide-title.hero { font-size: 60px; }
+    .slide-subtitle {
+      font-family: var(--font-body);
+      font-size: 20px; font-weight: 300;
+      color: var(--text-secondary);
+      max-width: 700px; line-height: 1.5;
+    }
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 11px; font-weight: 500;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      margin-bottom: 12px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .card h3 {
+      font-family: var(--font-display);
+      font-size: 20px; font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .card p { color: var(--text-secondary); font-size: 15px; line-height: 1.55; }
+
+    /* Grids */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; width: 100%; max-width: 1100px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; width: 100%; max-width: 1100px; }
+    .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 20px; width: 100%; max-width: 1100px; }
+    .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; width: 100%; max-width: 1100px; }
+
+    /* Stat callout */
+    .stat { text-align: center; }
+    .stat-number {
+      font-family: var(--font-display);
+      font-size: 52px; font-weight: 700;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .stat-label {
+      font-size: 13px; font-weight: 500;
+      color: var(--text-muted);
+      margin-top: 6px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Architecture Diagram */
+    .arch-layer {
+      width: 100%; max-width: 1000px;
+      padding: 20px 28px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+      position: relative;
+    }
+    .arch-layer-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+    }
+    .arch-boxes {
+      display: flex; gap: 12px;
+      flex-wrap: wrap;
+    }
+    .arch-box {
+      background: var(--bg-deep);
+      border: 1px solid var(--border-emphasis);
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      flex: 1; min-width: 140px;
+      text-align: center;
+    }
+    .arch-arrow {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 20px;
+      margin: 4px 0;
+    }
+    .owner-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      margin-left: 8px;
+    }
+    .owner-mike { background: var(--info-subtle); color: var(--info); }
+    .owner-brad { background: var(--success-subtle); color: var(--success); }
+    .owner-steve { background: var(--error-subtle); color: var(--error); }
+    .owner-pete { background: var(--warning-subtle); color: var(--warning); }
+
+    /* Timeline */
+    .timeline { width: 100%; max-width: 1000px; }
+    .timeline-week {
+      display: grid;
+      grid-template-columns: 100px 1fr;
+      gap: 20px;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .timeline-week:last-child { border-bottom: none; }
+    .week-label {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--accent);
+      padding-top: 4px;
+    }
+    .week-tasks { display: flex; flex-direction: column; gap: 8px; }
+    .week-task {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 14px; color: var(--text-secondary);
+    }
+    .task-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* Provider cards */
+    .provider-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      text-align: center;
+      position: relative;
+    }
+    .provider-card.default {
+      border-color: var(--accent);
+      box-shadow: 0 0 20px rgba(212, 165, 116, 0.1);
+    }
+    .provider-card .badge {
+      position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: var(--bg-deep);
+      font-size: 10px; font-weight: 600;
+      padding: 3px 12px; border-radius: 20px;
+      font-family: var(--font-mono);
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+    .provider-name {
+      font-family: var(--font-display);
+      font-size: 22px; font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    /* Report mockup */
+    .report-mockup {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 100%; max-width: 1000px;
+      overflow: hidden;
+    }
+    .report-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .report-body { padding: 24px; }
+    .report-section {
+      margin-bottom: 20px;
+    }
+    .report-section h4 {
+      font-family: var(--font-display);
+      font-size: 16px; margin-bottom: 12px;
+      color: var(--text-primary);
+    }
+    .theme-tag {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin: 3px 4px 3px 0;
+      font-family: var(--font-mono);
+    }
+    .theme-win { background: var(--success-subtle); color: var(--success); }
+    .theme-loss { background: var(--error-subtle); color: var(--error); }
+    .theme-risk { background: var(--warning-subtle); color: var(--warning); }
+    .theme-info { background: var(--info-subtle); color: var(--info); }
+
+    /* Horizon cards */
+    .horizon-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .horizon-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+    .horizon-card.h1::before { background: var(--success); }
+    .horizon-card.h2::before { background: var(--info); }
+    .horizon-card.h3::before { background: var(--accent); }
+    .horizon-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+    }
+    .horizon-card.h1 .horizon-label { color: var(--success); }
+    .horizon-card.h2 .horizon-label { color: var(--info); }
+    .horizon-card.h3 .horizon-label { color: var(--accent); }
+
+    /* Two-column layout */
+    .split { display: flex; gap: 48px; width: 100%; max-width: 1100px; align-items: flex-start; }
+    .split-left { flex: 1; }
+    .split-right { flex: 1; }
+
+    /* List items */
+    .check-list { list-style: none; padding: 0; }
+    .check-list li {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 0;
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+    .check-icon {
+      width: 20px; height: 20px; flex-shrink: 0;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; margin-top: 2px;
+    }
+    .check-icon.green { background: var(--success-subtle); color: var(--success); }
+    .check-icon.blue { background: var(--info-subtle); color: var(--info); }
+    .check-icon.amber { background: var(--warning-subtle); color: var(--warning); }
+
+    /* RACI table */
+    .raci-table {
+      width: 100%; max-width: 1000px;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 14px;
+    }
+    .raci-table th {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      padding: 10px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-emphasis);
+    }
+    .raci-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    .raci-table tr:last-child td { border-bottom: none; }
+    .raci-role {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      font-weight: 500;
+    }
+    .raci-r { background: var(--accent-subtle); color: var(--accent); }
+    .raci-a { background: var(--success-subtle); color: var(--success); }
+    .raci-c { background: var(--info-subtle); color: var(--info); }
+    .raci-i { background: rgba(126, 181, 99, 0.08); color: var(--text-muted); }
+
+    /* Stagger animations */
+    .slide.active .stagger > * {
+      animation: fadeSlideUp 0.5s ease forwards;
+      opacity: 0;
+    }
+    .slide.active .stagger > *:nth-child(1) { animation-delay: 0ms; }
+    .slide.active .stagger > *:nth-child(2) { animation-delay: 80ms; }
+    .slide.active .stagger > *:nth-child(3) { animation-delay: 160ms; }
+    .slide.active .stagger > *:nth-child(4) { animation-delay: 240ms; }
+    .slide.active .stagger > *:nth-child(5) { animation-delay: 320ms; }
+    .slide.active .stagger > *:nth-child(6) { animation-delay: 400ms; }
+    .slide.active .stagger > *:nth-child(7) { animation-delay: 480ms; }
+    .slide.active .stagger > *:nth-child(8) { animation-delay: 560ms; }
+    .slide.active .stagger > *:nth-child(9) { animation-delay: 640ms; }
+    .slide.active .stagger > *:nth-child(10) { animation-delay: 720ms; }
+
+    @keyframes fadeSlideUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Data security callout */
+    .callout {
+      background: var(--bg-elevated);
+      border-left: 3px solid var(--accent);
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+    .callout.info { border-left-color: var(--info); }
+    .callout.warning { border-left-color: var(--warning); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress-bar" id="progressBar"></div>
+
+  <div class="deck" id="deck">
+
+    <!-- SLIDE 1: Title -->
+    <div class="slide active" data-slide="0">
+      <div class="stagger" style="text-align: center;">
+        <div class="section-label">Confidential — Internal Project Brief</div>
+        <div class="prism-bar wide" style="margin: 16px auto;"></div>
+        <h1 class="slide-title hero" style="margin-bottom: 4px;">Project Prism</h1>
+        <p style="font-family: var(--font-body); font-size: 24px; font-weight: 300; color: var(--text-secondary); margin-bottom: 32px;">
+          Global Revenue Intelligence Engine
+        </p>
+        <p style="font-size: 15px; color: var(--text-muted); max-width: 600px; margin: 0 auto 40px; line-height: 1.6;">
+          Refracting raw Salesforce data into a clear spectrum of strategic insights — by region, by theme, every week.
+        </p>
+        <div style="display: flex; gap: 32px; justify-content: center; flex-wrap: wrap;">
+          <div style="text-align: center;">
+            <div style="font-size: 14px; color: var(--text-primary); font-weight: 500;">Pete Mansel</div>
+            <div style="font-size: 12px; color: var(--text-muted);">CRO &middot; Sponsor</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 14px; color: var(--text-primary); font-weight: 500;">Mike Duda</div>
+            <div style="font-size: 12px; color: var(--text-muted);">VP RevOps</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 14px; color: var(--text-primary); font-weight: 500;">Brad Towers</div>
+            <div style="font-size: 12px; color: var(--text-muted);">SE Lead UK/ANZ</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 14px; color: var(--text-primary); font-weight: 500;">Steve Logan</div>
+            <div style="font-size: 12px; color: var(--text-muted);">CIO</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 2: The Problem -->
+    <div class="slide" data-slide="1">
+      <div class="stagger" style="width: 100%; max-width: 1100px;">
+        <div class="section-label">The Problem</div>
+        <h1 class="slide-title" style="margin-bottom: 24px;">Data Rich, Insight Poor</h1>
+        <div class="split">
+          <div class="split-left">
+            <p style="font-size: 16px; color: var(--text-secondary); line-height: 1.65; margin-bottom: 24px;">
+              We capture thousands of data points on deal health and outcomes every week across three regions. Win/loss notes sit in free-text fields. Deal review forms go unread at scale. Valuable intelligence is locked in SFDC, rendering us reactive rather than proactive.
+            </p>
+            <div class="callout warning" style="margin-bottom: 16px;">
+              It is impossible for humans to manually read, synthesize, and categorize every note from every global opportunity on a weekly basis.
+            </div>
+          </div>
+          <div class="split-right">
+            <div class="grid-2" style="gap: 16px;">
+              <div class="card" style="text-align: center; padding: 24px;">
+                <div class="stat-number" style="font-size: 42px;">100–500</div>
+                <div class="stat-label">Opps Per Week</div>
+              </div>
+              <div class="card" style="text-align: center; padding: 24px;">
+                <div class="stat-number" style="font-size: 42px;">3</div>
+                <div class="stat-label">Global Regions</div>
+              </div>
+              <div class="card" style="text-align: center; padding: 24px;">
+                <div class="stat-number" style="font-size: 42px; color: var(--error);">0</div>
+                <div class="stat-label">Automated Insights</div>
+              </div>
+              <div class="card" style="text-align: center; padding: 24px;">
+                <div class="stat-number" style="font-size: 42px; color: var(--error);">?</div>
+                <div class="stat-label">Deals At Risk</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: The Solution -->
+    <div class="slide" data-slide="2">
+      <div class="stagger" style="width: 100%; max-width: 1100px; text-align: center;">
+        <div class="section-label">The Solution</div>
+        <h1 class="slide-title" style="margin-bottom: 8px;">AI-Driven Revenue Intelligence</h1>
+        <p class="slide-subtitle" style="margin: 0 auto 40px;">
+          Combine Sales Engineering AI expertise with RevOps process ownership and IT instrumentation to harvest strategic insight from every opportunity, globally.
+        </p>
+        <div class="grid-4" style="text-align: left;">
+          <div class="card">
+            <div style="font-size: 28px; margin-bottom: 12px; color: var(--info);">&#9662;</div>
+            <h3>Ingest</h3>
+            <p>Pull raw text from Win/Loss notes, Deal Review forms, and Clari Copilot transcripts automatically.</p>
+          </div>
+          <div class="card">
+            <div style="font-size: 28px; margin-bottom: 12px; color: var(--success);">&#9670;</div>
+            <h3>Analyze</h3>
+            <p>Use LLMs to read context, sentiment, and nuance across every opportunity on the planet.</p>
+          </div>
+          <div class="card">
+            <div style="font-size: 28px; margin-bottom: 12px; color: var(--accent);">&#9632;</div>
+            <h3>Synthesize</h3>
+            <p>Aggregate into structured themes, cluster win/loss reasons, detect risk signals by region.</p>
+          </div>
+          <div class="card">
+            <div style="font-size: 28px; margin-bottom: 12px; color: var(--error);">&#9654;</div>
+            <h3>Report</h3>
+            <p>Deliver a weekly Global Intel Report — interactive dashboard and auto-generated deck for ELT.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: Phase 1 Scope -->
+    <div class="slide" data-slide="3">
+      <div class="stagger" style="width: 100%; max-width: 1100px;">
+        <div class="section-label">Phase 1 Scope</div>
+        <h1 class="slide-title" style="margin-bottom: 8px;">Win/Loss Intelligence MVP</h1>
+        <div class="prism-bar"></div>
+        <div style="margin-top: 24px;">
+          <div class="split">
+            <div class="split-left">
+              <ul class="check-list">
+                <li>
+                  <span class="check-icon green">&#10003;</span>
+                  <div><strong style="color: var(--text-primary);">Win/Loss Theme Analysis</strong> — Region-by-region breakdown (NA, UK, ANZ) of why we win and lose. Goes beyond checkboxes to identify trends in pricing, product gaps, and competitor tactics.</div>
+                </li>
+                <li>
+                  <span class="check-icon amber">&#9679;</span>
+                  <div><strong style="color: var(--text-primary);">At-Risk Deal Detection</strong> — AI scans active deals for risk markers hidden in notes: negative sentiment, stalled stakeholders, lack of executive alignment.</div>
+                </li>
+                <li>
+                  <span class="check-icon blue">&#9670;</span>
+                  <div><strong style="color: var(--text-primary);">Competitor Intelligence</strong> — Automatic extraction and trending of competitor mentions, FUD tactics, and displacement attempts.</div>
+                </li>
+                <li>
+                  <span class="check-icon green">&#10003;</span>
+                  <div><strong style="color: var(--text-primary);">Market Signal Detection</strong> — Early identification of emerging objections, new competitive threats, and shifting buyer sentiment.</div>
+                </li>
+              </ul>
+            </div>
+            <div class="split-right">
+              <div class="card" style="margin-bottom: 16px;">
+                <h3 style="color: var(--accent); font-size: 16px;">Data Sources</h3>
+                <p style="margin-bottom: 0;">SFDC Win/Loss Notes &middot; Opp Deal Review Forms</p>
+              </div>
+              <div class="card" style="margin-bottom: 16px;">
+                <h3 style="color: var(--info); font-size: 16px;">Outputs</h3>
+                <p style="margin-bottom: 0;">Interactive HTML Dashboard &middot; Auto-generated PowerPoint &middot; Weekly email distribution</p>
+              </div>
+              <div class="card" style="margin-bottom: 16px;">
+                <h3 style="color: var(--success); font-size: 16px;">Regions</h3>
+                <p style="margin-bottom: 0;">North America &middot; United Kingdom &middot; Australia & New Zealand</p>
+              </div>
+              <div class="card">
+                <h3 style="color: var(--error); font-size: 16px;">Cadence</h3>
+                <p style="margin-bottom: 0;">Weekly automated run — report delivered every Monday for ELT forecast calls</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: Architecture Overview -->
+    <div class="slide" data-slide="4">
+      <div class="stagger" style="width: 100%; max-width: 1050px;">
+        <div class="section-label">Technical Architecture</div>
+        <h1 class="slide-title" style="font-size: 38px; margin-bottom: 24px;">System Architecture — Phase 1</h1>
+
+        <div class="arch-layer" style="background: var(--info-subtle); border: 1px solid rgba(107,163,199,0.2);">
+          <div class="arch-layer-title" style="color: var(--info);">Data Sources <span class="owner-badge owner-mike">Mike / RevOps</span></div>
+          <div class="arch-boxes">
+            <div class="arch-box">Win/Loss Notes<br><span style="color:var(--text-muted); font-size:11px;">Free-text fields</span></div>
+            <div class="arch-box">Deal Review Forms<br><span style="color:var(--text-muted); font-size:11px;">Structured fields</span></div>
+            <div class="arch-box" style="border-style: dashed;">Clari Copilot<br><span style="color:var(--text-muted); font-size:11px;">Phase 2</span></div>
+          </div>
+        </div>
+
+        <div class="arch-arrow">&#9660;</div>
+
+        <div class="arch-layer" style="background: var(--success-subtle); border: 1px solid rgba(126,181,99,0.2);">
+          <div class="arch-layer-title" style="color: var(--success);">Ingestion & Processing <span class="owner-badge owner-brad">Brad / SE</span></div>
+          <div class="arch-boxes">
+            <div class="arch-box">Scheduled CSV Export<br><span style="color:var(--text-muted); font-size:11px;">Weekly automation</span></div>
+            <div class="arch-box">Parse &amp; Normalize<br><span style="color:var(--text-muted); font-size:11px;">Region tagging</span></div>
+            <div class="arch-box">PII Flagging<br><span style="color:var(--text-muted); font-size:11px;">Data privacy</span></div>
+            <div class="arch-box">Validation<br><span style="color:var(--text-muted); font-size:11px;">Data quality</span></div>
+          </div>
+        </div>
+
+        <div class="arch-arrow">&#9660;</div>
+
+        <div class="arch-layer" style="background: var(--accent-subtle); border: 1px solid rgba(212,165,116,0.2);">
+          <div class="arch-layer-title" style="color: var(--accent);">LLM Analysis Engine <span class="owner-badge owner-brad">Brad / SE</span><span style="font-size:11px; color: var(--text-muted); margin-left: 8px;">Provider-Agnostic</span></div>
+          <div class="arch-boxes">
+            <div class="arch-box">Theme Extraction<br><span style="color:var(--text-muted); font-size:11px;">Win/Loss reasons</span></div>
+            <div class="arch-box">Risk Detection<br><span style="color:var(--text-muted); font-size:11px;">Sentiment analysis</span></div>
+            <div class="arch-box">Competitor Intel<br><span style="color:var(--text-muted); font-size:11px;">Mention tracking</span></div>
+            <div class="arch-box">Market Signals<br><span style="color:var(--text-muted); font-size:11px;">Trend detection</span></div>
+          </div>
+        </div>
+
+        <div class="arch-arrow">&#9660;</div>
+
+        <div class="arch-layer" style="background: var(--error-subtle); border: 1px solid rgba(199,93,93,0.2);">
+          <div class="arch-layer-title" style="color: var(--error);">Output Layer</div>
+          <div class="arch-boxes">
+            <div class="arch-box">Interactive Dashboard<br><span style="color:var(--text-muted); font-size:11px;">HTML / Region drill-down</span></div>
+            <div class="arch-box">Auto-Gen PowerPoint<br><span style="color:var(--text-muted); font-size:11px;">Weekly ELT deck</span></div>
+            <div class="arch-box">Email Distribution<br><span style="color:var(--text-muted); font-size:11px;">Scheduled delivery</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: LLM Abstraction Layer -->
+    <div class="slide" data-slide="5">
+      <div class="stagger" style="width: 100%; max-width: 1100px; text-align: center;">
+        <div class="section-label">Design Principle</div>
+        <h1 class="slide-title" style="margin-bottom: 8px;">Provider-Agnostic by Design</h1>
+        <p class="slide-subtitle" style="margin: 0 auto 36px;">
+          The LLM layer is modular and composable. Swap providers via configuration — no code changes required.
+        </p>
+        <div class="grid-3" style="margin-bottom: 32px;">
+          <div class="provider-card default">
+            <div class="badge">Phase 1 Default</div>
+            <div class="provider-name" style="margin-top: 8px;">Claude</div>
+            <p style="color: var(--text-muted); font-size: 13px; margin: 0;">Opus 4 &middot; Best-in-class reasoning for nuanced sales context</p>
+          </div>
+          <div class="provider-card">
+            <div class="provider-name">GPT</div>
+            <p style="color: var(--text-muted); font-size: 13px; margin: 0;">OpenAI &middot; Alternative provider, config-swappable</p>
+          </div>
+          <div class="provider-card">
+            <div class="provider-name">Gemini</div>
+            <p style="color: var(--text-muted); font-size: 13px; margin: 0;">Google &middot; Alternative provider, config-swappable</p>
+          </div>
+        </div>
+        <div style="text-align: left; max-width: 700px; margin: 0 auto;">
+          <div class="callout info">
+            <strong style="color: var(--info);">How it works:</strong> A common <code style="background: var(--bg-deep); padding: 2px 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 13px;">LLMProvider</code> interface abstracts all API calls. Provider selection, model version, and API credentials are config-driven. Swap Claude for GPT or Gemini by changing a single environment variable — zero code changes.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 7: Data Pipeline Detail -->
+    <div class="slide" data-slide="6">
+      <div class="stagger" style="width: 100%; max-width: 1100px;">
+        <div class="section-label">Data Pipeline</div>
+        <h1 class="slide-title" style="font-size: 38px; margin-bottom: 28px;">End-to-End Processing Flow</h1>
+        <div class="grid-5" style="text-align: center;">
+          <div class="card" style="padding: 20px 16px;">
+            <div style="font-family: var(--font-mono); font-size: 28px; color: var(--info); margin-bottom: 8px;">01</div>
+            <h3 style="font-size: 15px; margin-bottom: 8px;">Export</h3>
+            <p style="font-size: 12px; margin: 0;">Scheduled CSV export from SFDC reports — weekly cadence</p>
+          </div>
+          <div class="card" style="padding: 20px 16px;">
+            <div style="font-family: var(--font-mono); font-size: 28px; color: var(--info); margin-bottom: 8px;">02</div>
+            <h3 style="font-size: 15px; margin-bottom: 8px;">Parse</h3>
+            <p style="font-size: 12px; margin: 0;">CSV ingestion, field mapping, region tagging, data normalization</p>
+          </div>
+          <div class="card" style="padding: 20px 16px;">
+            <div style="font-family: var(--font-mono); font-size: 28px; color: var(--success); margin-bottom: 8px;">03</div>
+            <h3 style="font-size: 15px; margin-bottom: 8px;">Validate</h3>
+            <p style="font-size: 12px; margin: 0;">Data quality checks, PII flagging, completeness scoring</p>
+          </div>
+          <div class="card" style="padding: 20px 16px;">
+            <div style="font-family: var(--font-mono); font-size: 28px; color: var(--accent); margin-bottom: 8px;">04</div>
+            <h3 style="font-size: 15px; margin-bottom: 8px;">Analyze</h3>
+            <p style="font-size: 12px; margin: 0;">LLM processes batches — theme extraction, sentiment, risk signals</p>
+          </div>
+          <div class="card" style="padding: 20px 16px;">
+            <div style="font-family: var(--font-mono); font-size: 28px; color: var(--error); margin-bottom: 8px;">05</div>
+            <h3 style="font-size: 15px; margin-bottom: 8px;">Report</h3>
+            <p style="font-size: 12px; margin: 0;">Aggregate by region, generate dashboard + deck, distribute to ELT</p>
+          </div>
+        </div>
+        <div style="margin-top: 28px;">
+          <div class="callout" style="max-width: 800px;">
+            <strong style="color: var(--accent);">Batch Processing:</strong> Opportunities are chunked into batches of 20–30 for LLM analysis. Each batch returns structured JSON with extracted themes, risk scores, and competitor mentions. Results are aggregated into the final report.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 8: Weekly Intel Report Mockup -->
+    <div class="slide" data-slide="7">
+      <div class="stagger" style="width: 100%; max-width: 1050px;">
+        <div class="section-label">The Deliverable</div>
+        <h1 class="slide-title" style="font-size: 36px; margin-bottom: 24px;">Weekly Global Intel Report</h1>
+        <div class="report-mockup">
+          <div class="report-header">
+            <div>
+              <span style="font-family: var(--font-display); font-size: 16px; font-weight: 600;">Project Prism</span>
+              <span style="color: var(--text-muted); font-size: 13px; margin-left: 12px;">Week of Feb 3, 2026</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <span class="theme-tag theme-info">NA</span>
+              <span class="theme-tag theme-info">UK</span>
+              <span class="theme-tag theme-info">ANZ</span>
+            </div>
+          </div>
+          <div class="report-body">
+            <div class="grid-2" style="gap: 20px;">
+              <div class="report-section">
+                <h4 style="color: var(--success);">Top Win Themes</h4>
+                <span class="theme-tag theme-win">Superior workflow automation</span>
+                <span class="theme-tag theme-win">Scheduling flexibility</span>
+                <span class="theme-tag theme-win">Mobile-first field experience</span>
+                <span class="theme-tag theme-win">Integration ecosystem</span>
+              </div>
+              <div class="report-section">
+                <h4 style="color: var(--error);">Top Loss Themes</h4>
+                <span class="theme-tag theme-loss">Pricing perception vs. competition</span>
+                <span class="theme-tag theme-loss">Missing asset tracking module</span>
+                <span class="theme-tag theme-loss">Implementation timeline concerns</span>
+                <span class="theme-tag theme-loss">Incumbent loyalty</span>
+              </div>
+              <div class="report-section">
+                <h4 style="color: var(--warning);">At-Risk Deals (7)</h4>
+                <span class="theme-tag theme-risk">Stalled executive alignment (3)</span>
+                <span class="theme-tag theme-risk">Negative sentiment shift (2)</span>
+                <span class="theme-tag theme-risk">Competitor displacement attempt (2)</span>
+              </div>
+              <div class="report-section">
+                <h4 style="color: var(--info);">Market Signals</h4>
+                <span class="theme-tag theme-info">New competitor FUD on pricing</span>
+                <span class="theme-tag theme-info">Rising demand for AI features</span>
+                <span class="theme-tag theme-info">Mid-market consolidation trend</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 9: Workstreams & RACI -->
+    <div class="slide" data-slide="8">
+      <div class="stagger" style="width: 100%; max-width: 1050px;">
+        <div class="section-label">Execution Plan</div>
+        <h1 class="slide-title" style="font-size: 38px; margin-bottom: 24px;">Workstreams &amp; Ownership</h1>
+        <table class="raci-table">
+          <thead>
+            <tr>
+              <th style="width: 30%;">Workstream</th>
+              <th>Responsible</th>
+              <th>Accountable</th>
+              <th>Consulted</th>
+              <th>Key Deliverable</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="color: var(--text-primary); font-weight: 500;">Data Schema &amp; Export</td>
+              <td><span class="raci-role raci-r">Mike / RevOps</span></td>
+              <td><span class="raci-role raci-a">Pete</span></td>
+              <td><span class="raci-role raci-c">Brad</span></td>
+              <td style="font-size: 13px;">SFDC report definitions, CSV export automation</td>
+            </tr>
+            <tr>
+              <td style="color: var(--text-primary); font-weight: 500;">Data Pipeline</td>
+              <td><span class="raci-role raci-r">Brad</span></td>
+              <td><span class="raci-role raci-a">Pete</span></td>
+              <td><span class="raci-role raci-c">Mike</span></td>
+              <td style="font-size: 13px;">CSV parser, normalizer, PII flagger, validator</td>
+            </tr>
+            <tr>
+              <td style="color: var(--text-primary); font-weight: 500;">LLM Analysis Engine</td>
+              <td><span class="raci-role raci-r">Brad</span></td>
+              <td><span class="raci-role raci-a">Pete</span></td>
+              <td><span class="raci-role raci-c">Steve</span></td>
+              <td style="font-size: 13px;">Provider-agnostic LLM layer, prompt engineering</td>
+            </tr>
+            <tr>
+              <td style="color: var(--text-primary); font-weight: 500;">Report Generation</td>
+              <td><span class="raci-role raci-r">Brad</span></td>
+              <td><span class="raci-role raci-a">Pete</span></td>
+              <td><span class="raci-role raci-c">Mike</span></td>
+              <td style="font-size: 13px;">Interactive dashboard, auto-gen PPTX, email</td>
+            </tr>
+            <tr>
+              <td style="color: var(--text-primary); font-weight: 500;">Security &amp; Hosting</td>
+              <td><span class="raci-role raci-r">Steve / IT</span></td>
+              <td><span class="raci-role raci-a">Steve</span></td>
+              <td><span class="raci-role raci-c">Brad</span></td>
+              <td style="font-size: 13px;">Data privacy review, hosting decision, API key mgmt</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SLIDE 10: Timeline -->
+    <div class="slide" data-slide="9">
+      <div class="stagger" style="width: 100%; max-width: 1050px;">
+        <div class="section-label">Timeline</div>
+        <h1 class="slide-title" style="font-size: 38px; margin-bottom: 24px;">Phase 1 — 4-Week Sprint</h1>
+        <div class="timeline">
+          <div class="timeline-week">
+            <div class="week-label">Week 1</div>
+            <div class="week-tasks">
+              <div class="week-task"><div class="task-dot" style="background: var(--info);"></div>Define SFDC data schema &amp; field mappings <span class="owner-badge owner-mike" style="font-size:10px;">Mike</span></div>
+              <div class="week-task"><div class="task-dot" style="background: var(--info);"></div>Create &amp; schedule SFDC CSV report exports <span class="owner-badge owner-mike" style="font-size:10px;">Mike</span></div>
+              <div class="week-task"><div class="task-dot" style="background: var(--error);"></div>Security &amp; data privacy review — LLM API usage <span class="owner-badge owner-steve" style="font-size:10px;">Steve</span></div>
+              <div class="week-task"><div class="task-dot" style="background: var(--success);"></div>Begin CSV parser &amp; data normalization layer <span class="owner-badge owner-brad" style="font-size:10px;">Brad</span></div>
+            </div>
+          </div>
+          <div class="timeline-week">
+            <div class="week-label">Week 2</div>
+            <div class="week-tasks">
+              <div class="week-task"><div class="task-dot" style="background: var(--success);"></div>Build LLM provider abstraction layer <span class="owner-badge owner-brad" style="font-size:10px;">Brad</span></div>
+              <div class="week-task"><div class="task-dot" style="background: var(--success);"></div>Engineer analysis prompts (themes, risk, competitor) <span class="owner-badge owner-brad" style="font-size:10px;">Brad</span></div>
+              <div class="week-task"><div class="task-dot" style="background: var(--success);"></div>Batch processing &amp; response parsing <span class="owner-badge owner-brad" style="font-size:10px;">Brad</span></div>
+              <div class="week-task"><div class="task-dot" style="background: var(--error);"></div>Hosting &amp; deployment decision <span class="owner-badge owner-steve" style="font-size:10px;">Steve</span></div>
+            </div>
+          </div>
+          <div class="timeline-week">
+            <div class="week-label">Week 3</div>
+            <div class="week-tasks">
+              <div class="week-task"><div class="task-dot" style="background: var(--success);"></div>Build interactive HTML dashboard <span class="owner-badge owner-brad" style="font-size:10px;">Brad</span></div>
+              <div class="week-task"><div class="task-dot" style="background: var(--success);"></div>Build auto-generated PowerPoint report <span class="owner-badge owner-brad" style="font-size:10px;">Brad</span></div>
+              <div class="week-task"><div class="task-dot" style="background: var(--success);"></div>Test with historical NA/UK/ANZ data <span class="owner-badge owner-brad" style="font-size:10px;">Brad</span></div>
+              <div class="week-task"><div class="task-dot" style="background: var(--info);"></div>Validate output accuracy with RevOps <span class="owner-badge owner-mike" style="font-size:10px;">Mike</span></div>
+            </div>
+          </div>
+          <div class="timeline-week">
+            <div class="week-label">Week 4</div>
+            <div class="week-tasks">
+              <div class="week-task"><div class="task-dot" style="background: var(--accent);"></div>Present first Global Intel draft report to ELT <span class="owner-badge owner-pete" style="font-size:10px;">Pete</span></div>
+              <div class="week-task"><div class="task-dot" style="background: var(--accent);"></div>Gather ELT feedback &amp; iterate <span class="owner-badge owner-brad" style="font-size:10px;">Brad</span></div>
+              <div class="week-task"><div class="task-dot" style="background: var(--success);"></div>Deploy weekly automation &amp; email distribution <span class="owner-badge owner-brad" style="font-size:10px;">Brad</span></div>
+              <div class="week-task"><div class="task-dot" style="background: var(--accent);"></div>Phase 1 retrospective &amp; Phase 2 planning <span class="owner-badge owner-pete" style="font-size:10px;">All</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 11: Success Metrics -->
+    <div class="slide" data-slide="10">
+      <div class="stagger" style="width: 100%; max-width: 1100px; text-align: center;">
+        <div class="section-label">Measuring Success</div>
+        <h1 class="slide-title" style="margin-bottom: 36px;">Phase 1 KPIs</h1>
+        <div class="grid-4">
+          <div class="card" style="text-align: center;">
+            <div class="stat-number" style="font-size: 44px; color: var(--success);">90%</div>
+            <div class="stat-label" style="margin-bottom: 8px;">Risk Accuracy</div>
+            <p style="font-size: 12px; margin: 0;">At-risk deals identified correctly vs. actual outcomes</p>
+          </div>
+          <div class="card" style="text-align: center;">
+            <div class="stat-number" style="font-size: 44px; color: var(--info);">100%</div>
+            <div class="stat-label" style="margin-bottom: 8px;">ELT Adoption</div>
+            <p style="font-size: 12px; margin: 0;">Weekly report leveraged in forecast calls within 4 weeks</p>
+          </div>
+          <div class="card" style="text-align: center;">
+            <div class="stat-number" style="font-size: 44px; color: var(--accent);">&lt;24h</div>
+            <div class="stat-label" style="margin-bottom: 8px;">Time to Insight</div>
+            <p style="font-size: 12px; margin: 0;">From data capture to actionable intelligence</p>
+          </div>
+          <div class="card" style="text-align: center;">
+            <div class="stat-number" style="font-size: 44px; color: var(--error);">2x</div>
+            <div class="stat-label" style="margin-bottom: 8px;">Gap Detection</div>
+            <p style="font-size: 12px; margin: 0;">Product gap identification speed vs. manual process</p>
+          </div>
+        </div>
+        <div style="margin-top: 28px;">
+          <div class="callout" style="max-width: 700px; margin: 0 auto; text-align: left;">
+            <strong style="color: var(--accent);">Validation approach:</strong> Run Prism against 8 weeks of historical data. Compare AI-identified risk deals against actual outcomes. Calibrate prompts until 90%+ accuracy is achieved before going live.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 12: 3-Horizon Vision -->
+    <div class="slide" data-slide="11">
+      <div class="stagger" style="width: 100%; max-width: 1100px;">
+        <div class="section-label">Strategic Roadmap</div>
+        <h1 class="slide-title" style="margin-bottom: 28px;">The 3-Horizon Strategy</h1>
+        <div class="grid-3" style="align-items: stretch;">
+          <div class="horizon-card h1">
+            <div class="horizon-label">Horizon 1 — Now</div>
+            <h3 style="margin-bottom: 10px; font-size: 22px;">Intelligence Engine</h3>
+            <p style="color: var(--text-secondary); font-size: 14px; line-height: 1.55;">
+              Establish the "Brain." Prove AI can reliably interpret complex sales data and provide ELT-level strategic value. Weekly Global Intel Report with win/loss analysis and risk radar.
+            </p>
+            <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);">
+              <span class="theme-tag theme-win" style="font-size: 11px;">Win/Loss</span>
+              <span class="theme-tag theme-risk" style="font-size: 11px;">Risk Radar</span>
+              <span class="theme-tag theme-info" style="font-size: 11px;">Market Signals</span>
+            </div>
+          </div>
+          <div class="horizon-card h2">
+            <div class="horizon-label">Horizon 2 — Q2 '26</div>
+            <h3 style="margin-bottom: 10px; font-size: 22px;">Intervention Layer</h3>
+            <p style="color: var(--text-secondary); font-size: 14px; line-height: 1.55;">
+              Connect the "Brain" to the "Hands." Integrate with Salesforce Agentforce for automated corrective actions. Auto-tasks, coaching nudges, and proactive deal rescue.
+            </p>
+            <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);">
+              <span class="theme-tag theme-info" style="font-size: 11px;">Agentforce</span>
+              <span class="theme-tag theme-info" style="font-size: 11px;">Clari Copilot</span>
+              <span class="theme-tag theme-info" style="font-size: 11px;">Auto-Tasks</span>
+            </div>
+          </div>
+          <div class="horizon-card h3">
+            <div class="horizon-label">Horizon 3 — H2 '26</div>
+            <h3 style="margin-bottom: 10px; font-size: 22px;">Agentic Growth Force</h3>
+            <p style="color: var(--text-secondary); font-size: 14px; line-height: 1.55;">
+              Deploy an "Army of Agents" to decouple revenue growth from headcount. Hunter agents for NCA, Account Manager agents for expansion. 100% TAM coverage.
+            </p>
+            <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);">
+              <span class="theme-tag" style="font-size: 11px; background: var(--accent-subtle); color: var(--accent);">1000+ Agents</span>
+              <span class="theme-tag" style="font-size: 11px; background: var(--accent-subtle); color: var(--accent);">50% RAC Reduction</span>
+            </div>
+          </div>
+        </div>
+        <div class="prism-bar full" style="margin-top: 24px;"></div>
+      </div>
+    </div>
+
+    <!-- SLIDE 13: Data Security -->
+    <div class="slide" data-slide="12">
+      <div class="stagger" style="width: 100%; max-width: 1100px;">
+        <div class="section-label">Security & Compliance</div>
+        <h1 class="slide-title" style="font-size: 38px; margin-bottom: 24px;">Data Privacy Considerations</h1>
+        <div class="split">
+          <div class="split-left">
+            <div class="card" style="margin-bottom: 16px; border-left: 3px solid var(--warning);">
+              <h3 style="color: var(--warning); font-size: 16px;">Action Required</h3>
+              <p style="margin-bottom: 0; font-size: 14px;">Review whether sending SFDC opportunity data to external LLM APIs requires additional security clearance or legal review. Flag with Steve's team in Week 1.</p>
+            </div>
+            <div class="card" style="margin-bottom: 16px; border-left: 3px solid var(--success);">
+              <h3 style="color: var(--success); font-size: 16px;">Built-in Safeguards</h3>
+              <ul class="check-list" style="margin-top: 8px;">
+                <li><span class="check-icon green">&#10003;</span>PII detection and scrubbing before LLM processing</li>
+                <li><span class="check-icon green">&#10003;</span>No customer-identifiable data in prompts (deal IDs only)</li>
+                <li><span class="check-icon green">&#10003;</span>API keys stored in secure environment variables</li>
+                <li><span class="check-icon green">&#10003;</span>No data retention — process and discard</li>
+              </ul>
+            </div>
+          </div>
+          <div class="split-right">
+            <div class="card" style="border-left: 3px solid var(--info);">
+              <h3 style="color: var(--info); font-size: 16px;">Architecture Mitigations</h3>
+              <ul class="check-list" style="margin-top: 8px;">
+                <li><span class="check-icon blue">&#9670;</span>Provider-agnostic design allows switching to an on-prem or private-cloud LLM if required</li>
+                <li><span class="check-icon blue">&#9670;</span>Data minimization — only send note text, stage, and region; strip all unnecessary fields</li>
+                <li><span class="check-icon blue">&#9670;</span>Audit logging of all LLM API calls for compliance trail</li>
+                <li><span class="check-icon blue">&#9670;</span>Hosting decision (Vercel, internal VM, or cloud) determines data residency</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 14: Next Steps -->
+    <div class="slide" data-slide="13">
+      <div class="stagger" style="width: 100%; max-width: 1100px; text-align: center;">
+        <div class="section-label">Next Steps</div>
+        <h1 class="slide-title" style="margin-bottom: 8px;">Let's Make It Happen</h1>
+        <div class="prism-bar wide" style="margin: 16px auto 36px;"></div>
+        <div class="grid-4" style="text-align: left; margin-bottom: 32px;">
+          <div class="card" style="border-top: 3px solid var(--info);">
+            <div style="font-family: var(--font-mono); font-size: 11px; color: var(--info); margin-bottom: 8px;">MIKE / REVOPS</div>
+            <ul class="check-list" style="margin-top: 4px;">
+              <li style="padding: 4px 0; font-size: 13px;"><span class="check-icon blue" style="width: 16px; height: 16px; font-size: 9px;">1</span>Define SFDC field list for win/loss + deal review</li>
+              <li style="padding: 4px 0; font-size: 13px;"><span class="check-icon blue" style="width: 16px; height: 16px; font-size: 9px;">2</span>Create scheduled CSV export report</li>
+              <li style="padding: 4px 0; font-size: 13px;"><span class="check-icon blue" style="width: 16px; height: 16px; font-size: 9px;">3</span>Share sample data with Brad</li>
+            </ul>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--success);">
+            <div style="font-family: var(--font-mono); font-size: 11px; color: var(--success); margin-bottom: 8px;">BRAD / SE</div>
+            <ul class="check-list" style="margin-top: 4px;">
+              <li style="padding: 4px 0; font-size: 13px;"><span class="check-icon green" style="width: 16px; height: 16px; font-size: 9px;">1</span>Build data ingestion pipeline</li>
+              <li style="padding: 4px 0; font-size: 13px;"><span class="check-icon green" style="width: 16px; height: 16px; font-size: 9px;">2</span>Build LLM analysis engine</li>
+              <li style="padding: 4px 0; font-size: 13px;"><span class="check-icon green" style="width: 16px; height: 16px; font-size: 9px;">3</span>Deliver working prototype</li>
+            </ul>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--error);">
+            <div style="font-family: var(--font-mono); font-size: 11px; color: var(--error); margin-bottom: 8px;">STEVE / IT</div>
+            <ul class="check-list" style="margin-top: 4px;">
+              <li style="padding: 4px 0; font-size: 13px;"><span class="check-icon" style="width: 16px; height: 16px; font-size: 9px; background: var(--error-subtle); color: var(--error);">1</span>Data privacy review for LLM APIs</li>
+              <li style="padding: 4px 0; font-size: 13px;"><span class="check-icon" style="width: 16px; height: 16px; font-size: 9px; background: var(--error-subtle); color: var(--error);">2</span>Hosting &amp; deployment decision</li>
+              <li style="padding: 4px 0; font-size: 13px;"><span class="check-icon" style="width: 16px; height: 16px; font-size: 9px; background: var(--error-subtle); color: var(--error);">3</span>API key &amp; secrets management</li>
+            </ul>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--accent);">
+            <div style="font-family: var(--font-mono); font-size: 11px; color: var(--accent); margin-bottom: 8px;">PETE / CRO</div>
+            <ul class="check-list" style="margin-top: 4px;">
+              <li style="padding: 4px 0; font-size: 13px;"><span class="check-icon amber" style="width: 16px; height: 16px; font-size: 9px;">1</span>Sponsor &amp; remove blockers</li>
+              <li style="padding: 4px 0; font-size: 13px;"><span class="check-icon amber" style="width: 16px; height: 16px; font-size: 9px;">2</span>Define ELT report requirements</li>
+              <li style="padding: 4px 0; font-size: 13px;"><span class="check-icon amber" style="width: 16px; height: 16px; font-size: 9px;">3</span>Present to ELT in Week 4</li>
+            </ul>
+          </div>
+        </div>
+        <div style="font-family: var(--font-mono); font-size: 13px; color: var(--text-muted);">
+          Target: First Global Intel Report delivered Week 4 &middot; Weekly automation live by end of sprint
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Navigation -->
+  <div class="slide-counter" id="slideCounter">01 / 14</div>
+  <div class="nav-controls">
+    <button class="nav-btn" id="prevBtn" onclick="navigate(-1)">&#8592;</button>
+    <button class="nav-btn" id="nextBtn" onclick="navigate(1)">&#8594;</button>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    const counter = document.getElementById('slideCounter');
+    const progressBar = document.getElementById('progressBar');
+    let isTransitioning = false;
+
+    function updateSlide(newIndex) {
+      if (isTransitioning || newIndex < 0 || newIndex >= totalSlides || newIndex === currentSlide) return;
+      isTransitioning = true;
+
+      const current = slides[currentSlide];
+      const next = slides[newIndex];
+      const direction = newIndex > currentSlide ? 1 : -1;
+
+      current.classList.remove('active');
+      current.classList.add('exiting');
+      current.style.transform = `translateX(${-40 * direction}px)`;
+
+      next.style.transform = `translateX(${40 * direction}px)`;
+      next.offsetHeight; // force reflow
+      next.classList.add('active');
+      next.style.transform = 'translateX(0)';
+
+      currentSlide = newIndex;
+      counter.textContent = String(currentSlide + 1).padStart(2, '0') + ' / ' + String(totalSlides).padStart(2, '0');
+      progressBar.style.width = ((currentSlide + 1) / totalSlides * 100) + '%';
+
+      setTimeout(() => {
+        current.classList.remove('exiting');
+        isTransitioning = false;
+      }, 500);
+    }
+
+    function navigate(dir) {
+      updateSlide(currentSlide + dir);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); navigate(1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); navigate(-1); }
+      if (e.key === 'Home') { e.preventDefault(); updateSlide(0); }
+      if (e.key === 'End') { e.preventDefault(); updateSlide(totalSlides - 1); }
+    });
+
+    // Touch support
+    let touchStartX = 0;
+    document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+    document.addEventListener('touchend', (e) => {
+      const diff = touchStartX - e.changedTouches[0].clientX;
+      if (Math.abs(diff) > 50) navigate(diff > 0 ? 1 : -1);
+    });
+
+    // Initialize
+    progressBar.style.width = (1 / totalSlides * 100) + '%';
+  </script>
+</body>
+</html>

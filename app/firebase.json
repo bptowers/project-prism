@@ -1,0 +1,24 @@
+{
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs20",
+    "predeploy": ["npm --prefix functions run build"]
+  },
+  "hosting": {
+    "public": "hosting/dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "predeploy": ["npm --prefix hosting run build"],
+    "rewrites": [
+      { "source": "/api/report", "function": "getReport" },
+      { "source": "/api/report/history", "function": "getReportHistory" },
+      { "source": "/api/upload", "function": "uploadCSV" },
+      { "source": "**", "destination": "/index.html" }
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
+}
