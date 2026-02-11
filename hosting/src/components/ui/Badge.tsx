@@ -3,11 +3,11 @@ import React from 'react';
 type BadgeVariant = 'high' | 'medium' | 'low' | 'info' | 'success';
 
 const styles: Record<BadgeVariant, React.CSSProperties> = {
-  high: { background: 'rgba(199,93,93,0.2)', color: 'var(--error)', border: '1px solid rgba(199,93,93,0.4)' },
-  medium: { background: 'rgba(212,165,116,0.2)', color: 'var(--accent)', border: '1px solid rgba(212,165,116,0.4)' },
-  low: { background: 'var(--success-subtle)', color: 'var(--success)', border: '1px solid rgba(126,181,99,0.4)' },
-  info: { background: 'rgba(107,163,199,0.15)', color: 'var(--prism-blue)', border: '1px solid rgba(107,163,199,0.4)' },
-  success: { background: 'var(--success-subtle)', color: 'var(--success)', border: '1px solid rgba(126,181,99,0.4)' },
+  high: { background: 'var(--error-subtle)', color: 'var(--error)', border: '1px solid var(--error)' },
+  medium: { background: 'var(--warning-subtle)', color: 'var(--warning)', border: '1px solid var(--warning)' },
+  low: { background: 'var(--success-subtle)', color: 'var(--success)', border: '1px solid var(--success)' },
+  info: { background: 'var(--accent-subtle)', color: 'var(--prism-blue)', border: '1px solid var(--prism-blue)' },
+  success: { background: 'var(--success-subtle)', color: 'var(--success)', border: '1px solid var(--success)' },
 };
 
 interface BadgeProps {

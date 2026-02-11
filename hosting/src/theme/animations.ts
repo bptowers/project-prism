@@ -19,6 +19,6 @@ export const itemVariants: Variants = {
 
 export const cardHover = {
   y: -3,
-  boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
-  borderColor: '#453f3b',
+  boxShadow: 'var(--shadow-lg)',
+  borderColor: 'var(--border-emphasis)',
 };

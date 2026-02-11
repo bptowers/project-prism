@@ -5,12 +5,12 @@ import { Sparkline } from '@/components/ui/Sparkline';
 import type { Stats } from '@/lib/types';
 
 const statConfig: Record<string, { label: string; borderColor: string; sparkColor: string; valueColor?: string }> = {
-  pipeline: { label: 'Pipeline Value', borderColor: 'var(--accent)', sparkColor: '#d4a574' },
-  winRate: { label: 'Win Rate', borderColor: 'var(--success)', sparkColor: '#7eb563', valueColor: 'var(--success)' },
-  atRisk: { label: 'Revenue at Risk', borderColor: 'var(--error)', sparkColor: '#c75d5d', valueColor: 'var(--error)' },
-  velocity: { label: 'Deal Velocity', borderColor: 'var(--prism-blue)', sparkColor: '#6ba3c7' },
-  forecast: { label: 'Forecast Confidence', borderColor: 'var(--accent)', sparkColor: '#d4a574' },
-  threats: { label: 'Active Threats', borderColor: 'var(--error)', sparkColor: '#c75d5d', valueColor: 'var(--error)' },
+  pipeline: { label: 'Pipeline Value', borderColor: 'var(--accent)', sparkColor: 'var(--accent)' },
+  winRate: { label: 'Win Rate', borderColor: 'var(--success)', sparkColor: 'var(--success)', valueColor: 'var(--success)' },
+  atRisk: { label: 'Revenue at Risk', borderColor: 'var(--error)', sparkColor: 'var(--error)', valueColor: 'var(--error)' },
+  velocity: { label: 'Deal Velocity', borderColor: 'var(--prism-blue)', sparkColor: 'var(--prism-blue)' },
+  forecast: { label: 'Forecast Confidence', borderColor: 'var(--accent)', sparkColor: 'var(--accent)' },
+  threats: { label: 'Active Threats', borderColor: 'var(--error)', sparkColor: 'var(--error)', valueColor: 'var(--error)' },
 };
 
 interface Props {
@@ -25,7 +25,7 @@ export const StatsRow: React.FC<Props> = ({ stats, sparklines }) => (
       const isNegativeMetric = key === 'atRisk' || key === 'threats';
       const changeClass = (stat.dir === 'up' && !isNegativeMetric) || (stat.dir === 'down' && isNegativeMetric) ? 'good' : 'bad';
       return (
-        <motion.div key={key} variants={itemVariants} whileHover={{ y: -3, boxShadow: '0 12px 32px rgba(0,0,0,0.4)' }}
+        <motion.div key={key} variants={itemVariants} whileHover={{ y: -3, boxShadow: 'var(--shadow-lg)' }}
           style={{
             background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8,
             padding: '1.25rem', borderTop: `3px solid ${cfg.borderColor}`, overflow: 'hidden',

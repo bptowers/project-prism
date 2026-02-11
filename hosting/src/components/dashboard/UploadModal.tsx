@@ -8,22 +8,22 @@ interface UploadModalProps {
 }
 
 const THEME = {
-  bgDeep: '#0f0e0d',
-  bgSurface: '#1a1816',
-  bgElevated: '#252220',
-  bgOverlay: '#322e2b',
-  textPrimary: '#e8e4df',
-  textSecondary: '#b5aea5',
-  textMuted: '#7a746c',
-  accent: '#d4a574',
-  accentEmphasis: '#c4956a',
-  border: '#322e2b',
-  borderEmphasis: '#453f3b',
-  success: '#7eb563',
-  error: '#c75d5d',
+  bgDeep: 'var(--bg-deep)',
+  bgSurface: 'var(--bg-surface)',
+  bgElevated: 'var(--bg-elevated)',
+  bgOverlay: 'var(--bg-overlay)',
+  textPrimary: 'var(--text-primary)',
+  textSecondary: 'var(--text-secondary)',
+  textMuted: 'var(--text-muted)',
+  accent: 'var(--accent)',
+  accentEmphasis: 'var(--accent-emphasis)',
+  border: 'var(--border)',
+  borderEmphasis: 'var(--border-emphasis)',
+  success: 'var(--success)',
+  error: 'var(--error)',
 };
 
-const PRISM_GRADIENT = 'linear-gradient(to right, #6ba3c7, #7eb563, #d4a574, #c75d5d)';
+const PRISM_GRADIENT = 'linear-gradient(to right, var(--prism-blue), var(--prism-green), var(--prism-amber), var(--prism-red))';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -112,7 +112,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
               {/* Header */}
               <div style={{ padding: '24px 28px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontFamily: "'Playfair Display', serif", fontWeight: 700, color: THEME.textPrimary }}>
+                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontFamily: 'var(--font-display)', fontWeight: 700, color: THEME.textPrimary }}>
                     Upload Salesforce Export
                   </h2>
                   <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: THEME.textMuted }}>
@@ -147,7 +147,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
                         padding: '40px 24px',
                         textAlign: 'center',
                         cursor: 'pointer',
-                        backgroundColor: dragOver ? `${THEME.accent}10` : THEME.bgElevated,
+                        backgroundColor: dragOver ? 'var(--accent-subtle)' : THEME.bgElevated,
                         transition: 'all 0.2s ease',
                         marginBottom: 20,
                       }}
@@ -222,25 +222,25 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
                       border: `1px solid ${THEME.border}`,
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', color: THEME.textPrimary }}>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: THEME.textPrimary }}>
                           {preview.name}
                         </div>
-                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.7rem', color: THEME.textMuted }}>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: THEME.textMuted }}>
                           {formatBytes(preview.size)}
                         </div>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                         <div>
                           <div style={{ fontSize: '0.65rem', color: THEME.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Rows</div>
-                          <div style={{ fontSize: '1.1rem', color: THEME.accent, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{preview.rows.toLocaleString()}</div>
+                          <div style={{ fontSize: '1.1rem', color: THEME.accent, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{preview.rows.toLocaleString()}</div>
                         </div>
                         <div>
                           <div style={{ fontSize: '0.65rem', color: THEME.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Columns</div>
-                          <div style={{ fontSize: '1.1rem', color: THEME.accent, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{preview.columns.length}</div>
+                          <div style={{ fontSize: '1.1rem', color: THEME.accent, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{preview.columns.length}</div>
                         </div>
                         <div>
                           <div style={{ fontSize: '0.65rem', color: THEME.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Regions</div>
-                          <div style={{ fontSize: '1.1rem', color: THEME.accent, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                          <div style={{ fontSize: '1.1rem', color: THEME.accent, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
                             {preview.regions.length > 0 ? preview.regions.join(', ') : '—'}
                           </div>
                         </div>
@@ -264,7 +264,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
                         style={{
                           flex: 1, padding: '12px', borderRadius: 6, border: 'none',
                           background: THEME.accent, color: THEME.bgDeep, fontWeight: 700,
-                          fontSize: '0.85rem', cursor: 'pointer', fontFamily: "'Source Sans 3', sans-serif",
+                          fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)',
                           textTransform: 'uppercase', letterSpacing: '0.05em',
                         }}
                       >
@@ -336,7 +336,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
                       transition={{ type: 'spring', damping: 12, stiffness: 200 }}
                       style={{
                         width: 56, height: 56, borderRadius: '50%', margin: '0 auto 16px',
-                        backgroundColor: `${THEME.success}20`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        backgroundColor: 'var(--success-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}
                     >
                       <span style={{ fontSize: '1.5rem', color: THEME.success }}>&#10003;</span>
@@ -387,7 +387,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
                   <div style={{ textAlign: 'center', padding: '20px 0' }}>
                     <div style={{
                       width: 56, height: 56, borderRadius: '50%', margin: '0 auto 16px',
-                      backgroundColor: `${THEME.error}20`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: 'var(--error-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
                       <span style={{ fontSize: '1.5rem', color: THEME.error }}>&#10007;</span>
                     </div>

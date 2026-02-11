@@ -1,39 +1,85 @@
-/* === COPPER DARK DESIGN SYSTEM === */
+/* === PRISM CORPORATE DESIGN SYSTEM === */
+
+/* Light mode (default) */
 :root {
-  --bg-deep: #0f0e0d;
-  --bg-surface: #1a1816;
-  --bg-elevated: #252220;
-  --bg-overlay: #322e2b;
+  --bg-deep: #f8f9fb;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f0f1f4;
+  --bg-overlay: #e5e7ec;
 
-  --text-primary: #e8e4df;
-  --text-secondary: #b5aea5;
-  --text-muted: #7a746c;
-  --text-link: #d4a574;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --text-link: #2563eb;
 
-  --accent: #d4a574;
-  --accent-emphasis: #c4956a;
-  --accent-subtle: rgba(212, 165, 116, 0.15);
+  --accent: #2563eb;
+  --accent-emphasis: #1d4ed8;
+  --accent-subtle: rgba(37, 99, 235, 0.1);
 
-  --success: #7eb563;
-  --success-subtle: rgba(126, 181, 99, 0.15);
-  --warning: #d4a574;
-  --warning-subtle: rgba(212, 165, 116, 0.15);
-  --error: #c75d5d;
-  --error-subtle: rgba(199, 93, 93, 0.15);
+  --success: #16a34a;
+  --success-subtle: rgba(22, 163, 74, 0.1);
+  --warning: #d97706;
+  --warning-subtle: rgba(217, 119, 6, 0.1);
+  --error: #dc2626;
+  --error-subtle: rgba(220, 38, 38, 0.1);
 
-  --border: #322e2b;
-  --border-emphasis: #453f3b;
+  --border: #e5e7eb;
+  --border-emphasis: #d1d5db;
 
-  --prism-blue: #6ba3c7;
-  --prism-green: #7eb563;
-  --prism-amber: #d4a574;
-  --prism-red: #c75d5d;
+  --prism-blue: #2563eb;
+  --prism-green: #16a34a;
+  --prism-amber: #d97706;
+  --prism-red: #dc2626;
 
-  --font-display: 'Playfair Display', serif;
-  --font-body: 'Source Sans 3', sans-serif;
+  --font-display: 'Inter', 'Source Sans 3', sans-serif;
+  --font-body: 'Inter', 'Source Sans 3', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
   --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.1);
+
+  color-scheme: light;
+}
+
+/* Dark mode */
+[data-theme="dark"] {
+  --bg-deep: #0f1117;
+  --bg-surface: #1a1d27;
+  --bg-elevated: #242837;
+  --bg-overlay: #2e3345;
+
+  --text-primary: #f0f1f4;
+  --text-secondary: #b0b4c0;
+  --text-muted: #6b7085;
+  --text-link: #60a5fa;
+
+  --accent: #3b82f6;
+  --accent-emphasis: #60a5fa;
+  --accent-subtle: rgba(59, 130, 246, 0.15);
+
+  --success: #22c55e;
+  --success-subtle: rgba(34, 197, 94, 0.15);
+  --warning: #f59e0b;
+  --warning-subtle: rgba(245, 158, 11, 0.15);
+  --error: #ef4444;
+  --error-subtle: rgba(239, 68, 68, 0.15);
+
+  --border: #2e3345;
+  --border-emphasis: #3d4258;
+
+  --prism-blue: #3b82f6;
+  --prism-green: #22c55e;
+  --prism-amber: #f59e0b;
+  --prism-red: #ef4444;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.4);
+
+  color-scheme: dark;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -46,19 +92,17 @@ body {
   color: var(--text-primary);
   background: var(--bg-deep);
   min-height: 100vh;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 #root {
-  background:
-    radial-gradient(ellipse at 15% 20%, rgba(212, 165, 116, 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 80%, rgba(107, 163, 199, 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, rgba(126, 181, 99, 0.015) 0%, transparent 60%),
-    var(--bg-deep);
+  background: var(--bg-deep);
   min-height: 100vh;
+  transition: background-color 0.2s ease;
 }
 
 h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; line-height: 1.2; color: var(--text-primary); }
-a { color: var(--accent); text-decoration: none; }
+a { color: var(--text-link); text-decoration: none; }
 code, pre { font-family: var(--font-mono); font-size: 0.9em; }
 
 /* Scrollbar */
@@ -73,4 +117,10 @@ code, pre { font-family: var(--font-mono); font-size: 0.9em; }
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* Pulse animation for AI briefing indicator */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }

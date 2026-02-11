@@ -1,17 +1,30 @@
 export const colors = {
-  bg: { deep: '#0f0e0d', surface: '#1a1816', elevated: '#252220', overlay: '#322e2b' },
-  text: { primary: '#e8e4df', secondary: '#b5aea5', muted: '#7a746c' },
-  accent: { base: '#d4a574', emphasis: '#c4956a', subtle: 'rgba(212, 165, 116, 0.15)' },
-  success: { base: '#7eb563', subtle: 'rgba(126, 181, 99, 0.15)' },
-  error: { base: '#c75d5d', subtle: 'rgba(199, 93, 93, 0.15)' },
-  prism: { blue: '#6ba3c7', green: '#7eb563', amber: '#d4a574', red: '#c75d5d' },
-  border: { base: '#322e2b', emphasis: '#453f3b' },
+  light: {
+    bg: { deep: '#f8f9fb', surface: '#ffffff', elevated: '#f0f1f4', overlay: '#e5e7ec' },
+    text: { primary: '#111827', secondary: '#4b5563', muted: '#9ca3af' },
+    accent: { base: '#2563eb', emphasis: '#1d4ed8', subtle: 'rgba(37, 99, 235, 0.1)' },
+    success: { base: '#16a34a', subtle: 'rgba(22, 163, 74, 0.1)' },
+    error: { base: '#dc2626', subtle: 'rgba(220, 38, 38, 0.1)' },
+    warning: { base: '#d97706', subtle: 'rgba(217, 119, 6, 0.1)' },
+    prism: { blue: '#2563eb', green: '#16a34a', amber: '#d97706', red: '#dc2626' },
+    border: { base: '#e5e7eb', emphasis: '#d1d5db' },
+  },
+  dark: {
+    bg: { deep: '#0f1117', surface: '#1a1d27', elevated: '#242837', overlay: '#2e3345' },
+    text: { primary: '#f0f1f4', secondary: '#b0b4c0', muted: '#6b7085' },
+    accent: { base: '#3b82f6', emphasis: '#60a5fa', subtle: 'rgba(59, 130, 246, 0.15)' },
+    success: { base: '#22c55e', subtle: 'rgba(34, 197, 94, 0.15)' },
+    error: { base: '#ef4444', subtle: 'rgba(239, 68, 68, 0.15)' },
+    warning: { base: '#f59e0b', subtle: 'rgba(245, 158, 11, 0.15)' },
+    prism: { blue: '#3b82f6', green: '#22c55e', amber: '#f59e0b', red: '#ef4444' },
+    border: { base: '#2e3345', emphasis: '#3d4258' },
+  },
 } as const;
 
 export const fonts = {
-  display: "'Playfair Display', serif",
-  body: "'Source Sans 3', sans-serif",
+  display: "'Inter', 'Source Sans 3', sans-serif",
+  body: "'Inter', 'Source Sans 3', sans-serif",
   mono: "'JetBrains Mono', monospace",
 } as const;
 
-export const prismGradient = `linear-gradient(to right, ${colors.prism.blue} 0%, ${colors.prism.green} 30%, ${colors.prism.amber} 70%, ${colors.prism.red} 100%)`;
+export const prismGradient = 'linear-gradient(to right, var(--prism-blue) 0%, var(--prism-green) 30%, var(--prism-amber) 70%, var(--prism-red) 100%)';

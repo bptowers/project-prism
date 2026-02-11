@@ -26,12 +26,12 @@ export const allRegionData: RegionData = {
     threats: [2, 3, 2, 4, 3, 3, 4, 5],
   },
   funnel: [
-    { stage: 'Discovery', count: 112, revenue: '$14.8M', color: '#6ba3c7' },
-    { stage: 'Qualification', count: 87, revenue: '$11.4M', color: '#5f9abd' },
-    { stage: 'Demo / POC', count: 64, revenue: '$9.2M', color: '#7eb563' },
-    { stage: 'Proposal', count: 42, revenue: '$6.8M', color: '#a9b968' },
-    { stage: 'Negotiation', count: 28, revenue: '$3.8M', color: '#d4a574' },
-    { stage: 'Closed Won', count: 14, revenue: '$1.2M', color: '#7eb563' },
+    { stage: 'Discovery', count: 112, revenue: '$14.8M', color: 'var(--prism-blue)' },
+    { stage: 'Qualification', count: 87, revenue: '$11.4M', color: 'var(--accent)' },
+    { stage: 'Demo / POC', count: 64, revenue: '$9.2M', color: 'var(--prism-green)' },
+    { stage: 'Proposal', count: 42, revenue: '$6.8M', color: 'var(--prism-amber)' },
+    { stage: 'Negotiation', count: 28, revenue: '$3.8M', color: 'var(--warning)' },
+    { stage: 'Closed Won', count: 14, revenue: '$1.2M', color: 'var(--success)' },
   ],
   winThemes: [
     { label: 'Workflow Automation', pct: 28, revenue: '$5.4M' },

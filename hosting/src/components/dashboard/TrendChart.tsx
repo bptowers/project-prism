@@ -25,9 +25,9 @@ export const TrendChart: React.FC<Props> = ({ trendData }) => {
     };
 
     const gridLines = [30, 35, 40, 45, 50].filter(v => v >= minV && v <= maxV);
-    const regionColors: Record<string, string> = { na: '#6ba3c7', uk: '#7eb563', anz: '#c75d5d' };
+    const regionColors: Record<string, string> = { na: 'var(--prism-blue)', uk: 'var(--prism-green)', anz: 'var(--prism-red)' };
 
-    let svgContent = `<defs><linearGradient id="tG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#d4a574" stop-opacity="0.2"/><stop offset="100%" stop-color="#d4a574" stop-opacity="0"/></linearGradient></defs>`;
+    let svgContent = `<defs><linearGradient id="tG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--accent)" stop-opacity="0.2"/><stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>`;
     gridLines.forEach(v => {
       const y = padT + chartH - ((v - minV) / rangeV) * chartH;
       svgContent += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="var(--border)" stroke-width="0.5"/>`;
@@ -41,11 +41,11 @@ export const TrendChart: React.FC<Props> = ({ trendData }) => {
       svgContent += `<path d="${toPath(trendData[r as keyof TrendData] as number[])}" fill="none" stroke="${regionColors[r]}" stroke-width="1" stroke-opacity="0.4" stroke-dasharray="4,4"/>`;
     });
     svgContent += `<path d="${toArea(trendData.all)}" fill="url(#tG)"/>`;
-    svgContent += `<path d="${toPath(trendData.all)}" fill="none" stroke="#d4a574" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    svgContent += `<path d="${toPath(trendData.all)}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
     trendData.all.forEach((v, i) => {
       const x = padL + (i / (trendData.all.length - 1)) * chartW;
       const y = padT + chartH - ((v - minV) / rangeV) * chartH;
-      svgContent += `<circle cx="${x}" cy="${y}" r="3" fill="#d4a574" stroke="#1a1816" stroke-width="2"/>`;
+      svgContent += `<circle cx="${x}" cy="${y}" r="3" fill="var(--accent)" stroke="var(--bg-surface)" stroke-width="2"/>`;
     });
 
     return { viewBox: `0 0 ${w} ${h}`, content: svgContent };
