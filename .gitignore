@@ -2,8 +2,8 @@
 node_modules/
 
 # Build output
-app/hosting/dist/
-app/functions/lib/
+hosting/dist/
+functions/lib/
 
 # Environment variables
 .env
@@ -39,4 +39,4 @@ Thumbs.db
 *.timestamp-*
 
 # Package lock (functions — regenerated on install)
-app/functions/package-lock.json
+functions/package-lock.json
