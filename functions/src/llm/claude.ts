@@ -6,7 +6,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ILLMProvider, LLMAnalysisOutput, LLMProviderError, LLMRateLimitError } from "./provider.js";
 import { LLMConfig, OpportunityAnalysis, OpportunityRecord } from "../types.js";
-import { formatOpportunityForPrompt, injectOpportunityData } from "./prompts.js";
+import { formatOpportunityForPrompt, injectOpportunityData, SYSTEM_PROMPT } from "./prompts.js";
 
 /**
  * Claude LLM Provider implementation
@@ -45,7 +45,7 @@ export class ClaudeProvider implements ILLMProvider {
         // Apply rate limiting (100 requests per minute = ~600ms per request)
         await this.enforceRateLimit();
 
-        // Format opportunity data
+        // Format opportunity data with all available fields
         const opportunityData = formatOpportunityForPrompt({
           opportunityId: opportunity.opportunityId,
           accountName: opportunity.accountName,
@@ -57,6 +57,19 @@ export class ClaudeProvider implements ILLMProvider {
           dealReviewNotes: opportunity.dealReviewNotes,
           region: opportunity.region,
           industry: opportunity.industry,
+          closedDate: opportunity.closedDate,
+          createdDate: opportunity.createdDate,
+          updatedDate: opportunity.updatedDate,
+          lastActivityDate: opportunity.lastActivityDate,
+          salesRep: opportunity.salesRep,
+          winLossReason: opportunity.winLossReason,
+          nextStep: opportunity.nextStep,
+          probability: opportunity.probability,
+          forecastCategory: opportunity.forecastCategory,
+          leadSource: opportunity.leadSource,
+          dealType: opportunity.dealType,
+          economicBuyer: opportunity.economicBuyer,
+          productLine: opportunity.productLine,
         });
 
         // Inject data into prompt
@@ -67,7 +80,7 @@ export class ClaudeProvider implements ILLMProvider {
           model: this.config.model,
           max_tokens: this.config.maxTokens,
           temperature: this.config.temperature,
-          system: "You are an expert revenue intelligence analyst. Return valid JSON only.",
+          system: SYSTEM_PROMPT,
           messages: [
             {
               role: "user",
@@ -92,6 +105,7 @@ export class ClaudeProvider implements ILLMProvider {
           analysis,
           rawResponse: responseText,
           processingTimeMs: processingTime,
+          success: true,
           tokensUsed: {
             input: response.usage.input_tokens,
             output: response.usage.output_tokens,

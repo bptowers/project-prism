@@ -6,7 +6,7 @@
 import { VertexAI, Content } from "@google-cloud/vertexai";
 import { ILLMProvider, LLMAnalysisOutput, LLMProviderError, LLMRateLimitError } from "./provider.js";
 import { LLMConfig, OpportunityAnalysis, OpportunityRecord } from "../types.js";
-import { formatOpportunityForPrompt, injectOpportunityData } from "./prompts.js";
+import { formatOpportunityForPrompt, injectOpportunityData, SYSTEM_PROMPT } from "./prompts.js";
 
 /**
  * Gemini LLM Provider implementation
@@ -50,7 +50,7 @@ export class GeminiProvider implements ILLMProvider {
         // Apply rate limiting (100 requests per minute = ~600ms per request)
         await this.enforceRateLimit();
 
-        // Format opportunity data
+        // Format opportunity data with all available fields
         const opportunityData = formatOpportunityForPrompt({
           opportunityId: opportunity.opportunityId,
           accountName: opportunity.accountName,
@@ -62,6 +62,19 @@ export class GeminiProvider implements ILLMProvider {
           dealReviewNotes: opportunity.dealReviewNotes,
           region: opportunity.region,
           industry: opportunity.industry,
+          closedDate: opportunity.closedDate,
+          createdDate: opportunity.createdDate,
+          updatedDate: opportunity.updatedDate,
+          lastActivityDate: opportunity.lastActivityDate,
+          salesRep: opportunity.salesRep,
+          winLossReason: opportunity.winLossReason,
+          nextStep: opportunity.nextStep,
+          probability: opportunity.probability,
+          forecastCategory: opportunity.forecastCategory,
+          leadSource: opportunity.leadSource,
+          dealType: opportunity.dealType,
+          economicBuyer: opportunity.economicBuyer,
+          productLine: opportunity.productLine,
         });
 
         // Inject data into prompt
@@ -85,9 +98,10 @@ export class GeminiProvider implements ILLMProvider {
             } as Content,
           ],
           systemInstruction: {
+            role: "system" as const,
             parts: [
               {
-                text: "You are an expert revenue intelligence analyst. Return valid JSON only.",
+                text: SYSTEM_PROMPT,
               },
             ],
           },
@@ -117,6 +131,7 @@ export class GeminiProvider implements ILLMProvider {
           analysis,
           rawResponse: responseText,
           processingTimeMs: processingTime,
+          success: true,
           tokensUsed: {
             input: response.response.usageMetadata?.promptTokenCount || 0,
             output: response.response.usageMetadata?.candidatesTokenCount || 0,
