@@ -7,11 +7,14 @@ import {
   AggregatedReport,
   CompetitorActivity,
   GlobalSummary,
+  LLMConfig,
   OpportunityAnalysis,
   RegionReport,
   RiskDeal,
   ThemeCount,
 } from "../types.js";
+import { LLMProviderFactory } from "../llm/provider.js";
+import { PORTFOLIO_AGGREGATION_PROMPT } from "../llm/prompts.js";
 
 /**
  * Aggregation engine for building comprehensive reports
@@ -252,7 +255,7 @@ export class Aggregator {
 
     // Sort by risk level (high first)
     return atRisk.sort((a, b) => {
-      const levelOrder = { high: 0, medium: 1 };
+      const levelOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
       return levelOrder[a.riskLevel] - levelOrder[b.riskLevel];
     });
   }
@@ -361,6 +364,76 @@ export class Aggregator {
       average: Math.round(average * 100) / 100,
       label,
     };
+  }
+
+  /**
+   * Enriches an aggregated report with LLM-generated portfolio intelligence
+   */
+  static async enrichWithLLM(
+    report: AggregatedReport,
+    llmConfig: LLMConfig
+  ): Promise<AggregatedReport> {
+    try {
+      const provider = await LLMProviderFactory.create(llmConfig);
+
+      // Build report summary for the prompt
+      const summary = JSON.stringify({
+        totalRecords: report.totalRecordsAnalyzed,
+        regions: Object.entries(report.regions).map(([name, r]) => ({
+          name,
+          total: r.totalOpportunities,
+          wins: r.wins,
+          losses: r.losses,
+          active: r.active,
+          winRate: r.winRate,
+          topWinThemes: r.topWinThemes.slice(0, 3).map((t) => t.theme),
+          topLossThemes: r.topLossThemes.slice(0, 3).map((t) => t.theme),
+          atRiskCount: r.atRiskDeals.length,
+          topCompetitors: r.competitorActivity.slice(0, 3).map((c) => c.competitor),
+        })),
+        global: {
+          winRate: report.global.globalWinRate,
+          highRisk: report.global.highRiskCount,
+          mediumRisk: report.global.mediumRiskCount,
+          topWinThemes: report.global.topWinThemes.slice(0, 5).map((t) => t.theme),
+          topLossThemes: report.global.topLossThemes.slice(0, 5).map((t) => t.theme),
+          topCompetitors: report.global.topCompetitors.slice(0, 5).map((c) => c.competitor),
+          marketSignals: report.global.emergingMarketSignals.slice(0, 5),
+        },
+      });
+
+      const prompt = PORTFOLIO_AGGREGATION_PROMPT.replace("{REPORT_SUMMARY}", summary);
+
+      // Use a dummy record to leverage the existing analyze interface
+      const dummyRecord = {
+        opportunityId: "portfolio-analysis",
+        accountName: "Portfolio",
+        opportunityName: "Portfolio Aggregation",
+        stage: "N/A",
+        winLossStatus: "active" as const,
+        notes: prompt,
+        region: "Global",
+      };
+
+      const results = await provider.analyze([dummyRecord], prompt);
+
+      if (results.length > 0 && results[0].success) {
+        const rawResponse = results[0].rawResponse;
+        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          report.executiveBriefing = parsed.executiveBriefing;
+          report.recommendations = parsed.recommendations;
+          report.forecastConfidence = parsed.forecastConfidence;
+          report.portfolioRisk = parsed.portfolioRisk;
+        }
+      }
+    } catch (error) {
+      console.error("Failed to enrich report with LLM:", error);
+      // Non-fatal: report still usable without enrichment
+    }
+
+    return report;
   }
 
   /**
