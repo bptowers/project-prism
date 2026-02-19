@@ -13,7 +13,6 @@ import { DataValidator } from "../pipeline/validator.js";
 import {
   ILLMProvider,
   LLMProviderFactory,
-  LLMProviderError,
   LLMRateLimitError,
 } from "../llm/provider.js";
 import { COMPREHENSIVE_ANALYSIS_PROMPT } from "../llm/prompts.js";
@@ -170,7 +169,56 @@ export class Analyzer {
   }
 
   /**
-   * Processes a single batch of records
+   * Processes a single record with retry logic
+   */
+  private async processRecord(
+    record: OpportunityRecord,
+    executionContext: ExecutionContext
+  ): Promise<{ result?: OpportunityAnalysis; error?: { recordId: string; error: string } }> {
+    let lastError: string | undefined;
+
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          console.log(
+            `[${executionContext.executionId}] Retrying record ${record.opportunityId} (attempt ${attempt}/${this.maxRetries})`
+          );
+          await this.delay(this.retryDelayMs * attempt);
+        }
+
+        const analysisResults = await this.llmProvider.analyze(
+          [record],
+          COMPREHENSIVE_ANALYSIS_PROMPT
+        );
+
+        if (analysisResults.length > 0 && analysisResults[0].success) {
+          const enriched = this.enrichAnalysis(analysisResults[0].analysis, record);
+          executionContext.recordsSuccessful++;
+          executionContext.recordsProcessed++;
+          return { result: enriched };
+        } else {
+          lastError = analysisResults[0]?.error || "Unknown error";
+        }
+      } catch (error) {
+        if (error instanceof LLMRateLimitError) {
+          const waitTime = error.retryAfterSeconds * 1000;
+          console.warn(
+            `[${executionContext.executionId}] Rate limited, waiting ${waitTime}ms`
+          );
+          await this.delay(waitTime);
+        }
+        lastError = String(error);
+        if (attempt === this.maxRetries) break;
+      }
+    }
+
+    executionContext.recordsFailed++;
+    executionContext.recordsProcessed++;
+    return { error: { recordId: record.opportunityId, error: lastError || "Unknown error" } };
+  }
+
+  /**
+   * Processes a single batch of records with concurrency
    */
   private async processBatch(
     batch: ProcessingBatch,
@@ -180,65 +228,22 @@ export class Analyzer {
     const batchResults: OpportunityAnalysis[] = [];
     const batchErrors: Array<{ recordId: string; error: string }> = [];
 
-    for (const record of batch.records) {
-      let success = false;
-      let lastError: string | undefined;
+    // Process records concurrently (5 at a time to avoid rate limits)
+    const concurrency = 5;
+    for (let i = 0; i < batch.records.length; i += concurrency) {
+      const chunk = batch.records.slice(i, i + concurrency);
+      const results = await Promise.all(
+        chunk.map((record) => this.processRecord(record, executionContext))
+      );
 
-      // Retry logic
-      for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
-        try {
-          if (attempt > 0) {
-            console.log(
-              `[${executionContext.executionId}] Retrying record ${record.opportunityId} (attempt ${attempt}/${this.maxRetries})`
-            );
-            await this.delay(this.retryDelayMs * attempt);
-          }
-
-          // Call LLM provider
-          const analysisResults = await this.llmProvider.analyze(
-            [record],
-            COMPREHENSIVE_ANALYSIS_PROMPT
-          );
-
-          if (analysisResults.length > 0 && analysisResults[0].success) {
-            const analysis = analysisResults[0].analysis;
-
-            // Enrich with metadata
-            const enriched = this.enrichAnalysis(analysis, record);
-            batchResults.push(enriched);
-            success = true;
-            executionContext.recordsSuccessful++;
-            break;
-          } else {
-            lastError = analysisResults[0]?.error || "Unknown error";
-          }
-        } catch (error) {
-          if (error instanceof LLMRateLimitError) {
-            // For rate limit errors, wait longer and retry
-            const waitTime = error.retryAfterSeconds * 1000;
-            console.warn(
-              `[${executionContext.executionId}] Rate limited, waiting ${waitTime}ms`
-            );
-            await this.delay(waitTime);
-          }
-
-          lastError = String(error);
-
-          if (attempt === this.maxRetries) {
-            break;
-          }
+      for (const res of results) {
+        if (res.result) {
+          batchResults.push(res.result);
+        }
+        if (res.error) {
+          batchErrors.push(res.error);
         }
       }
-
-      if (!success) {
-        batchErrors.push({
-          recordId: record.opportunityId,
-          error: lastError || "Unknown error",
-        });
-        executionContext.recordsFailed++;
-      }
-
-      executionContext.recordsProcessed++;
     }
 
     const processingTime = Date.now() - startTime;

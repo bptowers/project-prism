@@ -4,12 +4,16 @@
  */
 
 import * as admin from "firebase-admin";
-import * as functions from "firebase-functions";
+import { FieldValue } from "firebase-admin/firestore";
+import { onObjectFinalized } from "firebase-functions/v2/storage";
+import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onRequest } from "firebase-functions/v2/https";
 import { Storage } from "@google-cloud/storage";
 import { Analyzer } from "./analysis/analyzer.js";
 import { Aggregator } from "./analysis/aggregator.js";
 import { CSVParser, getDefaultSalesforceMapping, getDefaultRegionMapping } from "./pipeline/csvParser.js";
 import { DataValidator } from "./pipeline/validator.js";
+import { ReportTransformer } from "./transforms/reportTransformer.js";
 import {
   AggregatedReport,
   ExecutionContext,
@@ -20,6 +24,7 @@ import {
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
+db.settings({ ignoreUndefinedProperties: true });
 const storage = new Storage();
 
 /**
@@ -27,11 +32,11 @@ const storage = new Storage();
  */
 function getLLMConfig(): LLMConfig {
   const provider = process.env.LLM_PROVIDER || "claude";
-  const apiKey = process.env.LLM_API_KEY || "";
-  const model = process.env.LLM_MODEL || "claude-3-5-sonnet-20241022";
+  const apiKey = process.env.LLM_API_KEY || process.env.ANTHROPIC_API_KEY || "";
+  const model = process.env.LLM_MODEL || "claude-sonnet-4-5-20250929";
 
   if (!apiKey) {
-    throw new Error("LLM_API_KEY environment variable not set");
+    throw new Error("LLM_API_KEY or ANTHROPIC_API_KEY environment variable not set");
   }
 
   return {
@@ -66,13 +71,13 @@ function createExecutionContext(jobType: ExecutionContext["jobType"], sourceFile
  * Function: onCSVUpload
  * Trigger: gs://project-prism-uploads/
  */
-export const onCSVUpload = functions.storage
-  .bucket("project-prism-uploads")
-  .onFinalize(async (object) => {
-    const filePath = object.name;
-    const bucketName = object.bucket;
+export const onCSVUpload = onObjectFinalized(
+  { bucket: "project-prism-uploads", timeoutSeconds: 3600, memory: "1GiB" },
+  async (event) => {
+    const filePath = event.data.name;
+    const bucketName = event.data.bucket;
 
-    if (!filePath.startsWith("uploads/") || !filePath.endsWith(".csv")) {
+    if (!filePath || !filePath.startsWith("uploads/") || !filePath.endsWith(".csv")) {
       console.log(`Skipping non-CSV file: ${filePath}`);
       return;
     }
@@ -98,6 +103,9 @@ export const onCSVUpload = functions.storage
         `[${context.executionId}] Parsed ${records.length} records from CSV`
       );
 
+      // Compute funnel stages from raw CSV
+      const funnelStages = CSVParser.calculateFunnel(records);
+
       // Run full pipeline
       const report = await runAnalysisPipeline(
         records,
@@ -105,13 +113,44 @@ export const onCSVUpload = functions.storage
         getLLMConfig()
       );
 
-      // Store report in Firestore
+      // Add funnel stages from CSV data
+      report.funnelStages = funnelStages;
+
+      // Transform for frontend consumption (without LLM enrichment first)
+      const transformed = ReportTransformer.transform(report);
+
+      // Store base report in Firestore immediately so dashboard gets data
       const reportDate = new Date().toISOString().split("T")[0];
-      await db.collection("reports").doc(reportDate).set(report);
+      const reportRef = db.collection("reports").doc(reportDate);
+      await reportRef.set({
+        ...report,
+        transformed,
+        reportDate: report.reportDate,
+        createdAt: FieldValue.serverTimestamp(),
+      });
 
       console.log(
         `[${context.executionId}] Report stored: ${report.reportId}`
       );
+
+      // Try LLM enrichment as a follow-up (portfolio analysis, recommendations)
+      try {
+        const enrichedReport = await Aggregator.enrichWithLLM(report, getLLMConfig());
+        enrichedReport.funnelStages = funnelStages;
+        const enrichedTransformed = ReportTransformer.transform(enrichedReport);
+        await reportRef.update({
+          ...enrichedReport,
+          transformed: enrichedTransformed,
+          enrichedAt: FieldValue.serverTimestamp(),
+        });
+        console.log(
+          `[${context.executionId}] Report enriched with portfolio analysis`
+        );
+      } catch (enrichErr) {
+        console.warn(
+          `[${context.executionId}] LLM enrichment skipped: ${String(enrichErr)}`
+        );
+      }
 
       // Update execution status
       context.status = "completed";
@@ -130,16 +169,16 @@ export const onCSVUpload = functions.storage
         .set(context);
       throw error;
     }
-  });
+  }
+);
 
 /**
  * Scheduled function: Runs weekly analysis
  * Trigger: Every Monday at 6:00 AM UTC
  */
-export const runWeeklyAnalysis = functions.pubsub
-  .schedule("0 6 * * 1")
-  .timeZone("UTC")
-  .onRun(async () => {
+export const runWeeklyAnalysis = onSchedule(
+  { schedule: "0 6 * * 1", timeZone: "UTC" },
+  async () => {
     const context = createExecutionContext("scheduled-weekly");
     console.log(`[${context.executionId}] Weekly analysis started`);
 
@@ -179,6 +218,9 @@ export const runWeeklyAnalysis = functions.pubsub
         `[${context.executionId}] Parsed ${records.length} records`
       );
 
+      // Compute funnel stages
+      const funnelStages = CSVParser.calculateFunnel(records);
+
       // Run analysis pipeline
       const report = await runAnalysisPipeline(
         records,
@@ -186,12 +228,22 @@ export const runWeeklyAnalysis = functions.pubsub
         getLLMConfig()
       );
 
+      // Enrich and transform
+      const enrichedReport = await Aggregator.enrichWithLLM(report, getLLMConfig());
+      enrichedReport.funnelStages = funnelStages;
+      const transformed = ReportTransformer.transform(enrichedReport);
+
       // Store report
       const reportDate = new Date().toISOString().split("T")[0];
-      await db.collection("reports").doc(reportDate).set(report);
+      await db.collection("reports").doc(reportDate).set({
+        ...enrichedReport,
+        transformed,
+        reportDate: enrichedReport.reportDate,
+        createdAt: FieldValue.serverTimestamp(),
+      });
 
       console.log(
-        `[${context.executionId}] Weekly analysis complete: ${report.reportId}`
+        `[${context.executionId}] Weekly analysis complete: ${enrichedReport.reportId}`
       );
 
       context.status = "completed";
@@ -210,13 +262,14 @@ export const runWeeklyAnalysis = functions.pubsub
         .set(context);
       throw error;
     }
-  });
+  }
+);
 
 /**
  * HTTP function: Returns the latest aggregated report
  * GET /getReport
  */
-export const getReport = functions.https.onRequest(async (req, res) => {
+export const getReport = onRequest(async (_req, res) => {
   try {
     // Get today's date
     const today = new Date().toISOString().split("T")[0];
@@ -233,7 +286,8 @@ export const getReport = functions.https.onRequest(async (req, res) => {
         .get();
 
       if (snapshot.empty) {
-        return res.status(404).json({ error: "No reports found" });
+        res.status(404).json({ error: "No reports found" });
+        return;
       }
 
       reportDoc = snapshot.docs[0];
@@ -257,7 +311,7 @@ export const getReport = functions.https.onRequest(async (req, res) => {
  * HTTP function: Returns report history (last 10 reports)
  * GET /getReportHistory
  */
-export const getReportHistory = functions.https.onRequest(async (req, res) => {
+export const getReportHistory = onRequest(async (_req, res) => {
   try {
     const snapshot = await db
       .collection("reports")
@@ -287,17 +341,16 @@ export const getReportHistory = functions.https.onRequest(async (req, res) => {
  * HTTP function: Accepts CSV file upload via multipart form
  * POST /uploadCSV
  */
-export const uploadCSV = functions.https.onRequest(async (req, res) => {
+export const uploadCSV = onRequest(async (req, res) => {
   try {
     if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
+      res.status(405).json({ error: "Method not allowed" });
+      return;
     }
 
-    // Note: In production, this would use Busboy or similar to parse multipart form data
-    // For this example, we assume CSV content is in req.body as text or base64
-
     if (!req.body.csv) {
-      return res.status(400).json({ error: "CSV content required" });
+      res.status(400).json({ error: "CSV content required" });
+      return;
     }
 
     const csvContent = req.body.csv;

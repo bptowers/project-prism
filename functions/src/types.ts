@@ -22,6 +22,14 @@ export interface OpportunityRecord {
   createdDate?: string;
   updatedDate?: string;
   salesRep?: string;
+  lastActivityDate?: string;
+  nextStep?: string;
+  probability?: number;
+  forecastCategory?: string;
+  leadSource?: string;
+  dealType?: string;
+  economicBuyer?: string;
+  productLine?: string;
   [key: string]: unknown;
 }
 
@@ -179,6 +187,30 @@ export interface AggregatedReport {
     averageQualityScore: number;
     totalPiiIssuesCaught: number;
   };
+  executiveBriefing?: string;
+  recommendations?: Array<{
+    priority: "P1" | "P2" | "P3";
+    title: string;
+    description: string;
+    revenueImpact: string;
+  }>;
+  forecastConfidence?: {
+    percentage: number;
+    assessment: string;
+    upside: string;
+    downside: string;
+  };
+  portfolioRisk?: {
+    totalAtRisk: string;
+    highRiskDeals: number;
+    stalledRevenue: string;
+    keyPattern: string;
+  };
+  funnelStages?: Array<{
+    stage: string;
+    count: number;
+    revenue: number;
+  }>;
 }
 
 /**
@@ -226,6 +258,14 @@ export interface FieldMapping {
   createdDate?: string;
   updatedDate?: string;
   salesRep?: string;
+  lastActivityDate?: string;
+  nextStep?: string;
+  probability?: string;
+  forecastCategory?: string;
+  leadSource?: string;
+  dealType?: string;
+  economicBuyer?: string;
+  productLine?: string;
 }
 
 /**

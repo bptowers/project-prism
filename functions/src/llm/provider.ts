@@ -15,6 +15,8 @@ export interface LLMAnalysisOutput {
   analysis: Partial<OpportunityAnalysis>;
   rawResponse: string;
   processingTimeMs: number;
+  success: boolean;
+  error?: string;
   tokensUsed?: {
     input: number;
     output: number;
@@ -128,7 +130,7 @@ export class LLMProviderFactory {
   static getDefaultConfig(provider: string): Partial<LLMConfig> {
     const configs: Record<string, Partial<LLMConfig>> = {
       claude: {
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-4-5-20250929",
         temperature: 0.3,
         maxTokens: 2000,
         topP: 0.9,

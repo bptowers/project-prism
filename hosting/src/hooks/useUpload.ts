@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '@/lib/firebase';
+import { ref, uploadBytes } from 'firebase/storage';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { storage, db } from '@/lib/firebase';
 
 type UploadState = 'idle' | 'parsing' | 'uploading' | 'analyzing' | 'complete' | 'error';
 
@@ -54,13 +55,34 @@ export function useUpload() {
       const timestamp = Date.now();
       const storageRef = ref(storage, `uploads/${timestamp}_${file.name}`);
       await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
 
       setState('analyzing');
-      // Cloud Function will be triggered by the storage upload
-      // For now, simulate analysis completion
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      setState('complete');
+
+      // Listen for a new report to appear in Firestore (triggered by Cloud Function)
+      const reportQuery = query(
+        collection(db, 'reports'),
+        orderBy('reportDate', 'desc'),
+        limit(1)
+      );
+
+      const timeout = setTimeout(() => {
+        // After 120s, assume completion (Cloud Function may have finished)
+        setState('complete');
+      }, 120_000);
+
+      const unsubscribe = onSnapshot(reportQuery, (snapshot) => {
+        if (!snapshot.empty) {
+          const doc = snapshot.docs[0];
+          const data = doc.data();
+          // Check if this report was created after our upload
+          if (data.createdAt && data.createdAt.toDate() > new Date(timestamp)) {
+            clearTimeout(timeout);
+            unsubscribe();
+            setState('complete');
+          }
+        }
+      });
+
     } catch (err) {
       console.info('Storage not configured yet — simulating upload.');
       setState('analyzing');

@@ -158,7 +158,7 @@ CONFIGURATION & ENVIRONMENT VARIABLES:
 Required:
   LLM_PROVIDER         → claude | gemini | openai
   LLM_API_KEY          → Your provider API key
-  LLM_MODEL            → Model name (e.g., claude-3-5-sonnet-20241022)
+  LLM_MODEL            → Model name (e.g., claude-sonnet-4-5-20250929)
   LLM_TEMPERATURE      → 0-2 (default 0.3)
   LLM_MAX_TOKENS       → Max output tokens (default 2000)
 

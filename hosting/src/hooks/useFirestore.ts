@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { ReportDocument } from '@/lib/types';
 
@@ -9,23 +9,25 @@ export function useLatestReport() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchLatest() {
-      try {
-        const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'), limit(1));
-        const snapshot = await getDocs(q);
+    const q = query(collection(db, 'reports'), orderBy('reportDate', 'desc'), limit(1));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
         if (!snapshot.empty) {
           const docData = snapshot.docs[0];
           setReport({ id: docData.id, ...docData.data() } as ReportDocument);
         }
-      } catch (err) {
-        // Firestore not configured yet — fall back to sample data
-        setError('Firestore not configured — using sample data');
-        console.info('Firestore not configured yet. Using sample data.');
-      } finally {
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Firestore query error:', err);
+        setError('Firestore query failed — using sample data');
         setLoading(false);
       }
-    }
-    fetchLatest();
+    );
+
+    return () => unsubscribe();
   }, []);
 
   return { report, loading, error };
@@ -36,18 +38,21 @@ export function useReportHistory() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchHistory() {
-      try {
-        const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'), limit(10));
-        const snapshot = await getDocs(q);
+    const q = query(collection(db, 'reports'), orderBy('reportDate', 'desc'), limit(10));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
         setReports(snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ReportDocument));
-      } catch {
-        console.info('Firestore not configured yet.');
-      } finally {
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Firestore history query error:', err);
         setLoading(false);
       }
-    }
-    fetchHistory();
+    );
+
+    return () => unsubscribe();
   }, []);
 
   return { reports, loading };
