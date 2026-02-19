@@ -40,3 +40,7 @@ Thumbs.db
 
 # Package lock (functions — regenerated on install)
 functions/package-lock.json
+
+# Salesforce data exports (may contain PII)
+*.xlsx
+February2026 Data Export.csv

@@ -47,7 +47,7 @@ CSV Upload → Parse → Validate → LLM Analysis → Aggregate → Store → A
 ```bash
 LLM_PROVIDER=claude                           # claude, gemini, or openai
 LLM_API_KEY=sk-ant-...                       # Your API key
-LLM_MODEL=claude-3-5-sonnet-20241022        # Model name
+LLM_MODEL=claude-sonnet-4-5-20250929        # Model name
 LLM_TEMPERATURE=0.3                          # 0-2 (lower = deterministic)
 LLM_MAX_TOKENS=2000                          # Max output tokens
 ```

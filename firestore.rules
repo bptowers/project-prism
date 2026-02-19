@@ -1,14 +1,14 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Reports — read by authenticated users, write by functions only
+    // Reports — open read for now (no auth configured yet), write by functions only
     match /reports/{reportId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if false; // Only Cloud Functions write
     }
-    // Analyses — same pattern
+    // Analyses — open read for now
     match /analyses/{analysisId}/{document=**} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if false;
     }
     // Config — admin only

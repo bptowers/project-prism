@@ -76,7 +76,7 @@ gcloud services enable secretmanager.googleapis.com
 echo -n "sk-ant-your-api-key" | \
   gcloud secrets create llm-api-key --data-file=-
 
-echo -n "claude-3-5-sonnet-20241022" | \
+echo -n "claude-sonnet-4-5-20250929" | \
   gcloud secrets create llm-model --data-file=-
 
 echo -n "claude" | \
@@ -102,7 +102,7 @@ nano app/functions/.env.local
 firebase functions:config:set \
   llm.provider="claude" \
   llm.apikey="sk-ant-..." \
-  llm.model="claude-3-5-sonnet-20241022" \
+  llm.model="claude-sonnet-4-5-20250929" \
   llm.temperature="0.3" \
   llm.maxtokens="2000"
 ```
