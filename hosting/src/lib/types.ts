@@ -87,10 +87,11 @@ export interface RegionData {
 
 export interface ReportDocument {
   id: string;
-  weekOf: string;
+  reportDate: string;
   createdAt: Date;
-  provider: string;
-  processingTime: number;
-  totalOpportunities: number;
-  regions: Record<Region, RegionData>;
+  analysisProvider: string;
+  totalRecordsAnalyzed: number;
+  executiveBriefing?: string;
+  transformed?: Record<string, RegionData>;
+  [key: string]: unknown;
 }

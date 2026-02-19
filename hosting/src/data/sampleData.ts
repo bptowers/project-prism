@@ -27,10 +27,9 @@ export const allRegionData: RegionData = {
   },
   funnel: [
     { stage: 'Discovery', count: 112, revenue: '$14.8M', color: 'var(--prism-blue)' },
-    { stage: 'Qualification', count: 87, revenue: '$11.4M', color: 'var(--accent)' },
-    { stage: 'Demo / POC', count: 64, revenue: '$9.2M', color: 'var(--prism-green)' },
-    { stage: 'Proposal', count: 42, revenue: '$6.8M', color: 'var(--prism-amber)' },
-    { stage: 'Negotiation', count: 28, revenue: '$3.8M', color: 'var(--warning)' },
+    { stage: 'Validation', count: 87, revenue: '$11.4M', color: 'var(--accent)' },
+    { stage: 'Solution Review & Quote', count: 64, revenue: '$9.2M', color: 'var(--prism-green)' },
+    { stage: 'Commitment', count: 42, revenue: '$6.8M', color: 'var(--prism-amber)' },
     { stage: 'Closed Won', count: 14, revenue: '$1.2M', color: 'var(--success)' },
   ],
   winThemes: [
