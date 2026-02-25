@@ -12,6 +12,7 @@
       { "source": "/api/report", "function": "getReport" },
       { "source": "/api/report/history", "function": "getReportHistory" },
       { "source": "/api/upload", "function": "uploadCSV" },
+      { "source": "/api/bigquery", "function": "fetchFromBigQuery" },
       { "source": "**", "destination": "/index.html" }
     ]
   },

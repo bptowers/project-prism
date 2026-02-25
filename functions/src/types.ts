@@ -30,6 +30,7 @@ export interface OpportunityRecord {
   dealType?: string;
   economicBuyer?: string;
   productLine?: string;
+  expectedMRR?: number;
   [key: string]: unknown;
 }
 
@@ -305,7 +306,7 @@ export interface AnalysisBatch {
 export interface ExecutionContext {
   executionId: string;
   startTime: Date;
-  jobType: "csv-upload" | "scheduled-weekly" | "manual" | "api-request";
+  jobType: "csv-upload" | "scheduled-weekly" | "manual" | "api-request" | "bigquery-fetch";
   sourceFile?: string;
   recordsProcessed: number;
   recordsSuccessful: number;
