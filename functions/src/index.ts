@@ -12,6 +12,7 @@ import { Storage } from "@google-cloud/storage";
 import { Analyzer } from "./analysis/analyzer.js";
 import { Aggregator } from "./analysis/aggregator.js";
 import { CSVParser, getDefaultSalesforceMapping, getDefaultRegionMapping } from "./pipeline/csvParser.js";
+import { BigQuerySource, getBigQueryConfig } from "./pipeline/bigquerySource.js";
 import { DataValidator } from "./pipeline/validator.js";
 import { ReportTransformer } from "./transforms/reportTransformer.js";
 import {
@@ -380,6 +381,113 @@ export const uploadCSV = onRequest(async (req, res) => {
     });
   }
 });
+
+/**
+ * HTTP function: Fetches data from BigQuery and runs analysis pipeline
+ * POST /fetchFromBigQuery
+ * Optional body: { sinceDate: "2026-02-18" } for incremental pulls
+ */
+export const fetchFromBigQuery = onRequest(
+  { timeoutSeconds: 3600, memory: "1GiB" },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") {
+        res.status(405).json({ error: "Method not allowed" });
+        return;
+      }
+
+      const context = createExecutionContext("bigquery-fetch", "bigquery");
+      console.log(`[${context.executionId}] BigQuery fetch initiated`);
+
+      // Read BigQuery config from environment
+      const bqConfig = getBigQueryConfig();
+      if (req.body?.sinceDate) {
+        bqConfig.sinceDate = req.body.sinceDate;
+      }
+
+      // Fetch from BigQuery
+      const source = new BigQuerySource(bqConfig);
+      const records = await source.fetchRecords();
+
+      console.log(
+        `[${context.executionId}] Fetched ${records.length} records from BigQuery`
+      );
+
+      if (records.length === 0) {
+        res.status(200).json({
+          success: true,
+          message: "No records found in BigQuery",
+          recordCount: 0,
+        });
+        return;
+      }
+
+      // Calculate funnel stages
+      const funnelStages = CSVParser.calculateFunnel(records);
+
+      // Run existing pipeline (validate -> analyze -> aggregate)
+      const report = await runAnalysisPipeline(records, context, getLLMConfig());
+      report.funnelStages = funnelStages;
+
+      // Transform and store
+      const transformed = ReportTransformer.transform(report);
+      const reportDate = new Date().toISOString().split("T")[0];
+      const reportRef = db.collection("reports").doc(reportDate);
+      await reportRef.set({
+        ...report,
+        transformed,
+        reportDate: report.reportDate,
+        createdAt: FieldValue.serverTimestamp(),
+        dataSource: "bigquery",
+      });
+
+      console.log(
+        `[${context.executionId}] Report stored: ${report.reportId}`
+      );
+
+      // Try LLM enrichment (non-fatal)
+      try {
+        const enrichedReport = await Aggregator.enrichWithLLM(
+          report,
+          getLLMConfig()
+        );
+        enrichedReport.funnelStages = funnelStages;
+        const enrichedTransformed = ReportTransformer.transform(enrichedReport);
+        await reportRef.update({
+          ...enrichedReport,
+          transformed: enrichedTransformed,
+          enrichedAt: FieldValue.serverTimestamp(),
+        });
+        console.log(
+          `[${context.executionId}] Report enriched with portfolio analysis`
+        );
+      } catch (enrichErr) {
+        console.warn(
+          `[${context.executionId}] LLM enrichment skipped: ${String(enrichErr)}`
+        );
+      }
+
+      // Update execution status
+      context.status = "completed";
+      await db
+        .collection("executions")
+        .doc(context.executionId)
+        .set(context);
+
+      res.status(200).json({
+        success: true,
+        reportId: report.reportId,
+        recordCount: records.length,
+        reportDate,
+      });
+    } catch (error) {
+      console.error("BigQuery fetch error:", error);
+      res.status(500).json({
+        error: `BigQuery fetch failed: ${String(error)}`,
+      });
+    }
+  }
+);
 
 /**
  * Main analysis pipeline orchestrator

@@ -27,19 +27,20 @@ ANALYSIS FRAMEWORK:
 
 1. DEAL HEALTH SCORE (0-100)
    Score based on:
-   - Stage appropriateness for the close date (is there enough time to close?)
+   - Stage appropriateness for the close date (Simpro targets a 14-day sales cycle — a deal in Discovery with close date 3 days out is severely compressed)
    - Data completeness vs. Simpro's REQUIRED fields for this stage
-   - Activity recency (when was the last meaningful activity?)
-   - Stakeholder coverage (is a champion identified? Economic buyer for >$25K?)
+   - Activity recency (in a 14-day cycle, 3 days of silence is a warning; 5+ days is critical)
+   - Stakeholder coverage (is a champion identified? Economic buyer for deals >$2K MRR?)
    - Competitive clarity (is competitor identified? Required from Validation stage onwards)
 
 2. RISK SIGNALS (identify all that apply)
-   - Ghost Signal: No activity in 14+ days after proposal/quote
+   - Ghost Signal: No activity in 3+ days after proposal/quote (Simpro targets 14-day cycles — 3 days is 20% of the entire cycle)
    - Champion Risk: Single-threaded to one contact
-   - Economic Buyer Gap: No CFO/MD/Owner identified for deals >$25K
-   - Stage Compression: Close date too soon for current stage
+   - Economic Buyer Gap: No CFO/MD/Owner identified for deals >$2K MRR
+   - Stage Compression: Close date too soon for current stage (benchmark: 14-day total cycle, ~2-3 days per stage)
    - Price Anchoring Risk: Discount already offered without documented negotiation
-   - Competitive Blind Spot: No competitor identified for deals >$10K
+   - Competitive Blind Spot: No competitor identified for deals >$500 MRR
+   - Cycle Stall: Deal has been in current stage longer than 5 days (exceeds stage duration target in a 14-day cycle)
    - Implementation Anxiety: Notes contain concern language about complexity, time, disruption
    - Partner Misalignment: Partner pricing or messaging conflicts with direct
 
@@ -54,8 +55,10 @@ ANALYSIS FRAMEWORK:
    - Integration requirements mentioned
 
 4. RECOMMENDED ACTIONS (prioritised, specific, time-bound)
-   - What should the AE do in the next 48 hours?
-   - What should the manager do this week?
+   NOTE: Simpro is a high-velocity business targeting 14-day sales cycles. Actions must be immediate.
+   - What should the AE do TODAY? (P1 — if this doesn't happen today, the deal slips)
+   - What should the AE/manager do in the next 48 hours? (P2 — process or coaching change)
+   - What should happen this week? (P3 — systemic or strategic)
    - Should an executive engage? If so, who and how?
    - Is there a reference customer that matches this prospect's profile?
 
@@ -136,9 +139,9 @@ ANALYSIS FRAMEWORK:
 
 4. ACTIONABLE RECOMMENDATIONS
    Exactly 5 recommendations, prioritised:
-   - P1: Must happen in next 48 hours (specific deal interventions)
-   - P2: Must happen this week (process or coaching changes)
-   - P3: Must happen this month (systemic or strategic changes)
+   - P1: Must happen TODAY (specific deal interventions — in a 14-day cycle, a day lost is 7% of the deal)
+   - P2: Must happen in next 48 hours (process or coaching changes)
+   - P3: Must happen this week (systemic or strategic changes)
    Each recommendation must include: the specific action, who should take it,
    by when, and the estimated revenue impact of action vs. inaction.
 
@@ -256,7 +259,12 @@ Look for buying pattern changes, technology adoption, competitive landscape shif
 export const SIMPRO_STAGE_REFERENCE = `
 SIMPRO SALES STAGES — Use this to assess stage-appropriateness and missing field risk.
 
+VELOCITY CONTEXT: Simpro is a HIGH-VELOCITY business. Target sales cycle is 14 DAYS or less.
+Revenue is measured in MRR (Monthly Recurring Revenue), not total deal value.
+Enterprise threshold: >$2K MRR. Each day in-cycle matters — a deal stalling for 3+ days is a red flag.
+
 STAGE ORDER: MQL → Discovery (SQL) → Validation (SQO) → Solution Review & Quote → Commitment → Closed Won
+TARGET STAGE DURATION: ~2-3 days per stage. A deal in any single stage for 5+ days is falling behind.
 NOTE: Salesforce data may use "Contract Review" — treat this as equivalent to "Commitment".
 
 STAGE 1 — DISCOVERY (SQL)
@@ -313,10 +321,11 @@ You have deep knowledge of Simpro's sales process, competitive landscape (Ascora
 
 Key characteristics:
 - Precise and analytical
-- Focus on business impact and revenue at risk
-- Quantify when possible — every insight should tie to a dollar figure
+- Focus on MRR impact — Simpro measures revenue in Monthly Recurring Revenue, not one-time deal value
+- Quantify when possible — every insight should tie to an MRR figure
+- Simpro is HIGH-VELOCITY: target 14-day sales cycles. Speed matters more than perfection.
 - Consider competitive context (especially Ascora, ServiceM8, Tradify)
-- Flag risks early, especially absence signals (what's NOT documented)
+- Flag risks early, especially absence signals (what's NOT documented) and cycle stalls (3+ days without activity)
 - Identify cross-deal patterns and systemic issues
 - Assess stage-appropriateness using Simpro's defined sales process
 - Respect data privacy — scrub PII before analysis
