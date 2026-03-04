@@ -73,7 +73,7 @@ function createExecutionContext(jobType: ExecutionContext["jobType"], sourceFile
  * Trigger: gs://project-prism-uploads/
  */
 export const onCSVUpload = onObjectFinalized(
-  { bucket: "project-prism-uploads", timeoutSeconds: 3600, memory: "1GiB" },
+  { bucket: "project-prism-uploads", timeoutSeconds: 3600, memory: "1GiB", secrets: ["ANTHROPIC_API_KEY"] },
   async (event) => {
     const filePath = event.data.name;
     const bucketName = event.data.bucket;
@@ -178,7 +178,7 @@ export const onCSVUpload = onObjectFinalized(
  * Trigger: Every Monday at 6:00 AM UTC
  */
 export const runWeeklyAnalysis = onSchedule(
-  { schedule: "0 6 * * 1", timeZone: "UTC" },
+  { schedule: "0 6 * * 1", timeZone: "UTC", secrets: ["ANTHROPIC_API_KEY"] },
   async () => {
     const context = createExecutionContext("scheduled-weekly");
     console.log(`[${context.executionId}] Weekly analysis started`);
@@ -270,7 +270,7 @@ export const runWeeklyAnalysis = onSchedule(
  * HTTP function: Returns the latest aggregated report
  * GET /getReport
  */
-export const getReport = onRequest(async (_req, res) => {
+export const getReport = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (_req, res) => {
   try {
     // Get today's date
     const today = new Date().toISOString().split("T")[0];
@@ -312,7 +312,7 @@ export const getReport = onRequest(async (_req, res) => {
  * HTTP function: Returns report history (last 10 reports)
  * GET /getReportHistory
  */
-export const getReportHistory = onRequest(async (_req, res) => {
+export const getReportHistory = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (_req, res) => {
   try {
     const snapshot = await db
       .collection("reports")
@@ -342,7 +342,7 @@ export const getReportHistory = onRequest(async (_req, res) => {
  * HTTP function: Accepts CSV file upload via multipart form
  * POST /uploadCSV
  */
-export const uploadCSV = onRequest(async (req, res) => {
+export const uploadCSV = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (req, res) => {
   try {
     if (req.method !== "POST") {
       res.status(405).json({ error: "Method not allowed" });
@@ -388,7 +388,7 @@ export const uploadCSV = onRequest(async (req, res) => {
  * Optional body: { sinceDate: "2026-02-18" } for incremental pulls
  */
 export const fetchFromBigQuery = onRequest(
-  { timeoutSeconds: 3600, memory: "1GiB" },
+  { timeoutSeconds: 3600, memory: "1GiB", secrets: ["ANTHROPIC_API_KEY"] },
   async (req, res) => {
     try {
       if (req.method !== "POST") {
