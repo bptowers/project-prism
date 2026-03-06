@@ -126,7 +126,8 @@ function createExecutionContext(jobType: ExecutionContext["jobType"], sourceFile
  * Trigger: gs://project-prism-uploads/
  */
 export const onCSVUpload = onObjectFinalized(
-  { bucket: "project-prism-489108-a9e2b.firebasestorage.app", region: "us-east1", timeoutSeconds: 540, memory: "1GiB", secrets: ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"] },
+  { bucket: "project-prism-489108-a9e2b.firebasestorage.app", region: "us-east1", timeoutSeconds: 540, memory: "1GiB", secrets: ["ANTHROPIC_API_KEY"] },
+  // TODO: add "OPENAI_API_KEY", "GEMINI_API_KEY" to secrets array once those keys are created in Firebase Secret Manager via: firebase functions:secrets:set OPENAI_API_KEY
   async (event) => {
     const filePath = event.data.name;
     const bucketName = event.data.bucket;
