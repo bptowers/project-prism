@@ -68,18 +68,34 @@ const storage = new Storage();
 /**
  * Configuration - typically loaded from environment variables or Firestore
  */
-function getLLMConfig(): LLMConfig {
-  const provider = process.env.LLM_PROVIDER || "claude";
-  const apiKey = process.env.LLM_API_KEY || process.env.ANTHROPIC_API_KEY || "";
-  const model = process.env.LLM_MODEL || "claude-sonnet-4-6";
+function getLLMConfig(providerOverride?: string): LLMConfig {
+  const provider = providerOverride || process.env.LLM_PROVIDER || "claude";
+
+  // Pick the right API key for the selected provider.
+  // Falls back to ANTHROPIC_API_KEY / LLM_API_KEY so existing Claude deploys
+  // keep working with zero config changes.
+  let apiKey: string;
+  if (provider === "openai") {
+    apiKey = process.env.OPENAI_API_KEY || process.env.LLM_API_KEY || "";
+  } else if (provider === "gemini") {
+    apiKey = process.env.GEMINI_API_KEY || process.env.LLM_API_KEY || "";
+  } else {
+    apiKey = process.env.ANTHROPIC_API_KEY || process.env.LLM_API_KEY || "";
+  }
 
   if (!apiKey) {
-    throw new Error("LLM_API_KEY or ANTHROPIC_API_KEY environment variable not set");
+    throw new Error(`API key not set for provider "${provider}". Add the secret in Firebase Console.`);
   }
+
+  // Default models per provider when LLM_MODEL env var is not set.
+  const defaultModel =
+    provider === "openai" ? "gpt-4o" :
+    provider === "gemini" ? "gemini-1.5-pro" :
+    "claude-sonnet-4-6";
 
   return {
     provider: provider as "claude" | "gemini" | "openai",
-    model,
+    model: process.env.LLM_MODEL || defaultModel,
     apiKey,
     temperature: parseFloat(process.env.LLM_TEMPERATURE || "0.3"),
     maxTokens: parseInt(process.env.LLM_MAX_TOKENS || "2000", 10),
@@ -110,7 +126,7 @@ function createExecutionContext(jobType: ExecutionContext["jobType"], sourceFile
  * Trigger: gs://project-prism-uploads/
  */
 export const onCSVUpload = onObjectFinalized(
-  { bucket: "project-prism-489108-a9e2b.firebasestorage.app", region: "us-east1", timeoutSeconds: 540, memory: "1GiB", secrets: ["ANTHROPIC_API_KEY"] },
+  { bucket: "project-prism-489108-a9e2b.firebasestorage.app", region: "us-east1", timeoutSeconds: 540, memory: "1GiB", secrets: ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"] },
   async (event) => {
     const filePath = event.data.name;
     const bucketName = event.data.bucket;
@@ -121,7 +137,11 @@ export const onCSVUpload = onObjectFinalized(
     }
 
     const context = createExecutionContext("csv-upload", filePath);
-    console.log(`[${context.executionId}] CSV upload detected: ${filePath}`);
+
+    // Read provider from Storage object metadata (set by the upload modal).
+    // Falls back to LLM_PROVIDER env var so the scheduled job and direct uploads keep working.
+    const selectedProvider = event.data.metadata?.provider;
+    console.log(`[${context.executionId}] CSV upload detected: ${filePath} | provider: ${selectedProvider || "env default"}`);
 
     try {
       // Read CSV from Cloud Storage
@@ -144,11 +164,11 @@ export const onCSVUpload = onObjectFinalized(
       // Compute funnel stages from raw CSV
       const funnelStages = CSVParser.calculateFunnel(records);
 
-      // Run full pipeline
+      // Run full pipeline with the provider selected in the upload modal (or env default)
       const report = await runAnalysisPipeline(
         records,
         context,
-        getLLMConfig()
+        getLLMConfig(selectedProvider)
       );
 
       // Add funnel stages from CSV data

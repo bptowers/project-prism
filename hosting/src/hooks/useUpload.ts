@@ -54,7 +54,9 @@ export function useUpload() {
       setState('uploading');
       const timestamp = Date.now();
       const storageRef = ref(storage, `uploads/${timestamp}_${file.name}`);
-      await uploadBytes(storageRef, file);
+      // Pass the selected provider as Storage metadata so the Cloud Function
+      // can use it instead of the default LLM_PROVIDER environment variable.
+      await uploadBytes(storageRef, file, { customMetadata: { provider } });
 
       setState('analyzing');
 
@@ -89,7 +91,7 @@ export function useUpload() {
       await new Promise(resolve => setTimeout(resolve, 3000));
       setState('complete');
     }
-  }, []);
+  }, [provider]);
 
   const reset = useCallback(() => {
     setState('idle');
