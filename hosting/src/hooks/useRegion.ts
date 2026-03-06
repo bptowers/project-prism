@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { Region, RegionData } from '@/lib/types';
 import { regionDataMap } from '@/data/sampleData';
 import { useLatestReport } from '@/hooks/useFirestore';
@@ -38,6 +38,19 @@ export function useRegion() {
   const totalOpportunities = isLive ? (report?.totalRecordsAnalyzed as number | undefined) : undefined;
   const reportPeriod = isLive ? (report?.period as string | undefined) : undefined;
 
+  // Persist the last known briefing so the dashboard doesn't flash to sample
+  // data during the gap between Phase 1 write (no briefing) and Phase 2 enrichment.
+  const [lastKnownBriefing, setLastKnownBriefing] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (executiveBriefing) {
+      setLastKnownBriefing(executiveBriefing);
+    }
+  }, [executiveBriefing]);
+
+  // Use the fresh briefing when available; fall back to last known when live
+  // data is present but enrichment is still running (avoids "sample" flash).
+  const displayBriefing = executiveBriefing ?? (isLive ? lastKnownBriefing : undefined);
+
   // Per-region opportunity counts for RegionTabs — derived from transformed report
   const regionCounts = useMemo<Record<string, number> | undefined>(() => {
     if (!isLive || !report?.transformed) return undefined;
@@ -55,6 +68,6 @@ export function useRegion() {
     region, data, selectRegion, loading, isLive, hasLiveData,
     forceSample, resetToSample, useLiveData,
     sampleHidden, clearSampleData, restoreSampleData, showingContent,
-    executiveBriefing, totalOpportunities, reportPeriod, regionCounts,
+    executiveBriefing: displayBriefing, totalOpportunities, reportPeriod, regionCounts,
   };
 }

@@ -157,7 +157,9 @@ export const onCSVUpload = onObjectFinalized(
       // Transform for frontend consumption (without LLM enrichment first)
       const transformed = ReportTransformer.transform(report);
 
-      // Store base report in Firestore immediately so dashboard gets data
+      // Store base report in Firestore immediately so dashboard gets data.
+      // Use merge:true so a previous executiveBriefing from an earlier run today
+      // is preserved while Phase 2 enrichment runs (prevents "flash to sample" on dashboard).
       const reportDate = new Date().toISOString().split("T")[0];
       const reportRef = db.collection("reports").doc(reportDate);
       await reportRef.set({
@@ -165,7 +167,7 @@ export const onCSVUpload = onObjectFinalized(
         transformed,
         reportDate: report.reportDate,
         createdAt: FieldValue.serverTimestamp(),
-      });
+      }, { merge: true });
 
       console.log(
         `[${context.executionId}] Report stored: ${report.reportId}`
@@ -485,7 +487,7 @@ export const fetchFromBigQuery = onRequest(
       const report = await runAnalysisPipeline(records, context, getLLMConfig());
       report.funnelStages = funnelStages;
 
-      // Transform and store
+      // Transform and store (merge:true preserves existing executiveBriefing during Phase 2 gap)
       const transformed = ReportTransformer.transform(report);
       const reportDate = new Date().toISOString().split("T")[0];
       const reportRef = db.collection("reports").doc(reportDate);
@@ -495,7 +497,7 @@ export const fetchFromBigQuery = onRequest(
         reportDate: report.reportDate,
         createdAt: FieldValue.serverTimestamp(),
         dataSource: "bigquery",
-      });
+      }, { merge: true });
 
       console.log(
         `[${context.executionId}] Report stored: ${report.reportId}`

@@ -492,6 +492,16 @@ across the full pipeline. Now you must find what no individual deal
 analysis can see: the systemic patterns, the competitive momentum shifts,
 the forecast fiction that has accumulated across multiple reps and regions.
 
+CRITICAL — REGION TERMINOLOGY: Simpro operates in exactly four markets.
+You MUST use ONLY these exact names in every part of your response:
+  • North America  (NEVER "NAMER", "NA", "US", or "Americas")
+  • United Kingdom (NEVER "EMEA", "UK", "GB", or "Europe")
+  • Australia      (NEVER "APAC", "ANZ", or "AU")
+  • New Zealand    (NEVER "APAC", "ANZ", or "NZ")
+Use the exact region names from the data provided. Any other region
+label is an error. Do not group markets together (e.g. no "APAC" to
+cover both Australia and New Zealand — they are separate markets).
+
 THIS IS NOT A SUMMARY. IT IS A PROVOCATION.
 The CRO has 4 minutes before a board meeting. Every sentence must change
 how they think about the pipeline — or it doesn't deserve to be here.
