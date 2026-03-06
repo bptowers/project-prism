@@ -71,7 +71,8 @@ interface TrendData {
   all: number[];
   na: number[];
   uk: number[];
-  anz: number[];
+  au: number[];
+  nz: number[];
 }
 
 interface RegionData {
@@ -241,7 +242,8 @@ export class ReportTransformer {
       all: [g.globalWinRate * 100],
       na: [0],
       uk: [0],
-      anz: [0],
+      au: [0],
+      nz: [0],
     };
 
     // Placeholder sparklines
@@ -359,7 +361,8 @@ export class ReportTransformer {
       all: [region.winRate * 100],
       na: [0],
       uk: [0],
-      anz: [0],
+      au: [0],
+      nz: [0],
     };
 
     const sparklines: Record<string, number[]> = {
@@ -386,10 +389,17 @@ export class ReportTransformer {
   }
 
   private static normalizeRegionKey(key: string): string {
-    const lower = key.toLowerCase();
-    if (lower.includes("namer") || lower.includes("north america") || lower === "na") return "na";
-    if (lower.includes("emea") || lower.includes("uk") || lower.includes("europe")) return "uk";
-    if (lower.includes("apac") || lower.includes("anz") || lower.includes("australia")) return "anz";
+    const lower = key.toLowerCase().trim();
+    // North America
+    if (lower === "na" || lower === "us" || lower.includes("north america") || lower.includes("namer")) return "na";
+    // United Kingdom
+    if (lower === "uk" || lower === "gb" || lower.includes("united kingdom") || lower.includes("britain")) return "uk";
+    // Australia — kept separate from NZ
+    if (lower === "au" || lower === "aus" || lower.includes("australia")) return "au";
+    // New Zealand — kept separate from AU
+    if (lower === "nz" || lower.includes("new zealand")) return "nz";
+    // Legacy combined ANZ key — split into au (default) but flag it
+    if (lower === "anz") return "au";
     return lower;
   }
 }

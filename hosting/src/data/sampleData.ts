@@ -5,7 +5,8 @@ const trendData: TrendData = {
   all: [36, 38, 37, 39, 40, 38, 41, 42],
   na: [38, 40, 39, 41, 42, 40, 43, 44],
   uk: [33, 35, 34, 36, 37, 35, 38, 39],
-  anz: [37, 39, 38, 40, 41, 39, 42, 42],
+  au: [37, 39, 38, 40, 41, 39, 42, 42],
+  nz: [31, 33, 32, 34, 35, 33, 36, 37],
 };
 
 export const allRegionData: RegionData = {
@@ -61,22 +62,22 @@ export const allRegionData: RegionData = {
     { id: 3847, region: 'ANZ', level: 'MEDIUM', value: '$220K', confidence: 65, summary: 'Technical team skepticism on customization scope', action: 'Technical deep-dive session with solution architect', daysStalled: 6 },
   ],
   signals: [
-    { dir: 'up', text: 'Competitor FUD campaign on pricing detected across 14 deals in NA and UK — primarily ServiceMax and ServiceTitan' },
+    { dir: 'up', text: 'Competitor FUD campaign on pricing detected across 14 deals in NA and UK — primarily ServiceTitan and JobLogic' },
     { dir: 'up', text: 'AI/Automation feature demand accelerating — now mentioned in 23% of active opportunities, up from 14% last quarter' },
     { dir: 'flat', text: 'Mid-market consolidation trend continues — 8 prospects currently evaluating during active M&A activity' },
     { dir: 'up', text: 'ANZ price sensitivity increasing — 3 deals citing budget freezes or delayed capex approval' },
     { dir: 'up', text: 'API integration requests surging — 18 deals include integration requirements, up 40% from prior quarter' },
   ],
   competitors: [
-    { name: 'ServiceMax', threat: 'high', wins: 8, losses: 12, pending: 14, fud: 'Claiming 30% lower TCO with bundled IoT; pushing "enterprise-only" narrative against us' },
-    { name: 'ServiceTitan', threat: 'high', wins: 4, losses: 6, pending: 5, fud: 'Aggressive discounting in ANZ; offering 18-month free trial on residential module' },
-    { name: 'Job Logic', threat: 'medium', wins: 11, losses: 9, pending: 8, fud: 'Positioning as "simpler to implement"; highlighting our customization complexity' },
-    { name: 'Jobber', threat: 'low', wins: 14, losses: 3, pending: 2, fud: 'Limited enterprise play; mostly appearing in SMB segments we typically win' },
-    { name: 'In-House / Custom', threat: 'medium', wins: 6, losses: 8, pending: 4, fud: 'IT teams arguing "build vs buy" — typically stalls deals 6+ weeks' },
+    { name: 'ServiceTitan', threat: 'high', wins: 4, losses: 6, pending: 5, fud: 'Pushing "enterprise-only" narrative in NA; claiming Simpro is mid-market with limited scale' },
+    { name: 'JobLogic', threat: 'high', wins: 11, losses: 9, pending: 8, fud: '"UK-based local team" narrative; positioning Simpro\'s global scale as a liability for UK buyers' },
+    { name: 'Tradify', threat: 'medium', wins: 9, losses: 5, pending: 6, fud: 'NZ home-market loyalty and "simpler for trades SMB" messaging; low price point' },
+    { name: 'Ascora', threat: 'medium', wins: 7, losses: 8, pending: 5, fud: '"Local Aussie software" positioning in AU; SMB price anchoring vs Simpro\'s mid-market pricing' },
+    { name: 'ServiceM8', threat: 'low', wins: 14, losses: 3, pending: 4, fud: 'SMB-focused across all markets; appearance often signals a buyer who has outgrown their current tool' },
   ],
   recommendations: [
     { priority: 'P1', title: 'Deploy emergency response on top 3 at-risk deals ($2.8M)', desc: 'OPP #4782, #3291, #2847 require immediate executive intervention. Schedule CxO calls this week.', impact: '+$2.8M save' },
-    { priority: 'P1', title: 'Counter ServiceMax pricing FUD with updated battlecard', desc: 'FUD detected in 14 deals. Distribute updated TCO comparison showing 3-year advantage.', impact: '14 deals protected' },
+    { priority: 'P1', title: 'Counter ServiceTitan & JobLogic pricing FUD with updated battlecards', desc: 'FUD detected in 14 deals across NA and UK. Distribute updated TCO comparison showing 3-year advantage.', impact: '14 deals protected' },
     { priority: 'P2', title: 'Launch AI/Automation demo track for qualifying opportunities', desc: '23% of pipeline mentions automation. Create standardized demo flow highlighting AI capabilities.', impact: '+5% win rate est.' },
     { priority: 'P2', title: 'Accelerate ANZ deals with phased deployment option', desc: 'Budget sensitivity in ANZ requires flexible commercial model. Propose Phase 1/Phase 2 split.', impact: '$1.1M pipeline unlock' },
     { priority: 'P3', title: 'Host "Build vs. Buy" webinar targeting IT decision-makers', desc: '4 deals stalled by in-house build arguments. ROI content showing 18-month breakeven needed.', impact: '4 deals accelerated' },
@@ -111,22 +112,36 @@ export const ukRegionData: RegionData = {
   signals: allRegionData.signals.filter((_, i) => [0, 2].includes(i)),
 };
 
-export const anzRegionData: RegionData = {
+export const auRegionData: RegionData = {
   ...allRegionData,
   stats: {
     ...allRegionData.stats,
-    pipeline: { ...allRegionData.stats.pipeline, value: '$7.7M' },
-    winRate: { ...allRegionData.stats.winRate, value: '42%' },
-    atRisk: { ...allRegionData.stats.atRisk, value: '$1.1M', sub: '3 deals flagged' },
+    pipeline: { ...allRegionData.stats.pipeline, value: '$5.2M' },
+    winRate: { ...allRegionData.stats.winRate, value: '45%' },
+    atRisk: { ...allRegionData.stats.atRisk, value: '$0.8M', sub: '2 deals flagged' },
+    threats: { ...allRegionData.stats.threats, value: '2' },
+  },
+  risks: allRegionData.risks.filter(r => r.region === 'AU'),
+  signals: allRegionData.signals.filter((_, i) => [3].includes(i)),
+};
+
+export const nzRegionData: RegionData = {
+  ...allRegionData,
+  stats: {
+    ...allRegionData.stats,
+    pipeline: { ...allRegionData.stats.pipeline, value: '$2.5M' },
+    winRate: { ...allRegionData.stats.winRate, value: '38%' },
+    atRisk: { ...allRegionData.stats.atRisk, value: '$0.3M', sub: '1 deal flagged' },
     threats: { ...allRegionData.stats.threats, value: '1' },
   },
-  risks: allRegionData.risks.filter(r => r.region === 'ANZ'),
-  signals: allRegionData.signals.filter((_, i) => [3, 4].includes(i)),
+  risks: allRegionData.risks.filter(r => r.region === 'NZ'),
+  signals: allRegionData.signals.filter((_, i) => [4].includes(i)),
 };
 
 export const regionDataMap = {
   all: allRegionData,
   na: naRegionData,
   uk: ukRegionData,
-  anz: anzRegionData,
+  au: auRegionData,
+  nz: nzRegionData,
 };

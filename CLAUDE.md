@@ -70,13 +70,13 @@ The data flow is: **CSV Upload → Parse → Validate → LLM Analysis → Aggre
 
 Key layers in `functions/src/`:
 - **`types.ts`** — Single source of truth for all TypeScript interfaces (OpportunityRecord, OpportunityAnalysis, AggregatedReport, etc.)
-- **`index.ts`** — 5 Cloud Function entry points (see below)
+- **`index.ts`** — 6 Cloud Function entry points (see below)
 - **`llm/`** — LLM provider abstraction using Factory pattern. `provider.ts` defines `ILLMProvider` interface; `claude.ts`, `gemini.ts`, `openai.ts` implement it. `prompts.ts` has analysis prompt templates.
 - **`pipeline/`** — `csvParser.ts` handles CSV ingestion with Salesforce field mapping, composite field builders, and region auto-detection. `validator.ts` does data quality scoring and PII detection/scrubbing.
 - **`analysis/`** — `analyzer.ts` orchestrates batched LLM processing (25 records/batch, concurrent processing, retry with exponential backoff). `aggregator.ts` generates regional and global reports from individual analyses.
 - **`transforms/`** — `reportTransformer.ts` converts backend `AggregatedReport` into the frontend `RegionData` shape for the dashboard.
 
-### 5 Cloud Functions
+### Cloud Functions
 | Function | Trigger | Purpose |
 |---|---|---|
 | `onCSVUpload` | Cloud Storage (gs://project-prism-uploads/) | Auto-process uploaded CSVs |
@@ -84,6 +84,7 @@ Key layers in `functions/src/`:
 | `getReport` | HTTP GET | Fetch latest aggregated report |
 | `getReportHistory` | HTTP GET | Fetch last 10 reports |
 | `uploadCSV` | HTTP POST | Manual CSV upload |
+| `fetchFromBigQuery` | HTTP POST | Pull records from BigQuery and run analysis |
 
 ### Frontend (hosting)
 React SPA with Vite. Uses `@/` path alias (mapped to `src/`).
@@ -109,11 +110,17 @@ Both sub-projects have `.env.example` files. Copy to `.env` and populate.
 
 ### Backend (`functions/.env`)
 ```
+ANTHROPIC_API_KEY=<key>   # preferred; also readable as LLM_API_KEY
 LLM_PROVIDER=claude|gemini|openai
-LLM_API_KEY=<key>
 LLM_MODEL=claude-sonnet-4-5-20250929
 LLM_TEMPERATURE=0.3
 LLM_MAX_TOKENS=2000
+
+# BigQuery data source (cross-project, required for fetchFromBigQuery)
+BQ_PROJECT_ID=<data-warehouse-project-id>
+BQ_DATASET=<dataset-name>
+BQ_TABLE=<table-name>
+BQ_LOCATION=US
 ```
 
 ### Frontend (`hosting/.env`)
@@ -124,9 +131,14 @@ Uses Vite env vars prefixed with `VITE_FIREBASE_*` (apiKey, authDomain, projectI
 - Backend compiles to `functions/lib/` — this is `.gitignore`d
 - Frontend builds to `hosting/dist/` — also `.gitignore`d
 - Firebase hosting serves from `hosting/dist` with SPA fallback (`**` → `/index.html`)
-- API routes are rewired through Firebase hosting: `/api/report` → `getReport`, `/api/upload` → `uploadCSV`
+- API routes are rewired through Firebase hosting: `/api/report` → `getReport`, `/api/report/history` → `getReportHistory`, `/api/upload` → `uploadCSV`, `/api/bigquery` → `fetchFromBigQuery`
 - The LLM provider is swappable at runtime via environment variables using the Factory pattern in `provider.ts`
-- PII detection and scrubbing is enabled by default in the validation pipeline
+- PII detection and scrubbing is enabled by default; `DataValidator` uses regex patterns covering email, SSN, credit card, IP address, and phone numbers (NA, UK +44, AU +61, NZ +64 formats)
 - Backend uses Firebase Functions v2 APIs (`firebase-functions/v2/*`)
-- Firestore rules allow public reads for reports/analyses but restrict writes to Cloud Functions only
+- All TypeScript imports within `functions/src/` use `.js` extensions (e.g., `from "./types.js"`) — required for ESM module resolution at runtime
+- **All 4 HTTP endpoints require a Firebase ID token**: `Authorization: Bearer <idToken>`. The `requireAuth` middleware in `index.ts` verifies this via `admin.auth().verifyIdToken()`
+- Firestore rules require `request.auth != null` for reads on `reports` and `analyses`; writes from the client are always denied (Cloud Functions use Admin SDK, bypassing rules)
+- `ANTHROPIC_API_KEY` is stored as a Firebase Secret Manager secret, not a plain env var — all functions declare `secrets: ["ANTHROPIC_API_KEY"]` in their config
+- The pipeline has a **two-phase enrichment pattern**: base report is stored immediately after aggregation, then `Aggregator.enrichWithLLM()` adds executive briefing, recommendations, and forecast confidence as a non-fatal follow-up update
 - The CSV parser handles real Salesforce export column names with composite field builders and win/loss status normalization
+- LLM prompts wrap user-supplied content between `[BEGIN_USER_DATA]` / `[END_USER_DATA]` markers to prevent prompt injection

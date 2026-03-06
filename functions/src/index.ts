@@ -8,6 +8,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onRequest } from "firebase-functions/v2/https";
+import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { Storage } from "@google-cloud/storage";
 import { Analyzer } from "./analysis/analyzer.js";
 import { Aggregator } from "./analysis/aggregator.js";
@@ -24,6 +25,42 @@ import {
 
 // Initialize Firebase Admin
 admin.initializeApp();
+
+// ISO date format validator for sinceDate parameter
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Max CSV payload size (10 MB) to prevent runaway LLM cost from huge uploads
+const MAX_CSV_SIZE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Verifies a Firebase ID token from the Authorization header.
+ * Returns true and proceeds if valid; sends 401/403 and returns false if not.
+ */
+async function requireAuth(req: ExpressRequest, res: ExpressResponse): Promise<boolean> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized" });
+    return false;
+  }
+  try {
+    const token = authHeader.split("Bearer ")[1];
+    await admin.auth().verifyIdToken(token);
+    return true;
+  } catch {
+    res.status(403).json({ error: "Forbidden" });
+    return false;
+  }
+}
+
+/**
+ * Sanitizes a user-supplied filename for use as a Cloud Storage object name.
+ * Returns null if the filename is invalid.
+ */
+function sanitizeFilename(raw: string): string | null {
+  const name = raw.replace(/[/\\]/g, "").replace(/\.\./g, "").trim();
+  if (!/^[\w\-. ]{1,128}\.csv$/i.test(name)) return null;
+  return name;
+}
 const db = admin.firestore();
 db.settings({ ignoreUndefinedProperties: true });
 const storage = new Storage();
@@ -34,7 +71,7 @@ const storage = new Storage();
 function getLLMConfig(): LLMConfig {
   const provider = process.env.LLM_PROVIDER || "claude";
   const apiKey = process.env.LLM_API_KEY || process.env.ANTHROPIC_API_KEY || "";
-  const model = process.env.LLM_MODEL || "claude-sonnet-4-5-20250929";
+  const model = process.env.LLM_MODEL || "claude-sonnet-4-6";
 
   if (!apiKey) {
     throw new Error("LLM_API_KEY or ANTHROPIC_API_KEY environment variable not set");
@@ -73,7 +110,7 @@ function createExecutionContext(jobType: ExecutionContext["jobType"], sourceFile
  * Trigger: gs://project-prism-uploads/
  */
 export const onCSVUpload = onObjectFinalized(
-  { bucket: "project-prism-uploads", timeoutSeconds: 3600, memory: "1GiB", secrets: ["ANTHROPIC_API_KEY"] },
+  { bucket: "project-prism-489108-a9e2b.firebasestorage.app", region: "us-east1", timeoutSeconds: 540, memory: "1GiB", secrets: ["ANTHROPIC_API_KEY"] },
   async (event) => {
     const filePath = event.data.name;
     const bucketName = event.data.bucket;
@@ -185,7 +222,7 @@ export const runWeeklyAnalysis = onSchedule(
 
     try {
       // Get the latest CSV from uploads
-      const bucket = storage.bucket("project-prism-uploads");
+      const bucket = storage.bucket("project-prism-489108-a9e2b.firebasestorage.app");
       const [files] = await bucket.getFiles({ prefix: "uploads/" });
 
       if (files.length === 0) {
@@ -270,7 +307,8 @@ export const runWeeklyAnalysis = onSchedule(
  * HTTP function: Returns the latest aggregated report
  * GET /getReport
  */
-export const getReport = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (_req, res) => {
+export const getReport = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (req, res) => {
+  if (!await requireAuth(req, res)) return;
   try {
     // Get today's date
     const today = new Date().toISOString().split("T")[0];
@@ -302,9 +340,7 @@ export const getReport = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (_r
     });
   } catch (error) {
     console.error("Error fetching report:", error);
-    res.status(500).json({
-      error: `Failed to fetch report: ${String(error)}`,
-    });
+    res.status(500).json({ error: "Failed to fetch report" });
   }
 });
 
@@ -312,7 +348,8 @@ export const getReport = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (_r
  * HTTP function: Returns report history (last 10 reports)
  * GET /getReportHistory
  */
-export const getReportHistory = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (_req, res) => {
+export const getReportHistory = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (req, res) => {
+  if (!await requireAuth(req, res)) return;
   try {
     const snapshot = await db
       .collection("reports")
@@ -332,9 +369,7 @@ export const getReportHistory = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, as
     });
   } catch (error) {
     console.error("Error fetching report history:", error);
-    res.status(500).json({
-      error: `Failed to fetch report history: ${String(error)}`,
-    });
+    res.status(500).json({ error: "Failed to fetch report history" });
   }
 });
 
@@ -343,6 +378,7 @@ export const getReportHistory = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, as
  * POST /uploadCSV
  */
 export const uploadCSV = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (req, res) => {
+  if (!await requireAuth(req, res)) return;
   try {
     if (req.method !== "POST") {
       res.status(405).json({ error: "Method not allowed" });
@@ -355,10 +391,27 @@ export const uploadCSV = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (re
     }
 
     const csvContent = req.body.csv;
-    const filename = req.body.filename || `upload_${Date.now()}.csv`;
+
+    if (Buffer.byteLength(csvContent, "utf-8") > MAX_CSV_SIZE_BYTES) {
+      res.status(413).json({ error: "CSV file too large. Maximum 10 MB." });
+      return;
+    }
+
+    const rawFilename = req.body.filename;
+    let filename: string;
+    if (rawFilename) {
+      const safe = sanitizeFilename(String(rawFilename));
+      if (!safe) {
+        res.status(400).json({ error: "Invalid filename. Use only letters, numbers, dashes, underscores, and spaces. Must end in .csv." });
+        return;
+      }
+      filename = safe;
+    } else {
+      filename = `upload_${Date.now()}.csv`;
+    }
 
     // Upload to Cloud Storage
-    const bucket = storage.bucket("project-prism-uploads");
+    const bucket = storage.bucket("project-prism-489108-a9e2b.firebasestorage.app");
     const file = bucket.file(`uploads/${filename}`);
 
     await file.save(csvContent, {
@@ -376,9 +429,7 @@ export const uploadCSV = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (re
     });
   } catch (error) {
     console.error("Error uploading CSV:", error);
-    res.status(500).json({
-      error: `Failed to upload CSV: ${String(error)}`,
-    });
+    res.status(500).json({ error: "Failed to upload CSV" });
   }
 });
 
@@ -390,6 +441,7 @@ export const uploadCSV = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (re
 export const fetchFromBigQuery = onRequest(
   { timeoutSeconds: 3600, memory: "1GiB", secrets: ["ANTHROPIC_API_KEY"] },
   async (req, res) => {
+    if (!await requireAuth(req, res)) return;
     try {
       if (req.method !== "POST") {
         res.status(405).json({ error: "Method not allowed" });
@@ -401,7 +453,11 @@ export const fetchFromBigQuery = onRequest(
 
       // Read BigQuery config from environment
       const bqConfig = getBigQueryConfig();
-      if (req.body?.sinceDate) {
+      if (req.body?.sinceDate !== undefined) {
+        if (typeof req.body.sinceDate !== "string" || !ISO_DATE_RE.test(req.body.sinceDate)) {
+          res.status(400).json({ error: "Invalid sinceDate. Expected format: YYYY-MM-DD" });
+          return;
+        }
         bqConfig.sinceDate = req.body.sinceDate;
       }
 
@@ -482,9 +538,7 @@ export const fetchFromBigQuery = onRequest(
       });
     } catch (error) {
       console.error("BigQuery fetch error:", error);
-      res.status(500).json({
-        error: `BigQuery fetch failed: ${String(error)}`,
-      });
+      res.status(500).json({ error: "BigQuery fetch failed" });
     }
   }
 );

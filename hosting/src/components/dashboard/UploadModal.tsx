@@ -366,7 +366,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
                           fontSize: '0.85rem', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em',
                         }}
                       >
-                        View Report
+                        View Dashboard →
                       </button>
                       <button
                         onClick={handleReset}

@@ -1,4 +1,4 @@
-export type Region = 'all' | 'na' | 'uk' | 'anz';
+export type Region = 'all' | 'na' | 'uk' | 'au' | 'nz';
 export type RiskLevel = 'HIGH' | 'MEDIUM';
 export type ThreatLevel = 'high' | 'medium' | 'low';
 export type Priority = 'P1' | 'P2' | 'P3';
@@ -69,7 +69,8 @@ export interface TrendData {
   all: number[];
   na: number[];
   uk: number[];
-  anz: number[];
+  au: number[];
+  nz: number[];
 }
 
 export interface RegionData {

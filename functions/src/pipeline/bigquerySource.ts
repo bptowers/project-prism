@@ -140,13 +140,14 @@ export class BigQuerySource {
    * Fetches opportunity records from BigQuery
    */
   async fetchRecords(): Promise<OpportunityRecord[]> {
-    const query = this.buildQuery();
+    const { query, params } = this.buildQuery();
     console.log(
       `[BigQuerySource] Executing query against ${this.config.dataset}.${this.config.table}`
     );
 
     const [rows] = await this.client.query({
       query,
+      params,
       location: this.config.location || "US",
     });
 
@@ -156,21 +157,25 @@ export class BigQuerySource {
   }
 
   /**
-   * Builds the SQL query with optional date filter for incremental pulls
+   * Builds the SQL query with optional date filter for incremental pulls.
+   * Uses parameterized queries to prevent SQL injection.
    */
-  private buildQuery(): string {
+  private buildQuery(): { query: string; params: Record<string, unknown> } {
     const fullTable = `\`${this.config.projectId}.${this.config.dataset}.${this.config.table}\``;
-    let query = `SELECT * FROM ${fullTable}`;
+    const orderCol = this.resolveColumn("updatedDate") || "LastModifiedDate";
 
     if (this.config.sinceDate) {
-      const dateCol = this.resolveColumn("updatedDate") || "LastModifiedDate";
-      query += ` WHERE ${dateCol} >= '${this.config.sinceDate}'`;
+      const dateCol = orderCol;
+      return {
+        query: `SELECT * FROM ${fullTable} WHERE ${dateCol} >= @sinceDate ORDER BY ${orderCol} DESC`,
+        params: { sinceDate: this.config.sinceDate },
+      };
     }
 
-    const orderCol = this.resolveColumn("updatedDate") || "LastModifiedDate";
-    query += ` ORDER BY ${orderCol} DESC`;
-
-    return query;
+    return {
+      query: `SELECT * FROM ${fullTable} ORDER BY ${orderCol} DESC`,
+      params: {},
+    };
   }
 
   /**

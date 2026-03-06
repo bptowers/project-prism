@@ -376,11 +376,21 @@ export class Aggregator {
     try {
       const provider = await LLMProviderFactory.create(llmConfig);
 
+      // Map raw region keys to full display names so the LLM uses correct terminology
+      const REGION_DISPLAY_NAMES: Record<string, string> = {
+        na: "North America", namer: "North America", us: "North America",
+        uk: "United Kingdom", gb: "United Kingdom", emea: "United Kingdom",
+        au: "Australia", aus: "Australia", apac: "Australia/New Zealand",
+        nz: "New Zealand", anz: "Australia/New Zealand",
+      };
+      const regionDisplayName = (key: string) =>
+        REGION_DISPLAY_NAMES[key.toLowerCase()] ?? key;
+
       // Build report summary for the prompt
       const summary = JSON.stringify({
         totalRecords: report.totalRecordsAnalyzed,
         regions: Object.entries(report.regions).map(([name, r]) => ({
-          name,
+          name: regionDisplayName(name),
           total: r.totalOpportunities,
           wins: r.wins,
           losses: r.losses,

@@ -19,7 +19,7 @@ import { Panel } from '@/components/ui/Panel';
 import { UploadModal } from '@/components/dashboard/UploadModal';
 
 export default function App() {
-  const { region, data, selectRegion, loading, isLive, hasLiveData, forceSample, resetToSample, useLiveData } = useRegion();
+  const { region, data, selectRegion, loading, isLive, hasLiveData, forceSample, resetToSample, useLiveData, sampleHidden, clearSampleData, restoreSampleData, showingContent, executiveBriefing, totalOpportunities, reportPeriod, regionCounts } = useRegion();
   const [uploadOpen, setUploadOpen] = useState(false);
 
   return (
@@ -66,12 +66,72 @@ export default function App() {
             {forceSample ? '← Back to Live Data' : 'Reset to Sample Data'}
           </button>
         )}
+        {!isLive && (
+          <button
+            onClick={sampleHidden ? restoreSampleData : clearSampleData}
+            style={{
+              marginLeft: 8,
+              padding: '3px 10px',
+              fontSize: '0.7rem',
+              fontFamily: 'var(--font-mono)',
+              background: sampleHidden ? 'var(--accent)' : 'var(--bg-elevated)',
+              border: `1px solid ${sampleHidden ? 'var(--accent)' : 'var(--border)'}`,
+              borderRadius: 4,
+              color: sampleHidden ? '#fff' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {sampleHidden ? '+ Show Sample Data' : '✕ Clear Sample Data'}
+          </button>
+        )}
       </div>
 
-      <motion.div variants={containerVariants} initial="hidden" animate="visible">
-        <AIBriefing />
+      {!showingContent && (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '6rem 2rem',
+          textAlign: 'center',
+          gap: '1.5rem',
+        }}>
+          <div style={{ fontSize: '3rem', opacity: 0.3 }}>◈</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--text-primary)' }}>
+            No live data yet
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: 420, lineHeight: 1.6 }}>
+            Upload a Salesforce CSV export to run your first analysis. The intelligence engine will process your pipeline and populate this dashboard with live data.
+          </div>
+          <button
+            onClick={() => setUploadOpen(true)}
+            style={{
+              padding: '10px 28px',
+              fontSize: '0.85rem',
+              fontFamily: 'var(--font-mono)',
+              background: 'var(--accent)',
+              border: 'none',
+              borderRadius: 6,
+              color: '#fff',
+              cursor: 'pointer',
+              marginTop: '0.5rem',
+            }}
+          >
+            Upload CSV →
+          </button>
+        </div>
+      )}
+
+      <motion.div variants={containerVariants} initial="hidden" animate={showingContent ? 'visible' : 'hidden'} style={{ display: showingContent ? 'block' : 'none' }}>
+        <AIBriefing
+          briefing={executiveBriefing}
+          totalOpportunities={totalOpportunities}
+          period={reportPeriod}
+          isLive={isLive}
+        />
         <StatsRow stats={data.stats} sparklines={data.sparklines} />
-        <RegionTabs region={region} onSelect={selectRegion} />
+        <RegionTabs region={region} onSelect={selectRegion} regionCounts={regionCounts} isLive={isLive} />
         <PipelineFunnel stages={data.funnel} />
 
         {/* 2x2 Grid */}

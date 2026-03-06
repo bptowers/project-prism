@@ -16,11 +16,11 @@ import {
 export class DataValidator {
   private enablePiiScrubbing: boolean;
 
-  // PII detection patterns
+  // PII detection patterns (covers NA, UK +44, AU +61, NZ +64 phone formats)
   private readonly piiPatterns = {
     email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
     phone:
-      /(\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?[2-9]\d{2}[-.\s]?\d{4}\b/g,
+      /(\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?[2-9]\d{2}[-.\s]?\d{4}\b|\+44[\s-]?\d{2,4}[\s-]?\d{3,4}[\s-]?\d{3,4}|\+61[\s-]?\d[\s-]?\d{4}[\s-]?\d{4}|\+64[\s-]?\d[\s-]?\d{3}[\s-]?\d{4}/g,
     ssn: /\b\d{3}-\d{2}-\d{4}\b/g,
     creditCard: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g,
     ipAddress: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
@@ -149,18 +149,20 @@ export class DataValidator {
       record.dealReviewNotes,
       record.accountName,
       record.winLossReason,
+      record.salesRep,
+      record.economicBuyer,
+      record.nextStep,
+      record.opportunityName,
     ];
 
     for (const [piiType, pattern] of Object.entries(this.piiPatterns)) {
       for (const field of fieldsToCheck) {
-        if (field && pattern.test(field)) {
-          const matches = field.match(pattern) || [];
-          if (matches.length > 0) {
-            found.push(piiType);
-            locations[piiType] = (locations[piiType] || 0) + matches.length;
-          }
-          // Reset regex for next iteration
-          pattern.lastIndex = 0;
+        if (!field) continue;
+        pattern.lastIndex = 0; // reset before each field to avoid stateful regex bugs
+        const matches = field.match(pattern) || [];
+        if (matches.length > 0) {
+          if (!found.includes(piiType)) found.push(piiType);
+          locations[piiType] = (locations[piiType] || 0) + matches.length;
         }
       }
     }
@@ -172,20 +174,13 @@ export class DataValidator {
    * Scrubs PII from a record
    */
   private scrubbRecord(record: OpportunityRecord): void {
-    // Scrub notes
-    if (record.notes) {
-      record.notes = this.scrubText(record.notes);
-    }
-
-    // Scrub deal review notes
-    if (record.dealReviewNotes) {
-      record.dealReviewNotes = this.scrubText(record.dealReviewNotes);
-    }
-
-    // Scrub win/loss reason
-    if (record.winLossReason) {
-      record.winLossReason = this.scrubText(record.winLossReason);
-    }
+    if (record.notes) record.notes = this.scrubText(record.notes);
+    if (record.dealReviewNotes) record.dealReviewNotes = this.scrubText(record.dealReviewNotes);
+    if (record.winLossReason) record.winLossReason = this.scrubText(record.winLossReason);
+    if (record.salesRep) record.salesRep = this.scrubText(record.salesRep);
+    if (record.economicBuyer) record.economicBuyer = this.scrubText(record.economicBuyer);
+    if (record.nextStep) record.nextStep = this.scrubText(record.nextStep);
+    if (record.opportunityName) record.opportunityName = this.scrubText(record.opportunityName);
   }
 
   /**

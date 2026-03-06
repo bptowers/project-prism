@@ -44,3 +44,8 @@ functions/package-lock.json
 # Salesforce data exports (may contain PII)
 *.xlsx
 February2026 Data Export.csv
+
+# Firebase / GCP service account credential files
+*-firebase-adminsdk-*.json
+serviceAccountKey.json
+gcp-credentials.json

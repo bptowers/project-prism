@@ -344,26 +344,25 @@ export class CSVParser {
   ): string {
     if (rawRecord) {
       // Priority 1: Explicit Territory_Region column (if populated)
+      // Normalize to Simpro's four market codes: na, uk, au, nz
       const territoryRegion = this.getFieldValue(rawRecord, "Territory_Region").toUpperCase();
       if (territoryRegion) {
-        // Normalize common territory region values to our region codes
-        if (territoryRegion.includes("APAC") || territoryRegion.includes("ASIA") || territoryRegion.includes("PACIFIC")) return "APAC";
-        if (territoryRegion.includes("EMEA") || territoryRegion.includes("EUROPE")) return "EMEA";
-        if (territoryRegion.includes("NAMER") || territoryRegion.includes("NORTH AMERICA") || territoryRegion.includes("NA")) return "NAMER";
-        if (territoryRegion.includes("LATAM") || territoryRegion.includes("LATIN")) return "LATAM";
-        // If it's a known region code already, use it
-        if (["APAC", "EMEA", "NAMER", "LATAM"].includes(territoryRegion)) return territoryRegion;
+        if (territoryRegion.includes("NAMER") || territoryRegion.includes("NORTH AMERICA") || territoryRegion === "NA" || territoryRegion === "US") return "na";
+        if (territoryRegion.includes("EMEA") || territoryRegion.includes("EUROPE") || territoryRegion.includes("UNITED KINGDOM") || territoryRegion === "UK" || territoryRegion === "GB") return "uk";
+        if (territoryRegion.includes("AUSTRALIA") || territoryRegion === "AU" || territoryRegion === "AUS") return "au";
+        if (territoryRegion.includes("NEW ZEALAND") || territoryRegion === "NZ") return "nz";
+        // For "APAC" without a country-level signal, fall through to currency (AUD→au vs NZD→nz)
       }
 
-      // Priority 2: Currency-based detection (most reliable for real Salesforce data)
+      // Priority 2: Currency-based detection — most reliable discriminator for AU vs NZ
       const currency = this.getFieldValue(rawRecord, "Currency").toUpperCase();
       const currencyRegionMap: Record<string, string> = {
-        "AUD": "APAC",
-        "NZD": "APAC",
-        "GBP": "EMEA",
-        "USD": "NAMER",
-        "CAD": "NAMER",
-        "EUR": "EMEA",
+        "AUD": "au",
+        "NZD": "nz",
+        "GBP": "uk",
+        "USD": "na",
+        "CAD": "na",
+        "EUR": "uk",
       };
       if (currencyRegionMap[currency]) {
         return currencyRegionMap[currency];
@@ -577,37 +576,36 @@ export function getDefaultSalesforceMapping(): FieldMapping {
  * Gets default region mapping
  */
 export function getDefaultRegionMapping(): RegionMapping {
+  // Simpro operates in four markets only: North America (na), United Kingdom (uk), Australia (au), New Zealand (nz)
   return {
-    // Country/continent level
-    "North America": "NAMER",
-    "United States": "NAMER",
-    "Canada": "NAMER",
-    "Europe": "EMEA",
-    "United Kingdom": "EMEA",
-    "Germany": "EMEA",
-    "France": "EMEA",
-    "APAC": "APAC",
-    "Australia": "APAC",
-    "New Zealand": "APAC",
-    "Japan": "APAC",
-    "Singapore": "APAC",
-    "India": "APAC",
-    "Latin America": "LATAM",
-    "Mexico": "LATAM",
-    "Brazil": "LATAM",
-    // Australian states
-    "New South Wales": "APAC",
-    "Queensland": "APAC",
-    "Victoria": "APAC",
-    "Western Australia": "APAC",
-    "South Australia": "APAC",
-    "Australian Capital Territory": "APAC",
-    "Tasmania": "APAC",
-    "Northern Territory": "APAC",
-    // UK regions
-    "England": "EMEA",
-    "Scotland": "EMEA",
-    "Wales": "EMEA",
-    "Northern Ireland": "EMEA",
+    // North America
+    "North America": "na",
+    "United States": "na",
+    "Canada": "na",
+    "USA": "na",
+    "US": "na",
+    // United Kingdom
+    "United Kingdom": "uk",
+    "UK": "uk",
+    "England": "uk",
+    "Scotland": "uk",
+    "Wales": "uk",
+    "Northern Ireland": "uk",
+    "Britain": "uk",
+    "Great Britain": "uk",
+    // Australia — Australian states
+    "Australia": "au",
+    "AU": "au",
+    "New South Wales": "au",
+    "Queensland": "au",
+    "Victoria": "au",
+    "Western Australia": "au",
+    "South Australia": "au",
+    "Australian Capital Territory": "au",
+    "Tasmania": "au",
+    "Northern Territory": "au",
+    // New Zealand
+    "New Zealand": "nz",
+    "NZ": "nz",
   };
 }

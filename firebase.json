@@ -20,6 +20,7 @@
     "rules": "firestore.rules"
   },
   "storage": {
+    "bucket": "project-prism-489108-a9e2b.firebasestorage.app",
     "rules": "storage.rules"
   },
   "emulators": {
