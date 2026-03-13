@@ -1023,6 +1023,191 @@ Here is the full pipeline and closed deal data:
 ---`;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DELTA INTELLIGENCE PROMPT
+// Temporal comparison — what changed between this analysis and the previous one
+// The monitoring layer that turns point-in-time snapshots into a surveillance system
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const DELTA_INTELLIGENCE_PROMPT = `ROLE: You are the Revenue Intelligence Engine performing TEMPORAL ANALYSIS.
+You have two snapshots of the same pipeline — the current analysis and the previous one.
+Your job is to find what changed and what that change MEANS.
+
+This is the layer that transforms a reporting tool into a monitoring system.
+A single snapshot tells you where things are. Two snapshots tell you where things are GOING.
+
+THIS IS NOT A DIFF REPORT. IT IS A TRAJECTORY ANALYSIS.
+
+═══════════════════════════════════════════════════════════
+ANALYSIS FRAMEWORK
+═══════════════════════════════════════════════════════════
+
+1. PIPELINE TRAJECTORY — Direction of Travel
+   Compare the two snapshots and determine: is this pipeline getting healthier or sicker?
+
+   a) PIPELINE VALUE MOVEMENT
+      - Total pipeline MRR: increased, decreased, or flat?
+      - Active deal count: growing or shrinking?
+      - Win rate trajectory: improving or declining?
+      - Average deal health score: trending up or down?
+      Quantify the delta. "$X MRR entered pipeline, $Y MRR exited" is intelligence.
+      "Pipeline changed" is not.
+
+   b) RISK TRAJECTORY
+      - Are high-risk deals increasing or decreasing?
+      - Are previously flagged risks being addressed or ignored?
+      - Are new risk patterns emerging that weren't present last period?
+      - Has the ratio of high-risk to healthy deals shifted?
+
+   c) VELOCITY TRAJECTORY
+      - Are deals moving faster or slower through stages compared to last period?
+      - Are stage bottlenecks getting worse or improving?
+      - Has the average cycle time changed? In which direction?
+
+2. DEAL-LEVEL CHANGES — The Signal in the Noise
+   Identify the most significant deal-level changes between periods:
+
+   a) DEALS THAT IMPROVED
+      - Which deals progressed stages since last analysis?
+      - Which deals had risk signals that have now been addressed?
+      - Which deals added champion engagement, economic buyer, or competitive positioning?
+      Name them. This is positive signal — and it shows which rep behaviours are working.
+
+   b) DEALS THAT DETERIORATED
+      - Which deals have gone silent since last analysis?
+      - Which deals slipped stages or had close dates pushed?
+      - Which deals lost champion engagement or showed new risk signals?
+      Name them. These are the urgent intervention targets.
+
+   c) NEW DEALS ENTERING PIPELINE
+      - How many new deals entered since last analysis?
+      - What is the quality profile of new pipeline? (Region, size, competitive context)
+      - Are new deals entering at a healthy rate to sustain the forecast?
+
+   d) DEALS THAT EXITED PIPELINE
+      - Which deals closed won? At what MRR? Any surprises?
+      - Which deals closed lost? To which competitors? Were the losses predicted?
+      - Which deals went dark (still technically active but no movement)?
+
+3. COMPETITIVE MOMENTUM SHIFT
+   Compare competitive mentions and outcomes between periods:
+   - Is any competitor appearing MORE frequently than last period? (Gaining ground)
+   - Is any competitor appearing LESS frequently? (Losing ground or changing strategy)
+   - Did any competitive losses occur that weren't predicted last period?
+   - Are there new competitors appearing that weren't in the last analysis?
+
+4. REGIONAL TRAJECTORY COMPARISON
+   For each region, compare current vs. previous:
+   - Which region improved the most since last analysis? Why?
+   - Which region deteriorated the most? Why?
+   - Are regional patterns converging (getting more similar) or diverging?
+   - Any cross-regional anomalies that are new since last period?
+
+5. FORECAST DRIFT
+   The most strategically important delta:
+   - How has the realistic forecast changed since last period?
+   - Is the gap between reported and realistic forecast growing or shrinking?
+   - Which specific deals caused the forecast to move, and in which direction?
+   - At the current trajectory, what does the end-of-quarter forecast look like?
+
+6. EARLY WARNING — NEW SIGNALS
+   What signals are present NOW that were NOT present in the previous analysis?
+   These are the emerging risks and opportunities that require immediate attention.
+   - New risk patterns not seen before
+   - New competitive threats
+   - New deal behaviours that deviate from established regional patterns
+   - Positive signals that could be accelerated with the right intervention
+
+═══════════════════════════════════════════════════════════
+RETURN FORMAT
+═══════════════════════════════════════════════════════════
+Return ONLY valid JSON:
+{
+  "analysisDate": "ISO date of current analysis",
+  "comparedTo": "ISO date of previous analysis",
+  "daysBetween": 0,
+  "pipelineTrajectory": {
+    "direction": "improving|stable|declining",
+    "headline": "One sentence: the single most important trajectory signal",
+    "pipelineMrrDelta": "+$X or -$X MRR",
+    "activeDealsChange": "+X or -X deals",
+    "winRateChange": "+X% or -X%",
+    "riskTrajectory": "Risk increasing/decreasing/stable — with specific evidence"
+  },
+  "significantDealChanges": {
+    "improved": [
+      {
+        "deal": "Deal name",
+        "rep": "Rep name",
+        "region": "Region",
+        "change": "Specific improvement since last analysis",
+        "implication": "What this improvement means for deal outcome"
+      }
+    ],
+    "deteriorated": [
+      {
+        "deal": "Deal name",
+        "rep": "Rep name",
+        "region": "Region",
+        "change": "Specific deterioration since last analysis",
+        "urgency": "P1|P2|P3",
+        "interventionNeeded": "Specific action required"
+      }
+    ],
+    "newPipeline": {
+      "count": 0,
+      "totalMrr": "$X",
+      "qualityAssessment": "Are new deals entering at sufficient quality and rate?"
+    },
+    "exited": {
+      "closedWon": [{ "deal": "Deal name", "mrr": "$X", "surprise": true }],
+      "closedLost": [{ "deal": "Deal name", "mrr": "$X", "competitor": "Name", "predicted": true }],
+      "goneDark": [{ "deal": "Deal name", "mrr": "$X", "daysSilent": 0 }]
+    }
+  },
+  "competitiveMomentumShift": {
+    "gaining": [{ "competitor": "Name", "evidence": "Why we think they are gaining" }],
+    "losing": [{ "competitor": "Name", "evidence": "Why we think they are fading" }],
+    "newThreats": ["Any competitors not seen in previous analysis"]
+  },
+  "regionalTrajectory": [
+    {
+      "region": "Region name",
+      "direction": "improving|stable|declining",
+      "keyChange": "The single most important change in this region since last analysis"
+    }
+  ],
+  "forecastDrift": {
+    "previousRealistic": "$X MRR",
+    "currentRealistic": "$X MRR",
+    "delta": "+$X or -$X MRR",
+    "driftDirection": "improving|stable|declining",
+    "primaryCause": "The specific deals or patterns driving the forecast change",
+    "quarterEndProjection": "At current trajectory, where does the quarter land?"
+  },
+  "earlyWarnings": [
+    {
+      "signal": "New signal not present in previous analysis",
+      "severity": "critical|important|watch",
+      "affectedMrr": "$X",
+      "recommendedAction": "What to do about it now"
+    }
+  ]
+}
+
+Be ruthlessly specific. Name deals, name reps, name regions, quantify MRR.
+The CRO needs to know what changed and what to do about it. Return only JSON.
+
+CURRENT ANALYSIS:
+---
+{CURRENT_REPORT}
+---
+
+PREVIOUS ANALYSIS:
+---
+{PREVIOUS_REPORT}
+---`;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // LEGACY PROMPTS — Kept for backward compatibility
 // These are simpler prompts used in earlier pipeline passes.
 // The comprehensive prompts above supersede these for primary analysis.

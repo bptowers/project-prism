@@ -212,6 +212,12 @@ export interface AggregatedReport {
     count: number;
     revenue: number;
   }>;
+  // Phase 3 enrichment: Pete's 20 Questions (CRO intelligence layer)
+  twentyQuestions?: Record<string, unknown>;
+  // Phase 4 enrichment: Competitive Displacement Intelligence
+  competitiveDisplacement?: Record<string, unknown>;
+  // Phase 5 enrichment: Delta Intelligence (temporal comparison)
+  deltaIntelligence?: Record<string, unknown>;
 }
 
 /**
@@ -306,7 +312,7 @@ export interface AnalysisBatch {
 export interface ExecutionContext {
   executionId: string;
   startTime: Date;
-  jobType: "csv-upload" | "scheduled-weekly" | "manual" | "api-request" | "bigquery-fetch";
+  jobType: "csv-upload" | "scheduled-weekly" | "scheduled-bigquery" | "manual" | "api-request" | "bigquery-fetch";
   sourceFile?: string;
   recordsProcessed: number;
   recordsSuccessful: number;

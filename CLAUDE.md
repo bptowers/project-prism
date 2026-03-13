@@ -15,6 +15,7 @@ The project has two independent sub-projects at the root:
 - **`firebase.json`** — Firebase config linking both, with hosting rewrites to function endpoints
 - **`docs/`** — Architecture docs, deployment guide, presentation assets
 - **`test-data/`** — Sample CSV files for local testing (`sample-opportunities.csv`, `sample-3-opportunities.csv`)
+- **`sample-data/`** — Additional sample CSV (`opportunities.csv`) used by the frontend's hardcoded sample data flow
 
 ## Build & Development Commands
 
@@ -89,9 +90,9 @@ Key layers in `functions/src/`:
 ### Frontend (hosting)
 React SPA with Vite. Uses `@/` path alias (mapped to `src/`).
 
-- **`src/App.tsx`** — Main layout: Header, region tabs, 2x2 grid of panels (themes, risks, signals), trend chart, competitor intel, recommendations
-- **`src/hooks/`** — `useRegion.ts` (region selection + data), `useFirestore.ts` (Firestore queries), `useUpload.ts` (CSV upload)
-- **`src/components/dashboard/`** — Dashboard widgets (AIBriefing, StatsRow, PipelineFunnel, ThemeChart, RiskRadar, etc.)
+- **`src/App.tsx`** — Main layout (top to bottom): Header + UploadModal, PrismBar, live/sample data indicator, empty state (when no data), then animated content: AIBriefing → StatsRow → RegionTabs → PipelineFunnel → 2x2 grid (Win/Loss Themes, Risk Radar, Market Signals) → TrendChart → CompetitorIntel → Recommendations → ProcessingFooter. Uses `framer-motion` for enter animations.
+- **`src/hooks/`** — `useRegion.ts` (region selection + data, plus `isLive`/`hasLiveData`/`showingContent` for live-vs-sample toggle), `useFirestore.ts` (Firestore queries), `useUpload.ts` (CSV upload)
+- **`src/components/dashboard/`** — Dashboard widgets: AIBriefing, StatsRow, RegionTabs, PipelineFunnel, ThemeChart, RiskRadar, MarketSignals, TrendChart, CompetitorIntel, Recommendations, UploadModal
 - **`src/components/ui/`** — Reusable UI primitives (Panel, Badge, Button, Sparkline)
 - **`src/components/layout/`** — Layout components (Header, PrismBar, ProcessingFooter)
 - **`src/data/sampleData.ts`** — Hardcoded sample data for development

@@ -14,7 +14,12 @@ import {
   ThemeCount,
 } from "../types.js";
 import { LLMProviderFactory } from "../llm/provider.js";
-import { PORTFOLIO_AGGREGATION_PROMPT } from "../llm/prompts.js";
+import {
+  PORTFOLIO_AGGREGATION_PROMPT,
+  TWENTY_QUESTIONS_PROMPT,
+  COMPETITIVE_DISPLACEMENT_PROMPT,
+  DELTA_INTELLIGENCE_PROMPT,
+} from "../llm/prompts.js";
 
 /**
  * Aggregation engine for building comprehensive reports
@@ -375,43 +380,7 @@ export class Aggregator {
   ): Promise<AggregatedReport> {
     try {
       const provider = await LLMProviderFactory.create(llmConfig);
-
-      // Map raw region keys to full display names so the LLM uses correct terminology
-      const REGION_DISPLAY_NAMES: Record<string, string> = {
-        na: "North America", namer: "North America", us: "North America",
-        uk: "United Kingdom", gb: "United Kingdom", emea: "United Kingdom",
-        au: "Australia", aus: "Australia", apac: "Australia/New Zealand",
-        nz: "New Zealand", anz: "Australia/New Zealand",
-      };
-      const regionDisplayName = (key: string) =>
-        REGION_DISPLAY_NAMES[key.toLowerCase()] ?? key;
-
-      // Build report summary for the prompt
-      const summary = JSON.stringify({
-        totalRecords: report.totalRecordsAnalyzed,
-        regions: Object.entries(report.regions).map(([name, r]) => ({
-          name: regionDisplayName(name),
-          total: r.totalOpportunities,
-          wins: r.wins,
-          losses: r.losses,
-          active: r.active,
-          winRate: r.winRate,
-          topWinThemes: r.topWinThemes.slice(0, 3).map((t) => t.theme),
-          topLossThemes: r.topLossThemes.slice(0, 3).map((t) => t.theme),
-          atRiskCount: r.atRiskDeals.length,
-          topCompetitors: r.competitorActivity.slice(0, 3).map((c) => c.competitor),
-        })),
-        global: {
-          winRate: report.global.globalWinRate,
-          highRisk: report.global.highRiskCount,
-          mediumRisk: report.global.mediumRiskCount,
-          topWinThemes: report.global.topWinThemes.slice(0, 5).map((t) => t.theme),
-          topLossThemes: report.global.topLossThemes.slice(0, 5).map((t) => t.theme),
-          topCompetitors: report.global.topCompetitors.slice(0, 5).map((c) => c.competitor),
-          marketSignals: report.global.emergingMarketSignals.slice(0, 5),
-        },
-      });
-
+      const summary = this.buildReportSummary(report);
       const prompt = PORTFOLIO_AGGREGATION_PROMPT.replace("{REPORT_SUMMARY}", summary);
 
       // Use a dummy record to leverage the existing analyze interface
@@ -444,6 +413,181 @@ export class Aggregator {
     }
 
     return report;
+  }
+
+  /**
+   * Enriches report with Pete's 20 Questions (CRO intelligence layer)
+   */
+  static async enrichWithTwentyQuestions(
+    report: AggregatedReport,
+    llmConfig: LLMConfig
+  ): Promise<AggregatedReport> {
+    try {
+      const provider = await LLMProviderFactory.create(llmConfig);
+      const summary = this.buildReportSummary(report);
+      const prompt = TWENTY_QUESTIONS_PROMPT.replace("{REPORT_SUMMARY}", summary);
+
+      const dummyRecord = {
+        opportunityId: "twenty-questions",
+        accountName: "Portfolio",
+        opportunityName: "Twenty Questions Analysis",
+        stage: "N/A",
+        winLossStatus: "active" as const,
+        notes: prompt,
+        region: "Global",
+      };
+
+      const results = await provider.analyze([dummyRecord], prompt);
+
+      if (results.length > 0 && results[0].success) {
+        const rawResponse = results[0].rawResponse;
+        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          report.twentyQuestions = JSON.parse(jsonMatch[0]);
+          console.log("Twenty Questions enrichment complete");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to enrich with Twenty Questions:", error);
+    }
+    return report;
+  }
+
+  /**
+   * Enriches report with Competitive Displacement Intelligence
+   */
+  static async enrichWithCompetitiveDisplacement(
+    report: AggregatedReport,
+    llmConfig: LLMConfig
+  ): Promise<AggregatedReport> {
+    try {
+      const provider = await LLMProviderFactory.create(llmConfig);
+      const summary = this.buildReportSummary(report);
+      const prompt = COMPETITIVE_DISPLACEMENT_PROMPT.replace("{REPORT_SUMMARY}", summary);
+
+      const dummyRecord = {
+        opportunityId: "competitive-displacement",
+        accountName: "Portfolio",
+        opportunityName: "Competitive Displacement Analysis",
+        stage: "N/A",
+        winLossStatus: "active" as const,
+        notes: prompt,
+        region: "Global",
+      };
+
+      const results = await provider.analyze([dummyRecord], prompt);
+
+      if (results.length > 0 && results[0].success) {
+        const rawResponse = results[0].rawResponse;
+        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          report.competitiveDisplacement = JSON.parse(jsonMatch[0]);
+          console.log("Competitive Displacement enrichment complete");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to enrich with Competitive Displacement:", error);
+    }
+    return report;
+  }
+
+  /**
+   * Enriches report with Delta Intelligence (temporal comparison)
+   * Compares current report against a previous report to surface changes
+   */
+  static async enrichWithDeltaIntelligence(
+    report: AggregatedReport,
+    previousReport: AggregatedReport | null,
+    llmConfig: LLMConfig
+  ): Promise<AggregatedReport> {
+    if (!previousReport) {
+      console.log("No previous report available — skipping delta intelligence (first run)");
+      return report;
+    }
+
+    try {
+      const provider = await LLMProviderFactory.create(llmConfig);
+      const currentSummary = this.buildReportSummary(report);
+      const previousSummary = this.buildReportSummary(previousReport);
+
+      const prompt = DELTA_INTELLIGENCE_PROMPT
+        .replace("{CURRENT_REPORT}", currentSummary)
+        .replace("{PREVIOUS_REPORT}", previousSummary);
+
+      const dummyRecord = {
+        opportunityId: "delta-intelligence",
+        accountName: "Portfolio",
+        opportunityName: "Delta Intelligence Analysis",
+        stage: "N/A",
+        winLossStatus: "active" as const,
+        notes: prompt,
+        region: "Global",
+      };
+
+      const results = await provider.analyze([dummyRecord], prompt);
+
+      if (results.length > 0 && results[0].success) {
+        const rawResponse = results[0].rawResponse;
+        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          report.deltaIntelligence = JSON.parse(jsonMatch[0]);
+          console.log("Delta Intelligence enrichment complete");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to enrich with Delta Intelligence:", error);
+    }
+    return report;
+  }
+
+  /**
+   * Builds a JSON summary of the report for LLM prompts (shared by all enrichment passes)
+   */
+  private static buildReportSummary(report: AggregatedReport): string {
+    const REGION_DISPLAY_NAMES: Record<string, string> = {
+      na: "North America", namer: "North America", us: "North America",
+      uk: "United Kingdom", gb: "United Kingdom", emea: "United Kingdom",
+      au: "Australia", aus: "Australia", apac: "Australia/New Zealand",
+      nz: "New Zealand", anz: "Australia/New Zealand",
+    };
+    const regionDisplayName = (key: string) =>
+      REGION_DISPLAY_NAMES[key.toLowerCase()] ?? key;
+
+    return JSON.stringify({
+      reportDate: report.reportDate,
+      totalRecords: report.totalRecordsAnalyzed,
+      regions: Object.entries(report.regions).map(([name, r]) => ({
+        name: regionDisplayName(name),
+        total: r.totalOpportunities,
+        wins: r.wins,
+        losses: r.losses,
+        active: r.active,
+        winRate: r.winRate,
+        topWinThemes: r.topWinThemes.slice(0, 3).map((t) => t.theme),
+        topLossThemes: r.topLossThemes.slice(0, 3).map((t) => t.theme),
+        atRiskCount: r.atRiskDeals.length,
+        atRiskDeals: r.atRiskDeals.slice(0, 5).map((d) => ({
+          name: d.opportunityName,
+          account: d.accountName,
+          risk: d.riskLevel,
+          signals: d.signals.slice(0, 3),
+        })),
+        topCompetitors: r.competitorActivity.slice(0, 3).map((c) => c.competitor),
+      })),
+      global: {
+        winRate: report.global.globalWinRate,
+        highRisk: report.global.highRiskCount,
+        mediumRisk: report.global.mediumRiskCount,
+        topWinThemes: report.global.topWinThemes.slice(0, 5).map((t) => t.theme),
+        topLossThemes: report.global.topLossThemes.slice(0, 5).map((t) => t.theme),
+        topCompetitors: report.global.topCompetitors.slice(0, 5).map((c) => c.competitor),
+        marketSignals: report.global.emergingMarketSignals.slice(0, 5),
+      },
+      // Include existing enrichment data if available (for richer delta analysis)
+      executiveBriefing: report.executiveBriefing || null,
+      forecastConfidence: report.forecastConfidence || null,
+      portfolioRisk: report.portfolioRisk || null,
+    });
   }
 
   /**

@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Prism — Status Dashboard</title>
+<style>
+  :root {
+    --navy: #1B3A5C;
+    --navy-dark: #142C47;
+    --accent: #2E75B6;
+    --accent-light: #4A9BD9;
+    --green: #2D8C3C;
+    --green-bg: #E8F5E9;
+    --amber: #D4850A;
+    --amber-bg: #FFF8E1;
+    --red: #C0392B;
+    --red-bg: #FFEBEE;
+    --blue-bg: #EDF3F8;
+    --grey: #666;
+    --grey-light: #999;
+    --grey-border: #E0E0E0;
+    --bg: #F8F9FB;
+    --white: #FFFFFF;
+    --text: #2C3E50;
+    --text-light: #5D6D7E;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-dark) 100%);
+    color: white;
+    padding: 40px 0 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 40%;
+    background: linear-gradient(135deg, transparent 0%, rgba(46,117,182,0.15) 100%);
+    pointer-events: none;
+  }
+  .header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 32px;
+    position: relative;
+    z-index: 1;
+  }
+  .header-label {
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 8px;
+  }
+  .header h1 {
+    font-size: 36px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+  }
+  .header h1 span { color: var(--accent-light); }
+  .header-sub {
+    font-size: 16px;
+    color: rgba(255,255,255,0.7);
+    margin-bottom: 24px;
+  }
+  .header-stats {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+  .header-stat {
+    text-align: left;
+  }
+  .header-stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: white;
+  }
+  .header-stat-label {
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* ── Navigation ── */
+  .nav {
+    background: var(--white);
+    border-bottom: 1px solid var(--grey-border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .nav-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+  }
+  .nav-btn {
+    padding: 14px 20px;
+    border: none;
+    background: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--grey);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .nav-btn:hover { color: var(--accent); }
+  .nav-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  /* ── Content ── */
+  .content {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px;
+  }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--white);
+    border-radius: 10px;
+    border: 1px solid var(--grey-border);
+    padding: 28px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .card-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 16px;
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .badge-live { background: var(--green-bg); color: var(--green); }
+  .badge-coded { background: var(--amber-bg); color: var(--amber); }
+  .badge-complete { background: var(--green-bg); color: var(--green); }
+  .badge-blocked { background: var(--red-bg); color: var(--red); }
+  .badge-waiting { background: var(--amber-bg); color: var(--amber); }
+  .badge-next { background: var(--blue-bg); color: var(--accent); }
+  .badge-not-started { background: #F5F5F5; color: var(--grey); }
+
+  /* ── Tables ── */
+  .table-wrap { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  th {
+    background: var(--navy);
+    color: white;
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--grey-border);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #FAFBFC; }
+  tr:hover td { background: var(--blue-bg); }
+
+  /* ── Filter bar ── */
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .filter-btn {
+    padding: 6px 16px;
+    border: 1px solid var(--grey-border);
+    border-radius: 20px;
+    background: var(--white);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--grey);
+  }
+  .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  /* ── Timeline ── */
+  .timeline {
+    position: relative;
+    padding-left: 36px;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 14px;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    background: linear-gradient(180deg, var(--accent) 0%, var(--green) 100%);
+    border-radius: 2px;
+  }
+  .tl-item {
+    position: relative;
+    margin-bottom: 28px;
+    cursor: pointer;
+  }
+  .tl-dot {
+    position: absolute;
+    left: -29px;
+    top: 6px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid var(--white);
+    box-shadow: 0 0 0 2px var(--accent);
+    z-index: 1;
+  }
+  .tl-dot.green { background: var(--green); box-shadow: 0 0 0 2px var(--green); }
+  .tl-dot.amber { background: var(--amber); box-shadow: 0 0 0 2px var(--amber); }
+  .tl-date {
+    font-size: 12px;
+    color: var(--grey-light);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .tl-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 4px;
+  }
+  .tl-desc {
+    font-size: 14px;
+    color: var(--text-light);
+    line-height: 1.5;
+  }
+  .tl-detail {
+    display: none;
+    margin-top: 12px;
+    padding: 16px;
+    background: var(--blue-bg);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .tl-detail.open { display: block; }
+  .tl-expand {
+    font-size: 12px;
+    color: var(--accent);
+    margin-top: 6px;
+    display: inline-block;
+  }
+
+  /* ── Pipeline diagram ── */
+  .pipeline {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow-x: auto;
+    padding: 20px 0;
+  }
+  .pipeline-stage {
+    flex-shrink: 0;
+    text-align: center;
+    padding: 16px 12px;
+    min-width: 110px;
+  }
+  .pipeline-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 8px;
+    font-size: 20px;
+    color: white;
+  }
+  .pipeline-stage-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--navy);
+  }
+  .pipeline-stage-sub {
+    font-size: 11px;
+    color: var(--grey-light);
+  }
+  .pipeline-arrow {
+    flex-shrink: 0;
+    font-size: 18px;
+    color: var(--grey-light);
+  }
+
+  /* ── Log viewer ── */
+  .log-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid #F0F0F0;
+  }
+  .log-step:last-child { border-bottom: none; }
+  .log-time {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    color: var(--grey-light);
+    flex-shrink: 0;
+    width: 80px;
+  }
+  .log-check {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--green);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .log-check.error { background: var(--red); }
+  .log-msg {
+    font-size: 14px;
+    color: var(--text);
+  }
+  .log-phase {
+    font-size: 12px;
+    color: var(--grey-light);
+  }
+
+  /* ── Issues ── */
+  .issue-card {
+    border-left: 4px solid var(--amber);
+    padding: 20px 24px;
+    background: var(--white);
+    border-radius: 0 10px 10px 0;
+    margin-bottom: 16px;
+    border: 1px solid var(--grey-border);
+    border-left: 4px solid var(--amber);
+  }
+  .issue-card.resolved { border-left-color: var(--green); }
+  .issue-card.blocked { border-left-color: var(--red); }
+  .issue-title {
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--navy);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .issue-body {
+    font-size: 14px;
+    color: var(--text-light);
+    line-height: 1.6;
+  }
+
+  /* ── Prompt flow ── */
+  .prompt-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+    padding-left: 28px;
+  }
+  .prompt-flow::before {
+    content: '';
+    position: absolute;
+    left: 13px;
+    top: 24px;
+    bottom: 24px;
+    width: 3px;
+    background: linear-gradient(180deg, var(--accent) 0%, var(--green) 50%, #8E44AD 100%);
+    border-radius: 2px;
+  }
+  .prompt-phase {
+    position: relative;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    background: var(--white);
+    border: 1px solid var(--grey-border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: box-shadow 0.2s, border-color 0.2s;
+  }
+  .prompt-phase:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    border-color: var(--accent);
+  }
+  .prompt-phase-dot {
+    position: absolute;
+    left: -22px;
+    top: 24px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 3px solid var(--white);
+    z-index: 1;
+  }
+  .prompt-phase-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  .prompt-phase-num {
+    font-size: 12px;
+    font-weight: 700;
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .prompt-phase-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--navy);
+  }
+  .prompt-phase-sub {
+    font-size: 13px;
+    color: var(--grey);
+    margin-bottom: 4px;
+  }
+  .prompt-phase-detail {
+    display: none;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid #F0F0F0;
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.7;
+  }
+  .prompt-phase-detail.open { display: block; }
+  .prompt-phase-expand {
+    font-size: 12px;
+    color: var(--accent);
+    margin-top: 6px;
+    display: inline-block;
+  }
+  .prompt-excerpt {
+    background: #F8F9FB;
+    border-left: 3px solid var(--accent);
+    padding: 12px 16px;
+    margin: 10px 0;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--text-light);
+    border-radius: 0 6px 6px 0;
+    white-space: pre-wrap;
+  }
+  .why-box {
+    background: linear-gradient(135deg, #FFF9E6 0%, #FFF3CC 100%);
+    border: 1px solid #F0D860;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 16px 0;
+  }
+  .why-box-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #8B6914;
+    margin-bottom: 8px;
+  }
+  .why-box-text {
+    font-size: 14px;
+    color: #6B5210;
+    line-height: 1.6;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .header h1 { font-size: 28px; }
+    .header-stats { gap: 20px; }
+    .header-stat-value { font-size: 22px; }
+    .content { padding: 20px 16px; }
+    .card { padding: 20px; }
+    .nav-btn { padding: 12px 14px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════ HEADER ════════════════════════ -->
+<div class="header">
+  <div class="header-inner">
+    <div class="header-label">Simpro  ·  Sales Engineering</div>
+    <h1>Project <span>Prism</span></h1>
+    <div class="header-sub">Global Revenue Intelligence Engine  ·  Status Dashboard  ·  11 March 2026</div>
+    <div class="header-stats">
+      <div class="header-stat">
+        <div class="header-stat-value">5</div>
+        <div class="header-stat-label">Enrichment Phases</div>
+      </div>
+      <div class="header-stat">
+        <div class="header-stat-value">6</div>
+        <div class="header-stat-label">Cloud Functions</div>
+      </div>
+      <div class="header-stat">
+        <div class="header-stat-value">2</div>
+        <div class="header-stat-label">Data Sources</div>
+      </div>
+      <div class="header-stat">
+        <div class="header-stat-value">4</div>
+        <div class="header-stat-label">Regions Covered</div>
+      </div>
+      <div class="header-stat">
+        <div class="header-stat-value" style="color:#5CDB6A;">Live</div>
+        <div class="header-stat-label">Pipeline Status</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════ NAV ════════════════════════ -->
+<div class="nav">
+  <div class="nav-inner">
+    <button class="nav-btn active" onclick="showSection('overview')">Overview</button>
+    <button class="nav-btn" onclick="showSection('timeline')">Timeline</button>
+    <button class="nav-btn" onclick="showSection('architecture')">Architecture</button>
+    <button class="nav-btn" onclick="showSection('llm-intelligence')">LLM Intelligence</button>
+    <button class="nav-btn" onclick="showSection('deliverables')">Deliverables</button>
+    <button class="nav-btn" onclick="showSection('test-results')">Test Results</button>
+    <button class="nav-btn" onclick="showSection('issues')">Issues &amp; Risks</button>
+    <button class="nav-btn" onclick="showSection('next-steps')">Next Steps</button>
+  </div>
+</div>
+
+<!-- ════════════════════════ CONTENT ════════════════════════ -->
+<div class="content">
+
+  <!-- ═══ OVERVIEW ═══ -->
+  <div id="overview" class="section active">
+    <div class="card">
+      <div class="card-title">Project Summary</div>
+      <p style="font-size:15px; color:var(--text-light); line-height:1.7; margin-bottom:20px;">
+        Project Prism is a Global Revenue Intelligence Engine built for Simpro's sales leadership. It ingests Salesforce opportunity data (via CSV upload or BigQuery), runs each record through LLM analysis using Claude, aggregates the results into regional and global reports, then layers on five phases of strategic intelligence — from portfolio analysis to competitive displacement to temporal trend detection.
+      </p>
+      <p style="font-size:15px; color:var(--text-light); line-height:1.7;">
+        The pipeline is live on Firebase, deployed to production, and confirmed working. All five enrichment phases execute successfully. A React dashboard renders the intelligence reports with regional breakdowns, risk radar, competitor analysis, and executive briefing.
+      </p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-title">Tech Stack</div>
+        <table>
+          <tr><td style="font-weight:600;width:120px;">Frontend</td><td>React 18, Vite, TypeScript, Framer Motion</td></tr>
+          <tr><td style="font-weight:600;">Backend</td><td>Firebase Cloud Functions v2 — an abstraction layer over Google Cloud Run (Node.js 20, TypeScript)</td></tr>
+          <tr><td style="font-weight:600;">Database</td><td>Cloud Firestore (managed by Firebase, runs on Google Cloud infrastructure)</td></tr>
+          <tr><td style="font-weight:600;">Storage</td><td>Cloud Storage (CSV uploads)</td></tr>
+          <tr><td style="font-weight:600;">LLM</td><td>Claude Sonnet 4.6 (Anthropic API)</td></tr>
+          <tr><td style="font-weight:600;">Data Source</td><td>CSV upload + BigQuery (pending access)</td></tr>
+          <tr><td style="font-weight:600;">Hosting</td><td>Firebase Hosting with SPA fallback</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Enrichment Engine</div>
+        <table>
+          <tr><td style="font-weight:600;width:80px;">Phase 1</td><td>Individual Opportunity Analysis</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr><td style="font-weight:600;">Phase 2</td><td>Portfolio Aggregation</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr><td style="font-weight:600;">Phase 3</td><td>Twenty Questions (CRO Intel)</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr><td style="font-weight:600;">Phase 4</td><td>Competitive Displacement</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr><td style="font-weight:600;">Phase 5</td><td>Delta Intelligence (Temporal)</td><td><span class="badge badge-live">Live</span></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TIMELINE ═══ -->
+  <div id="timeline" class="section">
+    <div class="card">
+      <div class="card-title">Project Journey</div>
+      <p style="font-size:14px; color:var(--text-light); margin-bottom:24px;">Click any milestone to expand details.</p>
+
+      <div class="timeline">
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot"></div>
+          <div class="tl-date">Session 1</div>
+          <div class="tl-title">Initial Build and Pipeline Diagnosis</div>
+          <div class="tl-desc">Built the core pipeline architecture: CSV parsing, LLM analysis, Firestore storage, React dashboard.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            Established the full data flow: CSV Upload → Parse → Validate → LLM Analysis → Aggregate → Transform → Store → API → Dashboard. Created the CSVParser with Salesforce field mapping, region auto-detection, and composite field builders. Set up Firebase Cloud Functions v2 with Storage triggers, HTTP endpoints, and Cloud Scheduler. Built the React dashboard with regional breakdowns, risk radar, competitor intel, and executive briefing components. Identified four critical pipeline blockers preventing end-to-end execution.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">Session 2</div>
+          <div class="tl-title">Pipeline Fix #1 — API Key Binding</div>
+          <div class="tl-desc">Resolved Firebase Secret Manager not loading ANTHROPIC_API_KEY into Cloud Functions.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            The API key was stored in Firebase Secret Manager but not being passed to the Cloud Functions runtime. Fixed by declaring <code>secrets: ["ANTHROPIC_API_KEY"]</code> in every function's config object. This ensures Firebase injects the secret as an environment variable at runtime. Verified the fix by deploying and confirming successful LLM calls in function logs.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">Session 2</div>
+          <div class="tl-title">Pipeline Fix #2 — Batch Concurrency</div>
+          <div class="tl-desc">Refactored LLM calls from fire-all to controlled batches of 25 with sequential execution.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            The original Analyzer sent all records to the LLM simultaneously, triggering rate-limit errors (HTTP 429). Refactored to process 25 records per batch with parallel execution within each batch but sequential execution across batches. Added retry logic with exponential backoff (3 attempts, 1-second base delay). This balances throughput against API rate limits while still processing records efficiently.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">Session 2</div>
+          <div class="tl-title">Pipeline Fix #3 — Function Timeout</div>
+          <div class="tl-desc">Increased Cloud Function timeout and memory to handle large datasets.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            Cloud Functions were timing out on datasets with more than ~20 records due to the default 60-second timeout. Increased to 540 seconds (9 minutes) and bumped memory to 1 GiB. Also added the <code>timeoutSeconds: 3600</code> config on the BigQuery fetch function for larger datasets. These limits are well within Firebase's maximum of 3600 seconds for v2 functions.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">Session 2</div>
+          <div class="tl-title">Pipeline Fix #4 — Two-Phase Enrichment Pattern</div>
+          <div class="tl-desc">Separated base report storage from LLM enrichment to prevent dashboard blanking.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            The original code ran LLM enrichment (executive briefing, recommendations) before storing the report. If enrichment failed, no report was stored at all — causing the dashboard to show sample data. Implemented a two-phase pattern: store the base report immediately with <code>merge:true</code>, then run enrichment as a non-fatal follow-up. The dashboard gets data instantly, and enrichment layers on top when it completes.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot"></div>
+          <div class="tl-date">Session 3</div>
+          <div class="tl-title">BigQuery Integration</div>
+          <div class="tl-desc">Built BigQuerySource class, HTTP endpoint, and automated every-3-day scheduling.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            Created <code>BigQuerySource</code> class with configurable project, dataset, table, and optional <code>sinceDate</code> for incremental pulls. Added <code>fetchFromBigQuery</code> HTTP endpoint (POST /api/bigquery) for on-demand pulls. Rewired <code>runWeeklyAnalysis</code> from weekly CSV-based to every-3-days BigQuery-based via Cloud Scheduler (<code>0 6 */3 * *</code>). Prepared IT ticket documentation for requesting BigQuery access. Currently awaiting the access grant from the data science team.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot"></div>
+          <div class="tl-date">Session 3</div>
+          <div class="tl-title">Architecture Review — Firebase vs Cloud Run</div>
+          <div class="tl-desc">Evaluated migration to raw Cloud Run; recommended staying on Firebase.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            Conducted a full architecture review in response to questions about alternative Google Cloud backends. Key finding: Firebase Cloud Functions v2 runs on Cloud Run under the hood — Firebase is an abstraction layer that handles Storage triggers, hosting rewrites, authentication, Firestore integration, and local development automatically. Migration estimated at 2–3 weeks with zero cost or performance benefit. Recommendation: stay on Firebase. Also assessed Docker containerisation — the application is already containerised (Firebase auto-generates containers).
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot"></div>
+          <div class="tl-date">Session 4</div>
+          <div class="tl-title">LLM Prompt Audit</div>
+          <div class="tl-desc">Audited all 1,093 lines of prompts.ts — found two unused prompts and identified a gap.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            Comprehensive review of the LLM prompt architecture revealed four major prompt layers: COMPREHENSIVE_ANALYSIS (individual records), PORTFOLIO_AGGREGATION (executive briefing), TWENTY_QUESTIONS (CRO intelligence), and COMPETITIVE_DISPLACEMENT (win/loss mechanisms). The last two were fully written but never wired into the pipeline — dead code. Also identified a gap: no temporal comparison between sequential reports. This led to the Phase 3–5 enrichment expansion.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">Session 4</div>
+          <div class="tl-title">Phase 3–5 Enrichment Expansion</div>
+          <div class="tl-desc">Wired up Twenty Questions, Competitive Displacement, and created Delta Intelligence.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            <strong>Phase 3 — Twenty Questions:</strong> CRO-level intelligence answering Pete's strategic questions about deal velocity, pipeline coverage, competitive win rates, regional performance gaps, and forecasting accuracy.<br><br>
+            <strong>Phase 4 — Competitive Displacement:</strong> Analyses win/loss mechanisms per competitor, identifying displacement strategies, defensive playbooks, and competitive momentum shifts across regions.<br><br>
+            <strong>Phase 5 — Delta Intelligence:</strong> New temporal comparison engine that compares the current report against the previous report, surfacing pipeline trajectory, deal-level changes, competitive momentum shifts, forecast drift, and early warning signals. Automatically fetches the previous report from Firestore; gracefully skips on the first run.<br><br>
+            All phases are non-fatal: if any phase fails, the rest still execute and the base report remains intact. Created shared helper functions (<code>fetchPreviousReport</code> and <code>runAdvancedEnrichment</code>) to avoid code duplication across three pipeline entry points.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">11 March 2026</div>
+          <div class="tl-title">Live Deployment Confirmed</div>
+          <div class="tl-desc">All five enrichment phases verified working in Firebase Live via Cloud Function logs.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            Deployed updated functions to Firebase Live and ran CSV upload test. Cloud Function logs confirmed the full phase execution sequence completing successfully: Phase 1 (individual analysis), Phase 2 (Portfolio Analysis), Phase 3 (Twenty Questions), Phase 4 (Competitive Displacement), Phase 5 (Delta Intelligence), then "All enrichment phases complete." An earlier test run encountered an Anthropic API credit balance issue (transient billing, not a code defect) which was resolved before the successful run.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot"></div>
+          <div class="tl-date">11 March 2026</div>
+          <div class="tl-title">Documentation Suite Completed</div>
+          <div class="tl-desc">Developer Handover Guide, BigQuery Integration Guide, Cloud Run Reference, and project status reports.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            Produced five reference documents: Developer Handover Guide (complete technical handover for any developer), BigQuery Integration Guide (step-by-step setup including IAM, testing, scheduling, monitoring), Cloud Run/Docker/Firebase Reference (architecture decision documentation), BIGQUERY_SETUP.md (committed to repository), and CLAUDE.md (AI assistant project context). All documents account for the specific Firebase project ID, service account, and deployment configuration.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ARCHITECTURE ═══ -->
+  <div id="architecture" class="section">
+    <div class="card">
+      <div class="card-title">Data Pipeline Architecture</div>
+      <p style="font-size:14px; color:var(--text-light); margin-bottom:20px;">End-to-end data flow from ingestion to dashboard delivery.</p>
+      <div class="pipeline">
+        <div class="pipeline-stage">
+          <div class="pipeline-icon" style="background:var(--accent);">📁</div>
+          <div class="pipeline-stage-label">CSV / BigQuery</div>
+          <div class="pipeline-stage-sub">Data Source</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-stage">
+          <div class="pipeline-icon" style="background:#5B7FA5;">⚙️</div>
+          <div class="pipeline-stage-label">Parse</div>
+          <div class="pipeline-stage-sub">CSVParser</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-stage">
+          <div class="pipeline-icon" style="background:#6C8EAD;">🔍</div>
+          <div class="pipeline-stage-label">Validate</div>
+          <div class="pipeline-stage-sub">PII Scrub</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-stage">
+          <div class="pipeline-icon" style="background:var(--navy);">🧠</div>
+          <div class="pipeline-stage-label">Analyse</div>
+          <div class="pipeline-stage-sub">LLM (Phase 1)</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-stage">
+          <div class="pipeline-icon" style="background:#3D6B8E;">📊</div>
+          <div class="pipeline-stage-label">Aggregate</div>
+          <div class="pipeline-stage-sub">Regional + Global</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-stage">
+          <div class="pipeline-icon" style="background:var(--green);">✨</div>
+          <div class="pipeline-stage-label">Enrich</div>
+          <div class="pipeline-stage-sub">Phase 2–5</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-stage">
+          <div class="pipeline-icon" style="background:#E67E22;">💾</div>
+          <div class="pipeline-stage-label">Store</div>
+          <div class="pipeline-stage-sub">Firestore</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-stage">
+          <div class="pipeline-icon" style="background:var(--accent-light);">📱</div>
+          <div class="pipeline-stage-label">Dashboard</div>
+          <div class="pipeline-stage-sub">React SPA</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-title">Cloud Functions (6)</div>
+        <table>
+          <tr><td style="font-weight:600;">onCSVUpload</td><td>Storage trigger — auto-process uploaded CSVs</td></tr>
+          <tr><td style="font-weight:600;">runWeeklyAnalysis</td><td>Scheduler — every 3 days from BigQuery</td></tr>
+          <tr><td style="font-weight:600;">getReport</td><td>HTTP GET — fetch latest report</td></tr>
+          <tr><td style="font-weight:600;">getReportHistory</td><td>HTTP GET — last 10 reports</td></tr>
+          <tr><td style="font-weight:600;">uploadCSV</td><td>HTTP POST — manual CSV upload</td></tr>
+          <tr><td style="font-weight:600;">fetchFromBigQuery</td><td>HTTP POST — on-demand BigQuery pull</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Firestore Collections</div>
+        <table>
+          <tr><td style="font-weight:600;">/reports/{date}</td><td>Aggregated reports by date (with enrichment)</td></tr>
+          <tr><td style="font-weight:600;">/analyses/{execId}/opportunities/{oppId}</td><td>Individual LLM analyses</td></tr>
+          <tr><td style="font-weight:600;">/executions/{execId}</td><td>Pipeline execution logs and status</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Enrichment Phase Detail</div>
+      <table>
+        <tr>
+          <th>Phase</th><th>Name</th><th>Input</th><th>Output</th><th>Fatal?</th>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">1</td><td>Individual Analysis</td><td>Each opportunity record</td><td>Themes, risk signals, competitors, sentiment, market signals</td><td>Yes</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">2</td><td>Portfolio Aggregation</td><td>Aggregated report summary</td><td>Executive briefing, recommendations, forecast confidence, portfolio risk</td><td>No</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">3</td><td>Twenty Questions</td><td>Aggregated report summary</td><td>CRO intelligence: velocity, coverage, win rates, performance gaps</td><td>No</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">4</td><td>Competitive Displacement</td><td>Aggregated report summary</td><td>Per-competitor win/loss mechanisms, displacement strategies</td><td>No</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">5</td><td>Delta Intelligence</td><td>Current + previous report</td><td>Pipeline trajectory, forecast drift, early warnings</td><td>No</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ LLM INTELLIGENCE ═══ -->
+  <div id="llm-intelligence" class="section">
+    <div class="card">
+      <div class="card-title">LLM Prompt Architecture</div>
+      <p style="font-size:14px; color:var(--text-light); margin-bottom:16px;">
+        Project Prism uses a multi-phase LLM intelligence pipeline. The prompts are not summaries — they <strong>interrogate</strong> the data, applying regional market context, competitor intelligence, and temporal awareness to produce actionable revenue intelligence.
+      </p>
+
+      <!-- Why post-aggregation? -->
+      <div class="why-box">
+        <strong style="display:block; margin-bottom:8px; color:var(--navy); font-size:15px;">Why do Phases 2–5 run after aggregation?</strong>
+        <p style="margin:0; font-size:14px; line-height:1.6;">
+          Phase 1 analyses each opportunity in isolation — it can identify deal-level risks, competitor presence, and sentiment, but it cannot see systemic patterns across the portfolio. Phases 2–5 require the <em>aggregated</em> view: they need to see regional distributions, pipeline coverage ratios, competitive momentum across multiple deals, and forecast-weighted risk. Running them post-aggregation means they operate on the complete intelligence picture rather than fragments. Phase 5 (Delta Intelligence) goes further, comparing the current aggregated report against the <em>previous</em> report to detect trajectory shifts over time.
+        </p>
+      </div>
+    </div>
+
+    <!-- Phase flow diagram -->
+    <div class="card">
+      <div class="card-title">Intelligence Pipeline Flow</div>
+      <div class="prompt-flow">
+        <div class="prompt-phase">
+          <div class="prompt-phase-dot" style="background:var(--accent);"></div>
+          <div class="prompt-phase-header">
+            <span class="prompt-phase-num">Phase 1</span>
+            <span class="prompt-phase-title">Individual Analysis</span>
+          </div>
+          <div class="prompt-phase-detail">
+            <strong>Runs:</strong> Once per opportunity record (batches of 25, concurrent)<br>
+            <strong>Input:</strong> Single Salesforce opportunity record<br>
+            <strong>Output:</strong> Win/loss themes, risk signals, competitor mentions, sentiment score, next steps, market signals<br>
+            <strong>Fatal:</strong> Yes — pipeline stops if this fails
+          </div>
+          <div class="prompt-excerpt">
+            <strong>Prompt philosophy:</strong> "This system does not summarise data. It interrogates it. Every prompt is designed to extract intelligence that a human analyst would need 2–3 hours to produce manually."
+            <br><br>
+            The prompt embeds <strong>Regional Market Intelligence</strong> — specific competitor landscapes, buying patterns, and industry dynamics for UK, Australia, New Zealand, and North America. This means the LLM understands that losing to Simpro in AU means something different than losing to Access Coins in the UK.
+          </div>
+        </div>
+
+        <div style="text-align:center; font-size:22px; color:var(--accent); padding:8px 0;">▼ Aggregation happens here ▼</div>
+        <p style="text-align:center; font-size:13px; color:var(--text-light); margin-bottom:16px;">Individual analyses are combined into regional and global reports. Phases 2–5 operate on this aggregated view.</p>
+
+        <div class="prompt-phase">
+          <div class="prompt-phase-dot" style="background:var(--green);"></div>
+          <div class="prompt-phase-header">
+            <span class="prompt-phase-num">Phase 2</span>
+            <span class="prompt-phase-title">Portfolio Aggregation</span>
+          </div>
+          <div class="prompt-phase-detail">
+            <strong>Runs:</strong> Once per analysis execution<br>
+            <strong>Input:</strong> Full aggregated report (all regions, all metrics)<br>
+            <strong>Output:</strong> Executive briefing, strategic recommendations, forecast confidence score, portfolio risk assessment<br>
+            <strong>Fatal:</strong> No — base report is saved first, enrichment is a follow-up update
+          </div>
+          <div class="prompt-excerpt">
+            Generates a CRO-ready executive briefing covering pipeline health, forecast confidence (0–100 with methodology), and prioritised recommendations. Designed so Pete Mansel can walk into a board meeting with one paragraph that tells the full story.
+          </div>
+        </div>
+
+        <div class="prompt-phase">
+          <div class="prompt-phase-dot" style="background:var(--green);"></div>
+          <div class="prompt-phase-header">
+            <span class="prompt-phase-num">Phase 3</span>
+            <span class="prompt-phase-title">Twenty Questions</span>
+          </div>
+          <div class="prompt-phase-detail">
+            <strong>Runs:</strong> Once per analysis execution<br>
+            <strong>Input:</strong> Full aggregated report<br>
+            <strong>Output:</strong> Answers to 20 strategic CRO questions covering velocity, coverage, conversion, regional performance, competitive dynamics<br>
+            <strong>Fatal:</strong> No
+          </div>
+          <div class="prompt-excerpt">
+            A structured intelligence layer that answers the questions Pete would ask in a pipeline review — pipeline velocity trends, stage conversion bottlenecks, win rate by competitor, regional quota coverage, deal age distributions, and forecast risk patterns. Each answer includes evidence and recommended actions.
+          </div>
+        </div>
+
+        <div class="prompt-phase">
+          <div class="prompt-phase-dot" style="background:var(--green);"></div>
+          <div class="prompt-phase-header">
+            <span class="prompt-phase-num">Phase 4</span>
+            <span class="prompt-phase-title">Competitive Displacement</span>
+          </div>
+          <div class="prompt-phase-detail">
+            <strong>Runs:</strong> Once per analysis execution<br>
+            <strong>Input:</strong> Full aggregated report (with competitor data across all deals)<br>
+            <strong>Output:</strong> Per-competitor win/loss mechanisms, displacement strategies, defensive playbooks<br>
+            <strong>Fatal:</strong> No
+          </div>
+          <div class="prompt-excerpt">
+            Analyses competitive patterns across the entire portfolio — not just "we lost to X" but <em>why</em> and <em>how</em>. Generates displacement strategies for offensive positioning and defensive playbooks for protecting existing pipeline. Requires the aggregated view because competitive momentum only becomes visible across multiple deals.
+          </div>
+        </div>
+
+        <div class="prompt-phase">
+          <div class="prompt-phase-dot" style="background:#E67E22;"></div>
+          <div class="prompt-phase-header">
+            <span class="prompt-phase-num">Phase 5</span>
+            <span class="prompt-phase-title">Delta Intelligence</span>
+          </div>
+          <div class="prompt-phase-detail">
+            <strong>Runs:</strong> Once per analysis execution<br>
+            <strong>Input:</strong> Current aggregated report + previous report (fetched from Firestore)<br>
+            <strong>Output:</strong> Pipeline trajectory, forecast drift, new/stalled/accelerated deal detection, early warning signals<br>
+            <strong>Fatal:</strong> No (gracefully skips if no previous report exists)
+          </div>
+          <div class="prompt-excerpt">
+            The only phase that looks <em>backwards in time</em>. Compares today's report against the most recent previous report to detect what changed — deals that appeared, disappeared, stalled, or accelerated. Identifies forecast drift (is the number moving up or down?) and generates early warnings about pipeline trajectory. This is what turns a point-in-time snapshot into a trend.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Regional intelligence -->
+    <div class="card">
+      <div class="card-title">Regional Market Intelligence Layer</div>
+      <p style="font-size:14px; color:var(--text-light); margin-bottom:16px;">
+        All prompts are informed by embedded regional context. The LLM understands that each market has different competitors, buying patterns, and industry dynamics.
+      </p>
+      <div class="card-grid" style="margin-top:12px;">
+        <div class="card" style="margin-bottom:0;">
+          <div class="card-title" style="font-size:14px;">🇬🇧 United Kingdom</div>
+          <p style="font-size:13px; margin:0;">Competitors: Access Coins, BigChange, Joblogic. Longer enterprise sales cycles, compliance-driven. HVAC and electrical verticals dominant.</p>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <div class="card-title" style="font-size:14px;">🇦🇺 Australia</div>
+          <p style="font-size:13px; margin:0;">Competitors: ServiceM8, AroFlo, Tradify. SMB-heavy market, mobile-first expectations. Plumbing and electrical sectors strong.</p>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <div class="card-title" style="font-size:14px;">🇳🇿 New Zealand</div>
+          <p style="font-size:13px; margin:0;">Competitors: Tradify, Fergus, NextMinute. Smaller market with tight-knit industry. Word-of-mouth referrals significant.</p>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <div class="card-title" style="font-size:14px;">🇺🇸 North America</div>
+          <p style="font-size:13px; margin:0;">Competitors: ServiceTitan, Housecall Pro, FieldEdge. Highly competitive market, large deal sizes, enterprise evaluation processes.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ DELIVERABLES ═══ -->
+  <div id="deliverables" class="section">
+    <div class="card">
+      <div class="card-title">All Deliverables</div>
+      <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterTable('all', this)">All</button>
+        <button class="filter-btn" onclick="filterTable('live', this)">Live</button>
+        <button class="filter-btn" onclick="filterTable('complete', this)">Complete</button>
+        <button class="filter-btn" onclick="filterTable('coded', this)">Coded</button>
+        <button class="filter-btn" onclick="filterTable('not-started', this)">Not Started</button>
+      </div>
+      <div class="table-wrap">
+        <table id="deliverables-table">
+          <tr><th>Deliverable</th><th>Category</th><th>Detail</th><th>Status</th></tr>
+          <tr data-status="live"><td>Pipeline Fix: API Key Binding</td><td>Infrastructure</td><td>Firebase Secret Manager integration with Cloud Functions</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>Pipeline Fix: Batch Concurrency</td><td>Infrastructure</td><td>25-record batches with sequential execution and retry logic</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>Pipeline Fix: Function Timeout</td><td>Infrastructure</td><td>540s timeout, 1 GiB memory for large dataset handling</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>Pipeline Fix: Two-Phase Storage</td><td>Infrastructure</td><td>Base report stored immediately; enrichment is non-fatal follow-up</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>Phase 1: Individual Analysis</td><td>Enrichment</td><td>Per-record LLM analysis with themes, risk, competitors, sentiment</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>Phase 2: Portfolio Aggregation</td><td>Enrichment</td><td>Executive briefing, recommendations, forecast confidence</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>Phase 3: Twenty Questions</td><td>Enrichment</td><td>CRO-level strategic intelligence for Pete Mansel</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>Phase 4: Competitive Displacement</td><td>Enrichment</td><td>Win/loss mechanisms per competitor, displacement playbooks</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>Phase 5: Delta Intelligence</td><td>Enrichment</td><td>Temporal comparison, pipeline trajectory, forecast drift</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>CSV Upload Pipeline</td><td>Data Ingestion</td><td>Salesforce field mapping, region auto-detection, PII scrubbing</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>React Dashboard</td><td>Frontend</td><td>Regional breakdowns, risk radar, competitor intel, executive briefing</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="coded"><td>BigQuery Integration</td><td>Data Ingestion</td><td>BigQuerySource class, HTTP endpoint, automated 3-day scheduling</td><td><span class="badge badge-coded">Coded</span></td></tr>
+          <tr data-status="complete"><td>Developer Handover Guide</td><td>Documentation</td><td>Full technical handover for any developer picking up the project</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr data-status="complete"><td>BigQuery Integration Guide</td><td>Documentation</td><td>Step-by-step IAM setup, testing, scheduling, monitoring</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr data-status="complete"><td>Cloud Run / Docker Reference</td><td>Documentation</td><td>Architecture decision document: Firebase vs Cloud Run</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr data-status="complete"><td>CLAUDE.md</td><td>Documentation</td><td>AI assistant project context for ongoing development</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr data-status="not-started"><td>Dashboard: Phase 3–5 Widgets</td><td>Frontend</td><td>New React components for Twenty Questions, Competitive Displacement, Delta Intelligence</td><td><span class="badge badge-not-started">Not Started</span></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TEST RESULTS ═══ -->
+  <div id="test-results" class="section">
+    <div class="card">
+      <div class="card-title">Live Deployment — 11 March 2026</div>
+      <p style="font-size:14px; color:var(--text-light); margin-bottom:20px;">Cloud Function logs from the successful CSV upload test on Firebase Live.</p>
+
+      <div class="log-step"><div class="log-time">12:08</div><div class="log-check">✓</div><div><div class="log-msg">Parsed records from CSV — validation and analysis complete</div><div class="log-phase">Phase 1 — Individual Analysis</div></div></div>
+      <div class="log-step"><div class="log-time">12:08</div><div class="log-check">✓</div><div><div class="log-msg">Report stored to Firestore</div><div class="log-phase">Base Report — merge:true</div></div></div>
+      <div class="log-step"><div class="log-time">12:09</div><div class="log-check">✓</div><div><div class="log-msg">Phase 2 enrichment complete: Portfolio Analysis</div><div class="log-phase">Executive briefing, recommendations, forecast confidence</div></div></div>
+      <div class="log-step"><div class="log-time">12:10</div><div class="log-check">✓</div><div><div class="log-msg">Phase 3 enrichment complete: Twenty Questions</div><div class="log-phase">CRO intelligence layer</div></div></div>
+      <div class="log-step"><div class="log-time">12:10</div><div class="log-check">✓</div><div><div class="log-msg">Phase 4 enrichment complete: Competitive Displacement</div><div class="log-phase">Win/loss mechanisms per competitor</div></div></div>
+      <div class="log-step"><div class="log-time">12:11</div><div class="log-check">✓</div><div><div class="log-msg">Phase 5 enrichment complete: Delta Intelligence</div><div class="log-phase">Temporal comparison against previous report</div></div></div>
+      <div class="log-step"><div class="log-time">12:11</div><div class="log-check" style="background:var(--accent);">★</div><div><div class="log-msg" style="font-weight:600;">All enrichment phases complete</div><div class="log-phase">Full pipeline execution successful</div></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Execution Summary</div>
+      <div class="card-grid">
+        <div style="text-align:center; padding:16px;">
+          <div style="font-size:32px; font-weight:700; color:var(--green);">5/5</div>
+          <div style="font-size:13px; color:var(--grey);">Enrichment Phases Passed</div>
+        </div>
+        <div style="text-align:center; padding:16px;">
+          <div style="font-size:32px; font-weight:700; color:var(--navy);">~3 min</div>
+          <div style="font-size:13px; color:var(--grey);">Total Pipeline Duration</div>
+        </div>
+        <div style="text-align:center; padding:16px;">
+          <div style="font-size:32px; font-weight:700; color:var(--accent);">exec_1773...</div>
+          <div style="font-size:13px; color:var(--grey);">Execution ID</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ISSUES ═══ -->
+  <div id="issues" class="section">
+    <div class="issue-card resolved">
+      <div class="issue-title"><span class="badge badge-complete">Resolved</span> Anthropic API Credit Balance</div>
+      <div class="issue-body">
+        During initial testing on 11 March, the pipeline exhausted available Anthropic API credits partway through individual record analysis. Each CSV upload generates one LLM call per opportunity record plus five enrichment passes (~55 API calls for a 50-record CSV). The subsequent run completed all five phases successfully after credits were replenished.
+        <br><br>
+        <strong>Recommendation:</strong> Monitor the Anthropic billing dashboard and set up spend alerts. Consider using a lower-cost model (e.g., Haiku) for Phase 1 individual analysis while keeping Sonnet for strategic enrichment phases 2–5.
+      </div>
+    </div>
+
+    <div class="issue-card blocked">
+      <div class="issue-title"><span class="badge badge-blocked">Blocked</span> BigQuery Access Grant</div>
+      <div class="issue-body">
+        The BigQuery integration code is complete and deployed, but the service account requires <code>roles/bigquery.dataViewer</code> and <code>roles/bigquery.jobUser</code> grants from the data science team. An IT ticket has been submitted. Until this is granted, the automated every-3-day scheduled pull and on-demand BigQuery endpoint cannot be tested with live data.
+      </div>
+    </div>
+
+    <div class="issue-card">
+      <div class="issue-title"><span class="badge badge-next">Upcoming</span> Dashboard Widgets for Phase 3–5 Data</div>
+      <div class="issue-body">
+        The new enrichment data (Twenty Questions, Competitive Displacement, Delta Intelligence) is stored in Firestore but has no corresponding React components on the dashboard. The existing dashboard displays Phase 1 and Phase 2 data only. New widget development is needed to surface the Phase 3–5 intelligence to users.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ NEXT STEPS ═══ -->
+  <div id="next-steps" class="section">
+    <div class="card">
+      <div class="card-title">Action Items</div>
+      <div class="table-wrap">
+        <table>
+          <tr><th>#</th><th>Action</th><th>Owner</th><th>Priority</th><th>Status</th></tr>
+          <tr><td>1</td><td>BigQuery access grant (IT ticket submitted)</td><td>IT / Data Science</td><td style="font-weight:600; color:var(--red);">High</td><td><span class="badge badge-blocked">Blocked</span></td></tr>
+          <tr><td>2</td><td>End-to-end test with live BigQuery data</td><td>Brad</td><td style="font-weight:600; color:var(--amber);">Medium</td><td><span class="badge badge-waiting">Waiting</span></td></tr>
+          <tr><td>3</td><td>Build dashboard widgets for Phase 3–5 enrichment data</td><td>Brad</td><td style="font-weight:600; color:var(--accent);">Medium</td><td><span class="badge badge-next">Next</span></td></tr>
+          <tr><td>4</td><td>Set up Anthropic API spend alerts</td><td>Brad</td><td style="font-weight:600; color:var(--accent);">Medium</td><td><span class="badge badge-next">Next</span></td></tr>
+          <tr><td>5</td><td>Evaluate tiered model strategy (Haiku for Phase 1, Sonnet for Phase 2–5)</td><td>Brad</td><td style="font-weight:600; color:var(--grey);">Low</td><td><span class="badge badge-not-started">Not Started</span></td></tr>
+          <tr><td>6</td><td>Identify and configure additional LLM API keys (Gemini &amp; OpenAI) for multi-provider support</td><td>Brad</td><td style="font-weight:600; color:var(--accent);">Medium</td><td><span class="badge badge-next">Next</span></td></tr>
+          <tr><td>7</td><td>Migrate from personal Anthropic API key to corporate Simpro key via Firebase Secret Manager</td><td>Brad</td><td style="font-weight:600; color:var(--amber);">High</td><td><span class="badge badge-next">Next</span></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function showSection(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    event.target.classList.add('active');
+  }
+
+  function toggleDetail(item) {
+    const detail = item.querySelector('.tl-detail');
+    const expand = item.querySelector('.tl-expand');
+    if (detail.classList.contains('open')) {
+      detail.classList.remove('open');
+      expand.textContent = 'Click to expand →';
+    } else {
+      detail.classList.add('open');
+      expand.textContent = 'Click to collapse ↑';
+    }
+  }
+
+  function filterTable(status, btn) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const rows = document.querySelectorAll('#deliverables-table tr[data-status]');
+    rows.forEach(row => {
+      if (status === 'all' || row.dataset.status === status) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  }
+</script>
+</body>
+</html>

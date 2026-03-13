@@ -196,7 +196,14 @@ export const onCSVUpload = onObjectFinalized(
 
       // Try LLM enrichment as a follow-up (portfolio analysis, recommendations)
       try {
-        const enrichedReport = await Aggregator.enrichWithLLM(report, getLLMConfig());
+        let enrichedReport = await Aggregator.enrichWithLLM(report, getLLMConfig());
+        console.log(
+          `[${context.executionId}] Phase 2 enrichment complete: Portfolio Analysis`
+        );
+
+        // Phase 3–5: Twenty Questions, Competitive Displacement, Delta Intelligence
+        enrichedReport = await runAdvancedEnrichment(enrichedReport, getLLMConfig(), context.executionId);
+
         enrichedReport.funnelStages = funnelStages;
         const enrichedTransformed = ReportTransformer.transform(enrichedReport);
         await reportRef.update({
@@ -205,7 +212,7 @@ export const onCSVUpload = onObjectFinalized(
           enrichedAt: FieldValue.serverTimestamp(),
         });
         console.log(
-          `[${context.executionId}] Report enriched with portfolio analysis`
+          `[${context.executionId}] All enrichment phases complete`
         );
       } catch (enrichErr) {
         console.warn(
@@ -238,74 +245,82 @@ export const onCSVUpload = onObjectFinalized(
  * Trigger: Every Monday at 6:00 AM UTC
  */
 export const runWeeklyAnalysis = onSchedule(
-  { schedule: "0 6 * * 1", timeZone: "UTC", secrets: ["ANTHROPIC_API_KEY"] },
+  { schedule: "0 6 */3 * *", timeZone: "UTC", secrets: ["ANTHROPIC_API_KEY"] },
   async () => {
-    const context = createExecutionContext("scheduled-weekly");
-    console.log(`[${context.executionId}] Weekly analysis started`);
+    const context = createExecutionContext("scheduled-bigquery", "bigquery");
+    console.log(`[${context.executionId}] Scheduled BigQuery analysis started`);
 
     try {
-      // Get the latest CSV from uploads
-      const bucket = storage.bucket("project-prism-489108-a9e2b.firebasestorage.app");
-      const [files] = await bucket.getFiles({ prefix: "uploads/" });
+      // Fetch records directly from BigQuery
+      const bqConfig = getBigQueryConfig();
+      const source = new BigQuerySource(bqConfig);
+      const records = await source.fetchRecords();
 
-      if (files.length === 0) {
-        console.log(`[${context.executionId}] No CSV files found`);
+      console.log(
+        `[${context.executionId}] Fetched ${records.length} records from BigQuery`
+      );
+
+      if (records.length === 0) {
+        console.log(`[${context.executionId}] No records found in BigQuery`);
+        context.status = "completed";
+        await db
+          .collection("executions")
+          .doc(context.executionId)
+          .set(context);
         return;
       }
 
-      // Get the most recent file
-      const latestFile = files.sort((a, b) => {
-        const aTime = a.metadata.timeCreated || "";
-        const bTime = b.metadata.timeCreated || "";
-        return aTime < bTime ? 1 : -1;
-      })[0];
-
-      context.sourceFile = latestFile.name;
-      console.log(
-        `[${context.executionId}] Processing file: ${latestFile.name}`
-      );
-
-      // Download and parse CSV
-      const [csvContent] = await latestFile.download();
-      const csvText = csvContent.toString("utf-8");
-
-      const parser = new CSVParser(
-        getDefaultSalesforceMapping(),
-        getDefaultRegionMapping()
-      );
-      const records = parser.parse(csvText);
-
-      console.log(
-        `[${context.executionId}] Parsed ${records.length} records`
-      );
-
-      // Compute funnel stages
+      // Calculate funnel stages
       const funnelStages = CSVParser.calculateFunnel(records);
 
-      // Run analysis pipeline
-      const report = await runAnalysisPipeline(
-        records,
-        context,
-        getLLMConfig()
-      );
+      // Run existing pipeline (validate -> analyze -> aggregate)
+      const report = await runAnalysisPipeline(records, context, getLLMConfig());
+      report.funnelStages = funnelStages;
 
-      // Enrich and transform
-      const enrichedReport = await Aggregator.enrichWithLLM(report, getLLMConfig());
-      enrichedReport.funnelStages = funnelStages;
-      const transformed = ReportTransformer.transform(enrichedReport);
-
-      // Store report
+      // Transform and store (merge:true preserves existing data during enrichment gap)
+      const transformed = ReportTransformer.transform(report);
       const reportDate = new Date().toISOString().split("T")[0];
-      await db.collection("reports").doc(reportDate).set({
-        ...enrichedReport,
+      const reportRef = db.collection("reports").doc(reportDate);
+      await reportRef.set({
+        ...report,
         transformed,
-        reportDate: enrichedReport.reportDate,
+        reportDate: report.reportDate,
         createdAt: FieldValue.serverTimestamp(),
-      });
+        dataSource: "bigquery",
+      }, { merge: true });
 
       console.log(
-        `[${context.executionId}] Weekly analysis complete: ${enrichedReport.reportId}`
+        `[${context.executionId}] Report stored: ${report.reportId}`
       );
+
+      // Try LLM enrichment (non-fatal)
+      try {
+        let enrichedReport = await Aggregator.enrichWithLLM(
+          report,
+          getLLMConfig()
+        );
+        console.log(
+          `[${context.executionId}] Phase 2 enrichment complete: Portfolio Analysis`
+        );
+
+        // Phase 3–5: Twenty Questions, Competitive Displacement, Delta Intelligence
+        enrichedReport = await runAdvancedEnrichment(enrichedReport, getLLMConfig(), context.executionId);
+
+        enrichedReport.funnelStages = funnelStages;
+        const enrichedTransformed = ReportTransformer.transform(enrichedReport);
+        await reportRef.update({
+          ...enrichedReport,
+          transformed: enrichedTransformed,
+          enrichedAt: FieldValue.serverTimestamp(),
+        });
+        console.log(
+          `[${context.executionId}] All enrichment phases complete`
+        );
+      } catch (enrichErr) {
+        console.warn(
+          `[${context.executionId}] LLM enrichment skipped: ${String(enrichErr)}`
+        );
+      }
 
       context.status = "completed";
       await db
@@ -314,7 +329,7 @@ export const runWeeklyAnalysis = onSchedule(
         .set(context);
     } catch (error) {
       context.status = "failed";
-      context.errors.push(`Weekly analysis error: ${String(error)}`);
+      context.errors.push(`Scheduled analysis error: ${String(error)}`);
       console.error(`[${context.executionId}] Error:`, error);
 
       await db
@@ -526,10 +541,17 @@ export const fetchFromBigQuery = onRequest(
 
       // Try LLM enrichment (non-fatal)
       try {
-        const enrichedReport = await Aggregator.enrichWithLLM(
+        let enrichedReport = await Aggregator.enrichWithLLM(
           report,
           getLLMConfig()
         );
+        console.log(
+          `[${context.executionId}] Phase 2 enrichment complete: Portfolio Analysis`
+        );
+
+        // Phase 3–5: Twenty Questions, Competitive Displacement, Delta Intelligence
+        enrichedReport = await runAdvancedEnrichment(enrichedReport, getLLMConfig(), context.executionId);
+
         enrichedReport.funnelStages = funnelStages;
         const enrichedTransformed = ReportTransformer.transform(enrichedReport);
         await reportRef.update({
@@ -538,7 +560,7 @@ export const fetchFromBigQuery = onRequest(
           enrichedAt: FieldValue.serverTimestamp(),
         });
         console.log(
-          `[${context.executionId}] Report enriched with portfolio analysis`
+          `[${context.executionId}] All enrichment phases complete`
         );
       } catch (enrichErr) {
         console.warn(
@@ -565,6 +587,73 @@ export const fetchFromBigQuery = onRequest(
     }
   }
 );
+
+/**
+ * Fetches the most recent previous report from Firestore for delta intelligence.
+ * Returns null if no prior report exists (first run).
+ */
+async function fetchPreviousReport(): Promise<AggregatedReport | null> {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const snapshot = await db
+      .collection("reports")
+      .orderBy("reportDate", "desc")
+      .limit(2) // Get up to 2: today's (if exists) and the one before
+      .get();
+
+    if (snapshot.empty) return null;
+
+    // Find the first report that isn't today's
+    for (const doc of snapshot.docs) {
+      if (doc.id !== today) {
+        return doc.data() as AggregatedReport;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.warn("Could not fetch previous report for delta intelligence:", String(error));
+    return null;
+  }
+}
+
+/**
+ * Runs Phase 3–5 enrichment passes on a report (non-fatal).
+ * Phase 3: Pete's 20 Questions (CRO intelligence)
+ * Phase 4: Competitive Displacement Intelligence
+ * Phase 5: Delta Intelligence (temporal comparison)
+ */
+async function runAdvancedEnrichment(
+  report: AggregatedReport,
+  llmConfig: LLMConfig,
+  executionId: string
+): Promise<AggregatedReport> {
+  // Phase 3: Twenty Questions
+  try {
+    report = await Aggregator.enrichWithTwentyQuestions(report, llmConfig);
+    console.log(`[${executionId}] Phase 3 enrichment complete: Twenty Questions`);
+  } catch (err) {
+    console.warn(`[${executionId}] Phase 3 skipped (Twenty Questions): ${String(err)}`);
+  }
+
+  // Phase 4: Competitive Displacement
+  try {
+    report = await Aggregator.enrichWithCompetitiveDisplacement(report, llmConfig);
+    console.log(`[${executionId}] Phase 4 enrichment complete: Competitive Displacement`);
+  } catch (err) {
+    console.warn(`[${executionId}] Phase 4 skipped (Competitive Displacement): ${String(err)}`);
+  }
+
+  // Phase 5: Delta Intelligence (requires previous report)
+  try {
+    const previousReport = await fetchPreviousReport();
+    report = await Aggregator.enrichWithDeltaIntelligence(report, previousReport, llmConfig);
+    console.log(`[${executionId}] Phase 5 enrichment complete: Delta Intelligence`);
+  } catch (err) {
+    console.warn(`[${executionId}] Phase 5 skipped (Delta Intelligence): ${String(err)}`);
+  }
+
+  return report;
+}
 
 /**
  * Main analysis pipeline orchestrator

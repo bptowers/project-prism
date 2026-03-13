@@ -124,18 +124,25 @@ export class Analyzer {
         `[${executionContext.executionId}] Created ${batches.length} processing batches`
       );
 
-      // Step 3: Process each batch
+      // Step 3: Process all batches in parallel to stay within function timeout
+      // Each batch has its own internal concurrency (5 at a time), so batches
+      // run simultaneously rather than sequentially. This reduces wall-clock time
+      // from ~22min (sequential) to ~6min (parallel), fitting within the 540s limit.
+      batches.forEach((batch, i) => {
+        console.log(
+          `[${executionContext.executionId}] Processing batch ${i + 1}/${batches.length} (${batch.records.length} records)`
+        );
+      });
+
+      const batchResults = await Promise.all(
+        batches.map((batch) => this.processBatch(batch, executionContext))
+      );
+
       const allResults: OpportunityAnalysis[] = [];
       let successCount = 0;
       let failureCount = 0;
 
-      for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-        console.log(
-          `[${executionContext.executionId}] Processing batch ${i + 1}/${batches.length} (${batch.records.length} records)`
-        );
-
-        const batchResult = await this.processBatch(batch, executionContext);
+      for (const batchResult of batchResults) {
         allResults.push(...batchResult.results);
         successCount += batchResult.successCount;
         failureCount += batchResult.failureCount;
@@ -143,7 +150,7 @@ export class Analyzer {
         // Log batch errors
         if (batchResult.errors.length > 0) {
           console.warn(
-            `[${executionContext.executionId}] Batch ${batch.batchId} errors:`,
+            `[${executionContext.executionId}] Batch ${batchResult.batchId} errors:`,
             batchResult.errors
           );
         }
