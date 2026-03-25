@@ -15,11 +15,14 @@ import { MarketSignals } from '@/components/dashboard/MarketSignals';
 import { TrendChart } from '@/components/dashboard/TrendChart';
 import { CompetitorIntel } from '@/components/dashboard/CompetitorIntel';
 import { Recommendations } from '@/components/dashboard/Recommendations';
+import { TwentyQuestions } from '@/components/dashboard/TwentyQuestions';
+import { CompetitiveDisplacement } from '@/components/dashboard/CompetitiveDisplacement';
+import { DeltaIntelligence } from '@/components/dashboard/DeltaIntelligence';
 import { Panel } from '@/components/ui/Panel';
 import { UploadModal } from '@/components/dashboard/UploadModal';
 
 export default function App() {
-  const { region, data, selectRegion, loading, isLive, hasLiveData, forceSample, resetToSample, useLiveData, sampleHidden, clearSampleData, restoreSampleData, showingContent, executiveBriefing, totalOpportunities, reportPeriod, regionCounts } = useRegion();
+  const { region, data, selectRegion, loading, isLive, hasLiveData, forceSample, resetToSample, useLiveData, sampleHidden, clearSampleData, restoreSampleData, showingContent, executiveBriefing, totalOpportunities, reportPeriod, regionCounts, twentyQuestions, competitiveDisplacement, deltaIntelligence } = useRegion();
   const [uploadOpen, setUploadOpen] = useState(false);
 
   return (
@@ -158,6 +161,9 @@ export default function App() {
         <TrendChart trendData={data.trendData} />
         <CompetitorIntel competitors={data.competitors} />
         <Recommendations items={data.recommendations} />
+        <TwentyQuestions data={twentyQuestions} />
+        <CompetitiveDisplacement data={competitiveDisplacement} />
+        <DeltaIntelligence data={deltaIntelligence} />
         <ProcessingFooter />
       </motion.div>
     </div>

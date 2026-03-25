@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import type { Region, RegionData } from '@/lib/types';
+import type { Region, RegionData, TwentyQuestionsData, CompetitiveDisplacementData, DeltaIntelligenceData } from '@/lib/types';
 import { regionDataMap } from '@/data/sampleData';
 import { useLatestReport } from '@/hooks/useFirestore';
 
@@ -38,6 +38,10 @@ export function useRegion() {
   const totalOpportunities = isLive ? (report?.totalRecordsAnalyzed as number | undefined) : undefined;
   const reportPeriod = isLive ? (report?.period as string | undefined) : undefined;
 
+  const twentyQuestions = isLive ? (report?.twentyQuestions as TwentyQuestionsData | undefined) : undefined;
+  const competitiveDisplacement = isLive ? (report?.competitiveDisplacement as CompetitiveDisplacementData | undefined) : undefined;
+  const deltaIntelligence = isLive ? (report?.deltaIntelligence as DeltaIntelligenceData | undefined) : undefined;
+
   // Persist the last known briefing so the dashboard doesn't flash to sample
   // data during the gap between Phase 1 write (no briefing) and Phase 2 enrichment.
   const [lastKnownBriefing, setLastKnownBriefing] = useState<string | undefined>(undefined);
@@ -69,5 +73,6 @@ export function useRegion() {
     forceSample, resetToSample, useLiveData,
     sampleHidden, clearSampleData, restoreSampleData, showingContent,
     executiveBriefing: displayBriefing, totalOpportunities, reportPeriod, regionCounts,
+    twentyQuestions, competitiveDisplacement, deltaIntelligence,
   };
 }
