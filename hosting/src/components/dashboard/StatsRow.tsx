@@ -20,7 +20,8 @@ interface Props {
 
 export const StatsRow: React.FC<Props> = ({ stats, sparklines }) => (
   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-    {Object.entries(stats).map(([key, stat]) => {
+    {(['pipeline', 'winRate', 'atRisk', 'threats', 'forecast', 'velocity'] as const).map(key => {
+      const stat = stats[key];
       const cfg = statConfig[key];
       const isNegativeMetric = key === 'atRisk' || key === 'threats';
       const changeClass = (stat.dir === 'up' && !isNegativeMetric) || (stat.dir === 'down' && isNegativeMetric) ? 'good' : 'bad';
