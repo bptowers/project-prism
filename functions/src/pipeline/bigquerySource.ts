@@ -83,10 +83,10 @@ const DEFAULT_BQ_FIELD_MAP: Record<string, string[]> = {
  * Currency code to region mapping
  */
 const CURRENCY_REGION_MAP: Record<string, string> = {
-  "AUD": "APAC",
-  "NZD": "APAC",
-  "GBP": "EMEA",
-  "EUR": "EMEA",
+  "AUD": "ANZ",
+  "NZD": "ANZ",
+  "GBP": "UK",
+  "EUR": "UK",
   "USD": "NAMER",
   "CAD": "NAMER",
 };
@@ -95,31 +95,29 @@ const CURRENCY_REGION_MAP: Record<string, string> = {
  * Country/state to region mapping for geographic detection
  */
 const GEO_REGION_MAP: Record<string, string> = {
-  "australia": "APAC",
-  "new zealand": "APAC",
-  "japan": "APAC",
-  "singapore": "APAC",
-  "india": "APAC",
-  "united kingdom": "EMEA",
-  "ireland": "EMEA",
-  "germany": "EMEA",
-  "france": "EMEA",
-  "england": "EMEA",
-  "scotland": "EMEA",
-  "wales": "EMEA",
+  "australia": "ANZ",
+  "new zealand": "ANZ",
+  "japan": "ANZ",
+  "singapore": "ANZ",
+  "india": "ANZ",
+  "united kingdom": "UK",
+  "ireland": "UK",
+  "germany": "UK",
+  "france": "UK",
+  "england": "UK",
+  "scotland": "UK",
+  "wales": "UK",
   "united states": "NAMER",
   "canada": "NAMER",
-  "mexico": "LATAM",
-  "brazil": "LATAM",
   // Australian states
-  "new south wales": "APAC",
-  "queensland": "APAC",
-  "victoria": "APAC",
-  "western australia": "APAC",
-  "south australia": "APAC",
-  "tasmania": "APAC",
-  "australian capital territory": "APAC",
-  "northern territory": "APAC",
+  "new south wales": "ANZ",
+  "queensland": "ANZ",
+  "victoria": "ANZ",
+  "western australia": "ANZ",
+  "south australia": "ANZ",
+  "tasmania": "ANZ",
+  "australian capital territory": "ANZ",
+  "northern territory": "ANZ",
 };
 
 /**
@@ -338,8 +336,6 @@ export class BigQuerySource {
       if (territoryRegion.includes("APAC") || territoryRegion.includes("ASIA") || territoryRegion.includes("PACIFIC")) return "ANZ";
       if (territoryRegion.includes("EMEA") || territoryRegion.includes("EUROPE")) return "UK";
       if (territoryRegion.includes("NAMER") || territoryRegion.includes("NORTH AMERICA")) return "NAMER";
-      if (territoryRegion.includes("LATAM") || territoryRegion.includes("LATIN")) return "LATAM";
-      if (["APAC", "EMEA", "NAMER", "LATAM"].includes(territoryRegion)) return territoryRegion;
     }
 
     // Priority 2: Currency-based detection

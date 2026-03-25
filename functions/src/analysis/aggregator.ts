@@ -132,6 +132,7 @@ export class Aggregator {
       competitorActivity,
       marketSignals,
       sentimentTrend,
+      stageDistribution: [],
     };
   }
 

@@ -183,6 +183,12 @@ export const onCSVUpload = onObjectFinalized(
       // Add funnel stages from CSV data
       report.funnelStages = funnelStages;
 
+      // Compute per-region funnel stages
+      for (const [regionKey, regionReport] of Object.entries(report.regions)) {
+        const regionRecords = records.filter(r => r.region === regionKey);
+        regionReport.stageDistribution = CSVParser.calculateFunnel(regionRecords);
+      }
+
       // Transform for frontend consumption (without LLM enrichment first)
       const transformed = ReportTransformer.transform(report);
 
@@ -285,6 +291,12 @@ export const runWeeklyAnalysis = onSchedule(
       // Run existing pipeline (validate -> analyze -> aggregate)
       const report = await runAnalysisPipeline(records, context, getLLMConfig());
       report.funnelStages = funnelStages;
+
+      // Compute per-region funnel stages
+      for (const [regionKey, regionReport] of Object.entries(report.regions)) {
+        const regionRecords = records.filter(r => r.region === regionKey);
+        regionReport.stageDistribution = CSVParser.calculateFunnel(regionRecords);
+      }
 
       // Transform and store (merge:true preserves existing data during enrichment gap)
       const transformed = ReportTransformer.transform(report);
@@ -532,6 +544,12 @@ export const fetchFromBigQuery = onRequest(
       // Run existing pipeline (validate -> analyze -> aggregate)
       const report = await runAnalysisPipeline(records, context, getLLMConfig());
       report.funnelStages = funnelStages;
+
+      // Compute per-region funnel stages
+      for (const [regionKey, regionReport] of Object.entries(report.regions)) {
+        const regionRecords = records.filter(r => r.region === regionKey);
+        regionReport.stageDistribution = CSVParser.calculateFunnel(regionRecords);
+      }
 
       // Transform and store (merge:true preserves existing executiveBriefing during Phase 2 gap)
       const transformed = ReportTransformer.transform(report);

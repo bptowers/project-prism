@@ -8,8 +8,7 @@ const TAB_CONFIG: { region: Region; label: string; sampleCount: string; sampleRe
   { region: 'all',  label: 'All Regions',   sampleCount: '347', sampleRevenue: '$47.2M' },
   { region: 'na',   label: 'North America', sampleCount: '187', sampleRevenue: '$26.1M' },
   { region: 'uk',   label: 'UK',            sampleCount: '94',  sampleRevenue: '$13.4M' },
-  { region: 'au',   label: 'Australia',     sampleCount: '42',  sampleRevenue: '$5.2M'  },
-  { region: 'nz',   label: 'New Zealand',   sampleCount: '24',  sampleRevenue: '$2.5M'  },
+  { region: 'au',   label: 'AU / NZ',       sampleCount: '66',  sampleRevenue: '$7.7M'  },
 ];
 
 interface Props {

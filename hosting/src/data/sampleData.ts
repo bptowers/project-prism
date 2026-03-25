@@ -5,8 +5,7 @@ const trendData: TrendData = {
   all: [36, 38, 37, 39, 40, 38, 41, 42],
   na: [38, 40, 39, 41, 42, 40, 43, 44],
   uk: [33, 35, 34, 36, 37, 35, 38, 39],
-  au: [37, 39, 38, 40, 41, 39, 42, 42],
-  nz: [31, 33, 32, 34, 35, 33, 36, 37],
+  au: [34, 36, 35, 37, 38, 36, 39, 40],
 };
 
 export const allRegionData: RegionData = {
@@ -116,32 +115,18 @@ export const auRegionData: RegionData = {
   ...allRegionData,
   stats: {
     ...allRegionData.stats,
-    pipeline: { ...allRegionData.stats.pipeline, value: '$5.2M' },
-    winRate: { ...allRegionData.stats.winRate, value: '45%' },
-    atRisk: { ...allRegionData.stats.atRisk, value: '$0.8M', sub: '2 deals flagged' },
+    pipeline: { ...allRegionData.stats.pipeline, value: '$7.7M' },
+    winRate: { ...allRegionData.stats.winRate, value: '43%' },
+    atRisk: { ...allRegionData.stats.atRisk, value: '$1.1M', sub: '3 deals flagged' },
     threats: { ...allRegionData.stats.threats, value: '2' },
   },
-  risks: allRegionData.risks.filter(r => r.region === 'AU'),
-  signals: allRegionData.signals.filter((_, i) => [3].includes(i)),
+  risks: allRegionData.risks.filter(r => r.region === 'ANZ' || r.region === 'AU' || r.region === 'NZ'),
+  signals: allRegionData.signals.filter((_, i) => [3, 4].includes(i)),
 };
 
-export const nzRegionData: RegionData = {
-  ...allRegionData,
-  stats: {
-    ...allRegionData.stats,
-    pipeline: { ...allRegionData.stats.pipeline, value: '$2.5M' },
-    winRate: { ...allRegionData.stats.winRate, value: '38%' },
-    atRisk: { ...allRegionData.stats.atRisk, value: '$0.3M', sub: '1 deal flagged' },
-    threats: { ...allRegionData.stats.threats, value: '1' },
-  },
-  risks: allRegionData.risks.filter(r => r.region === 'NZ'),
-  signals: allRegionData.signals.filter((_, i) => [4].includes(i)),
-};
-
-export const regionDataMap = {
+export const regionDataMap: Record<string, RegionData> = {
   all: allRegionData,
   na: naRegionData,
   uk: ukRegionData,
   au: auRegionData,
-  nz: nzRegionData,
 };
