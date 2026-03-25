@@ -1,19 +1,19 @@
 /**
  * Project Prism - Google Gemini LLM Provider
- * Implementation of Google's Gemini API via Vertex AI for revenue intelligence analysis
+ * Implementation of Google's Gemini API via Google AI Studio for revenue intelligence analysis
  */
 
-import { VertexAI, Content } from "@google-cloud/vertexai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ILLMProvider, LLMAnalysisOutput, LLMProviderError, LLMRateLimitError } from "./provider.js";
 import { LLMConfig, OpportunityAnalysis, OpportunityRecord } from "../types.js";
 import { formatOpportunityForPrompt, injectOpportunityData, SYSTEM_PROMPT } from "./prompts.js";
 
 /**
  * Gemini LLM Provider implementation
- * Uses Google Cloud's Vertex AI for structured analysis
+ * Uses Google AI Studio (API key auth) for structured analysis
  */
 export class GeminiProvider implements ILLMProvider {
-  private vertex: VertexAI;
+  private genAI: GoogleGenerativeAI;
   private config: LLMConfig;
   private requestCount = 0;
   private lastRequestTime = 0;
@@ -23,14 +23,7 @@ export class GeminiProvider implements ILLMProvider {
    */
   constructor(config: LLMConfig) {
     this.config = config;
-
-    // Extract project ID from environment (Vertex AI uses Application Default Credentials)
-    const projectId = process.env.GCP_PROJECT_ID || "default";
-
-    this.vertex = new VertexAI({
-      project: projectId,
-      location: "us-central1",
-    });
+    this.genAI = new GoogleGenerativeAI(config.apiKey);
   }
 
   /**
@@ -80,46 +73,24 @@ export class GeminiProvider implements ILLMProvider {
         // Inject data into prompt
         const fullPrompt = injectOpportunityData(prompt, opportunityData);
 
-        // Prepare messages
-        const generativeModel = this.vertex.getGenerativeModel({
+        // Get the generative model
+        const model = this.genAI.getGenerativeModel({
           model: this.config.model,
-        });
-
-        // Build request
-        const request = {
-          contents: [
-            {
-              role: "user" as const,
-              parts: [
-                {
-                  text: fullPrompt,
-                },
-              ],
-            } as Content,
-          ],
-          systemInstruction: {
-            role: "system" as const,
-            parts: [
-              {
-                text: SYSTEM_PROMPT,
-              },
-            ],
-          },
+          systemInstruction: SYSTEM_PROMPT,
           generationConfig: {
             maxOutputTokens: this.config.maxTokens,
             temperature: this.config.temperature,
             topP: this.config.topP || 0.9,
           },
-        };
+        });
 
         // Call Gemini API
-        const response = await generativeModel.generateContent(request);
+        const response = await model.generateContent(fullPrompt);
 
         const processingTime = Date.now() - startTime;
 
         // Extract response text
-        const responseText =
-          response.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const responseText = response.response.text();
 
         // Parse JSON response
         const analysis = this.parseAnalysisResponse(
@@ -161,28 +132,17 @@ export class GeminiProvider implements ILLMProvider {
    */
   async validateConnection(): Promise<void> {
     try {
-      const generativeModel = this.vertex.getGenerativeModel({
+      const model = this.genAI.getGenerativeModel({
         model: this.config.model,
-      });
-
-      const response = await generativeModel.generateContent({
-        contents: [
-          {
-            role: "user" as const,
-            parts: [
-              {
-                text: "Return the word 'ok'.",
-              },
-            ],
-          } as Content,
-        ],
         generationConfig: {
           maxOutputTokens: 10,
           temperature: 0.1,
         },
       });
 
-      if (!response.response.candidates?.[0]?.content?.parts?.[0]?.text) {
+      const response = await model.generateContent("Return the word 'ok'.");
+
+      if (!response.response.text()) {
         throw new Error("Unexpected response format");
       }
     } catch (error) {
@@ -199,7 +159,7 @@ export class GeminiProvider implements ILLMProvider {
    */
   getProviderInfo() {
     return {
-      name: "Google Gemini (Vertex AI)",
+      name: "Google Gemini",
       model: this.config.model,
       version: "1.0.0",
     };

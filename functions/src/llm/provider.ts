@@ -136,7 +136,7 @@ export class LLMProviderFactory {
         topP: 0.9,
       },
       gemini: {
-        model: "gemini-2.0-flash",
+        model: "gemini-3.1-pro-preview",
         temperature: 0.3,
         maxTokens: 2000,
       },

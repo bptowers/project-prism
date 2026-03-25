@@ -203,7 +203,7 @@ export class ReportTransformer {
           id: riskId++,
           region: regionReport.region,
           level: deal.riskLevel.toUpperCase() as "HIGH" | "MEDIUM",
-          value: "—",
+          value: deal.opportunityName || deal.opportunityId || "—",
           confidence: 80,
           summary: deal.summary,
           action: deal.signals.length > 0 ? deal.signals[0] : "Review deal",
@@ -392,14 +392,14 @@ export class ReportTransformer {
     const lower = key.toLowerCase().trim();
     // North America
     if (lower === "na" || lower === "us" || lower.includes("north america") || lower.includes("namer")) return "na";
-    // United Kingdom
-    if (lower === "uk" || lower === "gb" || lower.includes("united kingdom") || lower.includes("britain")) return "uk";
+    // United Kingdom (includes EMEA/EU — Simpro UK is the only EMEA region)
+    if (lower === "uk" || lower === "gb" || lower.includes("united kingdom") || lower.includes("britain") || lower.includes("emea") || lower === "eu") return "uk";
     // Australia — kept separate from NZ
     if (lower === "au" || lower === "aus" || lower.includes("australia")) return "au";
     // New Zealand — kept separate from AU
     if (lower === "nz" || lower.includes("new zealand")) return "nz";
-    // Legacy combined ANZ key — split into au (default) but flag it
-    if (lower === "anz") return "au";
+    // ANZ / APAC — maps to au (Simpro ANZ covers Australia & New Zealand)
+    if (lower === "anz" || lower.includes("apac")) return "au";
     return lower;
   }
 }

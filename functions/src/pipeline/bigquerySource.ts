@@ -15,6 +15,7 @@ export interface BigQueryConfig {
   table: string;
   location?: string;
   sinceDate?: string; // ISO date string for incremental pulls (e.g. "2026-02-18")
+  limit?: number; // Max records to fetch (default 500)
 }
 
 /**
@@ -23,55 +24,59 @@ export interface BigQueryConfig {
  * based on Salesforce API names from Prism-Data-Requirements-Spec.docx.
  */
 const DEFAULT_BQ_FIELD_MAP: Record<string, string[]> = {
-  // Core Opportunity Fields (Section 2.1)
-  opportunityId: ["Id", "Opportunity_ID", "OpportunityId"],
-  accountName: ["Account_Name", "Account.Name", "AccountName"],
-  opportunityName: ["Name", "Opportunity_Name", "OpportunityName"],
-  stage: ["StageName", "Stage", "Stage_Name"],
-  expectedMRR: ["Expected_MRR__c", "Expected_MRR", "ExpectedMRR"],
-  amount: ["Amount"],
-  closedDate: ["CloseDate", "Close_Date"],
-  closed: ["IsClosed", "Closed"],
-  won: ["IsWon", "Won"],
-  currency: ["CurrencyIsoCode", "Currency"],
+  // Fivetran converts Salesforce columns to lowercase snake_case and __c to _c.
+  // Each array lists candidates in priority order: Fivetran name first, then
+  // Salesforce API name, then common alternatives.
 
-  // Owner & Activity Fields (Section 2.2)
-  salesRep: ["Owner_Name", "Owner.Name", "Opportunity_Owner"],
-  createdDate: ["CreatedDate", "Created_Date"],
-  updatedDate: ["LastModifiedDate", "Last_Modified_Date"],
+  // Core Opportunity Fields
+  opportunityId: ["id", "Id", "Opportunity_ID", "OpportunityId"],
+  accountName: ["account_name", "Account_Name", "Account.Name", "AccountName"],
+  opportunityName: ["name", "Name", "Opportunity_Name", "OpportunityName"],
+  stage: ["stage_name", "StageName", "Stage", "Stage_Name"],
+  expectedMRR: ["expected_mrr_c", "Expected_MRR__c", "Expected_MRR", "ExpectedMRR"],
+  amount: ["amount", "Amount"],
+  closedDate: ["close_date", "CloseDate", "Close_Date"],
+  closed: ["is_closed", "IsClosed", "Closed"],
+  won: ["is_won", "IsWon", "Won"],
+  currency: ["currency_iso_code", "CurrencyIsoCode", "Currency"],
+
+  // Owner & Activity Fields
+  salesRep: ["owner_name", "Owner_Name", "Owner.Name", "Opportunity_Owner"],
+  createdDate: ["created_date", "CreatedDate", "Created_Date"],
+  updatedDate: ["_fivetran_synced", "LastModifiedDate", "Last_Modified_Date"],
   lastActivityDate: ["LastActivityDate", "Last_Activity_Date"],
   nextStep: ["NextStep", "Next_Step"],
-  probability: ["Probability"],
-  forecastCategory: ["ForecastCategoryName", "Forecast_Category"],
-  leadSource: ["LeadSource", "Lead_Source"],
-  dealType: ["Type"],
+  probability: ["probability", "Probability"],
+  forecastCategory: ["forecast_category", "ForecastCategoryName", "Forecast_Category"],
+  leadSource: ["lead_source", "LeadSource", "Lead_Source"],
+  dealType: ["type", "Type"],
 
-  // Region & Geography Fields (Section 2.3)
-  territoryRegion: ["Territory_Region__c", "Territory_Region"],
+  // Region & Geography Fields
+  territoryRegion: ["sales_region", "strategic_territory", "Territory_Region__c", "Territory_Region"],
   billingState: ["BillingState", "Billing_State"],
   billingCountry: ["BillingCountry", "Billing_Country"],
-  industry: ["Industry"],
+  industry: ["industry", "Industry"],
 
-  // Simpro Custom Fields (Section 2.4)
-  description: ["Description"],
-  whyTheyBought: ["Why_They_Bought__c", "Why_They_Bought"],
-  reasonForWin: ["Reason_for_Win__c", "Reason_for_Win"],
-  winNotes: ["Win_Notes__c", "Win_Notes"],
-  winStory: ["Win_Story__c", "Win_Story"],
-  dealTakeaways: ["Deal_Takeaways__c", "Deal_Takeaways"],
-  pathToPurchase: ["Path_to_Purchase__c", "Path_to_Purchase"],
-  managerNotes: ["Manager_Notes__c", "Manager_Notes"],
-  closePlan: ["Close_Plan__c", "Close_Plan"],
-  whyWouldBuy: ["Why_Would_Buy__c", "Why_Would_Buy"],
-  whyWouldntBuy: ["Why_Wouldnt_Buy__c", "Why_Wouldnt_Buy"],
-  lostReason: ["Lost_Reason__c", "Lost_Reason"],
-  lostReasonDetails: ["Lost_Reason_Details__c", "Lost_Reason_Details"],
-  lostNotes: ["Lost_Notes__c", "Lost_Notes"],
-  missingFeatures: ["Missing_Features__c", "Missing_Features"],
-  mainCompetitor: ["Main_Competitor__c", "Main_Competitor"],
-  priceReason: ["Price_Reason__c", "Price_Reason"],
-  economicBuyer: ["Economic_Buyer__c", "Economic_Buyer"],
-  productLine: ["simPRO_Company__c", "simPRO_Company"],
+  // Simpro Custom Fields
+  description: ["Description", "description"],
+  whyTheyBought: ["Why_They_Bought__c", "why_they_bought_c"],
+  reasonForWin: ["Reason_for_Win__c", "reason_for_win_c"],
+  winNotes: ["Win_Notes__c", "win_notes_c"],
+  winStory: ["Win_Story__c", "win_story_c"],
+  dealTakeaways: ["Deal_Takeaways__c", "deal_takeaways_c"],
+  pathToPurchase: ["Path_to_Purchase__c", "path_to_purchase_c"],
+  managerNotes: ["Manager_Notes__c", "manager_notes_c"],
+  closePlan: ["Close_Plan__c", "close_plan_c"],
+  whyWouldBuy: ["Why_Would_Buy__c", "why_would_buy_c"],
+  whyWouldntBuy: ["Why_Wouldnt_Buy__c", "why_wouldnt_buy_c"],
+  lostReason: ["Lost_Reason__c", "lost_reason_c"],
+  lostReasonDetails: ["Lost_Reason_Details__c", "lost_reason_details_c"],
+  lostNotes: ["Lost_Notes__c", "lost_notes_c"],
+  missingFeatures: ["Missing_Features__c", "missing_features_c"],
+  mainCompetitor: ["Main_Competitor__c", "main_competitor_c"],
+  priceReason: ["Price_Reason__c", "price_reason_c"],
+  economicBuyer: ["Economic_Buyer__c", "economic_buyer_c"],
+  productLine: ["sim_pro_company_c", "simPRO_Company__c", "simPRO_Company"],
 };
 
 /**
@@ -127,8 +132,11 @@ export class BigQuerySource {
   private fieldMap: Record<string, string[]>;
 
   constructor(config: BigQueryConfig, fieldMap?: Record<string, string[]>) {
+    // Don't set projectId here — let it default to the Firebase project so
+    // query jobs run under our own service account's project. The query itself
+    // references the full table path (e.g. `bq-project.dataset.table`), so
+    // data is still read from the remote project via BigQuery Data Viewer role.
     const options: BigQueryOptions = {
-      projectId: config.projectId,
       location: config.location || "US",
     };
     this.client = new BigQuery(options);
@@ -153,6 +161,18 @@ export class BigQuerySource {
 
     console.log(`[BigQuerySource] Fetched ${rows.length} rows from BigQuery`);
 
+    if (rows.length > 0) {
+      console.log(`[BigQuerySource] Columns found: ${Object.keys(rows[0]).join(", ")}`);
+
+      // Log region value distribution for diagnostics
+      const regionCounts: Record<string, number> = {};
+      for (const row of rows) {
+        const regionVal = String(row["sales_region"] || row["strategic_territory"] || "EMPTY").trim();
+        regionCounts[regionVal] = (regionCounts[regionVal] || 0) + 1;
+      }
+      console.log(`[BigQuerySource] Region distribution: ${JSON.stringify(regionCounts)}`);
+    }
+
     return rows.map((row: Record<string, unknown>) => this.mapRow(row));
   }
 
@@ -162,30 +182,26 @@ export class BigQuerySource {
    */
   private buildQuery(): { query: string; params: Record<string, unknown> } {
     const fullTable = `\`${this.config.projectId}.${this.config.dataset}.${this.config.table}\``;
-    const orderCol = this.resolveColumn("updatedDate") || "LastModifiedDate";
+
+    // Fivetran renames columns to lowercase snake_case, so we use the first
+    // candidate from the field map (which is now the Fivetran name).
+    const orderCandidates = this.fieldMap["createdDate"] || ["created_date"];
+    const orderCol = orderCandidates[0];
+    const limit = this.config.limit || 500;
 
     if (this.config.sinceDate) {
-      const dateCol = orderCol;
       return {
-        query: `SELECT * FROM ${fullTable} WHERE ${dateCol} >= @sinceDate ORDER BY ${orderCol} DESC`,
+        query: `SELECT * FROM ${fullTable} WHERE ${orderCol} >= @sinceDate ORDER BY ${orderCol} DESC LIMIT ${limit}`,
         params: { sinceDate: this.config.sinceDate },
       };
     }
 
     return {
-      query: `SELECT * FROM ${fullTable} ORDER BY ${orderCol} DESC`,
+      query: `SELECT * FROM ${fullTable} ORDER BY ${orderCol} DESC LIMIT ${limit}`,
       params: {},
     };
   }
 
-  /**
-   * Resolves the first matching column name from the field map
-   * against the actual row data (for query building, uses first candidate)
-   */
-  private resolveColumn(fieldName: string): string | undefined {
-    const candidates = this.fieldMap[fieldName];
-    return candidates?.[0];
-  }
 
   /**
    * Gets a string value from a BigQuery row, trying multiple column name candidates
@@ -314,9 +330,14 @@ export class BigQuerySource {
     // Priority 1: Explicit Territory_Region column
     const territoryRegion = this.getString(row, "territoryRegion").toUpperCase();
     if (territoryRegion) {
-      if (territoryRegion.includes("APAC") || territoryRegion.includes("ASIA") || territoryRegion.includes("PACIFIC")) return "APAC";
-      if (territoryRegion.includes("EMEA") || territoryRegion.includes("EUROPE")) return "EMEA";
-      if (territoryRegion.includes("NAMER") || territoryRegion.includes("NORTH AMERICA") || territoryRegion.includes("NA")) return "NAMER";
+      // Simpro-specific region values (from BigQuery sales_region column)
+      if (territoryRegion === "SIMPRO ANZ" || territoryRegion.includes("ANZ")) return "ANZ";
+      if (territoryRegion === "SIMPRO EU" || territoryRegion === "SIMPRO UK" || territoryRegion.endsWith(" EU") || territoryRegion.endsWith(" UK")) return "UK";
+      if (territoryRegion === "SIMPRO NA" || territoryRegion.endsWith(" NA")) return "NAMER";
+      // Generic region values
+      if (territoryRegion.includes("APAC") || territoryRegion.includes("ASIA") || territoryRegion.includes("PACIFIC")) return "ANZ";
+      if (territoryRegion.includes("EMEA") || territoryRegion.includes("EUROPE")) return "UK";
+      if (territoryRegion.includes("NAMER") || territoryRegion.includes("NORTH AMERICA")) return "NAMER";
       if (territoryRegion.includes("LATAM") || territoryRegion.includes("LATIN")) return "LATAM";
       if (["APAC", "EMEA", "NAMER", "LATAM"].includes(territoryRegion)) return territoryRegion;
     }
@@ -440,5 +461,6 @@ export function getBigQueryConfig(): BigQueryConfig {
     dataset,
     table,
     location: process.env.BQ_LOCATION || "US",
+    limit: process.env.BQ_LIMIT ? parseInt(process.env.BQ_LIMIT, 10) : 500,
   };
 }
