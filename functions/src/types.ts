@@ -147,6 +147,7 @@ export interface RegionReport {
     average: number;
     label: "positive" | "neutral" | "negative";
   };
+  stageDistribution: { stage: string; count: number; revenue: number }[];
 }
 
 /**

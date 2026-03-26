@@ -87,15 +87,24 @@ function getLLMConfig(providerOverride?: string): LLMConfig {
     throw new Error(`API key not set for provider "${provider}". Add the secret in Firebase Console.`);
   }
 
-  // Default models per provider when LLM_MODEL env var is not set.
-  const defaultModel =
-    provider === "openai" ? "gpt-4o" :
-    provider === "gemini" ? "gemini-1.5-pro" :
-    "claude-sonnet-4-6";
+  // Per-provider default models. Provider-specific env vars (e.g. GEMINI_MODEL)
+  // take priority, then the generic LLM_MODEL (only if it matches the provider),
+  // then the hardcoded default.
+  const defaultModels: Record<string, string> = {
+    openai: process.env.OPENAI_MODEL || "gpt-4o",
+    gemini: process.env.GEMINI_MODEL || "gemini-3.1-pro-preview",
+    claude: process.env.CLAUDE_MODEL || "claude-sonnet-4-6",
+  };
+
+  // Only use the generic LLM_MODEL if no provider override was requested
+  // (i.e., it's the default provider from env, not a per-upload selection)
+  const model = providerOverride
+    ? defaultModels[provider] || "gemini-3.1-pro-preview"
+    : process.env.LLM_MODEL || defaultModels[provider] || "claude-sonnet-4-6";
 
   return {
     provider: provider as "claude" | "gemini" | "openai",
-    model: process.env.LLM_MODEL || defaultModel,
+    model,
     apiKey,
     temperature: parseFloat(process.env.LLM_TEMPERATURE || "0.3"),
     maxTokens: parseInt(process.env.LLM_MAX_TOKENS || "2000", 10),
@@ -126,8 +135,7 @@ function createExecutionContext(jobType: ExecutionContext["jobType"], sourceFile
  * Trigger: gs://project-prism-uploads/
  */
 export const onCSVUpload = onObjectFinalized(
-  { bucket: "project-prism-489108-a9e2b.firebasestorage.app", region: "us-east1", timeoutSeconds: 540, memory: "1GiB", secrets: ["ANTHROPIC_API_KEY"] },
-  // TODO: add "OPENAI_API_KEY", "GEMINI_API_KEY" to secrets array once those keys are created in Firebase Secret Manager via: firebase functions:secrets:set OPENAI_API_KEY
+  { bucket: "project-prism-489108-a9e2b.firebasestorage.app", region: "us-east1", timeoutSeconds: 540, memory: "1GiB", secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] },
   async (event) => {
     const filePath = event.data.name;
     const bucketName = event.data.bucket;
@@ -175,6 +183,12 @@ export const onCSVUpload = onObjectFinalized(
       // Add funnel stages from CSV data
       report.funnelStages = funnelStages;
 
+      // Compute per-region funnel stages
+      for (const [regionKey, regionReport] of Object.entries(report.regions)) {
+        const regionRecords = records.filter(r => r.region === regionKey);
+        regionReport.stageDistribution = CSVParser.calculateFunnel(regionRecords);
+      }
+
       // Transform for frontend consumption (without LLM enrichment first)
       const transformed = ReportTransformer.transform(report);
 
@@ -196,13 +210,14 @@ export const onCSVUpload = onObjectFinalized(
 
       // Try LLM enrichment as a follow-up (portfolio analysis, recommendations)
       try {
-        let enrichedReport = await Aggregator.enrichWithLLM(report, getLLMConfig());
+        const llmConfig = getLLMConfig(selectedProvider);
+        let enrichedReport = await Aggregator.enrichWithLLM(report, llmConfig);
         console.log(
           `[${context.executionId}] Phase 2 enrichment complete: Portfolio Analysis`
         );
 
         // Phase 3–5: Twenty Questions, Competitive Displacement, Delta Intelligence
-        enrichedReport = await runAdvancedEnrichment(enrichedReport, getLLMConfig(), context.executionId);
+        enrichedReport = await runAdvancedEnrichment(enrichedReport, llmConfig, context.executionId);
 
         enrichedReport.funnelStages = funnelStages;
         const enrichedTransformed = ReportTransformer.transform(enrichedReport);
@@ -245,7 +260,7 @@ export const onCSVUpload = onObjectFinalized(
  * Trigger: Every Monday at 6:00 AM UTC
  */
 export const runWeeklyAnalysis = onSchedule(
-  { schedule: "0 6 */3 * *", timeZone: "UTC", secrets: ["ANTHROPIC_API_KEY"] },
+  { schedule: "0 6 */3 * *", timeZone: "UTC", timeoutSeconds: 1800, memory: "2GiB", secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] },
   async () => {
     const context = createExecutionContext("scheduled-bigquery", "bigquery");
     console.log(`[${context.executionId}] Scheduled BigQuery analysis started`);
@@ -277,6 +292,12 @@ export const runWeeklyAnalysis = onSchedule(
       const report = await runAnalysisPipeline(records, context, getLLMConfig());
       report.funnelStages = funnelStages;
 
+      // Compute per-region funnel stages
+      for (const [regionKey, regionReport] of Object.entries(report.regions)) {
+        const regionRecords = records.filter(r => r.region === regionKey);
+        regionReport.stageDistribution = CSVParser.calculateFunnel(regionRecords);
+      }
+
       // Transform and store (merge:true preserves existing data during enrichment gap)
       const transformed = ReportTransformer.transform(report);
       const reportDate = new Date().toISOString().split("T")[0];
@@ -293,18 +314,19 @@ export const runWeeklyAnalysis = onSchedule(
         `[${context.executionId}] Report stored: ${report.reportId}`
       );
 
-      // Try LLM enrichment (non-fatal)
+      // Try LLM enrichment (non-fatal) — use same provider as Phase 1
+      const scheduledLlmConfig = getLLMConfig();
       try {
         let enrichedReport = await Aggregator.enrichWithLLM(
           report,
-          getLLMConfig()
+          scheduledLlmConfig
         );
         console.log(
           `[${context.executionId}] Phase 2 enrichment complete: Portfolio Analysis`
         );
 
         // Phase 3–5: Twenty Questions, Competitive Displacement, Delta Intelligence
-        enrichedReport = await runAdvancedEnrichment(enrichedReport, getLLMConfig(), context.executionId);
+        enrichedReport = await runAdvancedEnrichment(enrichedReport, scheduledLlmConfig, context.executionId);
 
         enrichedReport.funnelStages = funnelStages;
         const enrichedTransformed = ReportTransformer.transform(enrichedReport);
@@ -345,7 +367,7 @@ export const runWeeklyAnalysis = onSchedule(
  * HTTP function: Returns the latest aggregated report
  * GET /getReport
  */
-export const getReport = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (req, res) => {
+export const getReport = onRequest({ secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] }, async (req, res) => {
   if (!await requireAuth(req, res)) return;
   try {
     // Get today's date
@@ -386,7 +408,7 @@ export const getReport = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (re
  * HTTP function: Returns report history (last 10 reports)
  * GET /getReportHistory
  */
-export const getReportHistory = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (req, res) => {
+export const getReportHistory = onRequest({ secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] }, async (req, res) => {
   if (!await requireAuth(req, res)) return;
   try {
     const snapshot = await db
@@ -415,7 +437,7 @@ export const getReportHistory = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, as
  * HTTP function: Accepts CSV file upload via multipart form
  * POST /uploadCSV
  */
-export const uploadCSV = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (req, res) => {
+export const uploadCSV = onRequest({ secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] }, async (req, res) => {
   if (!await requireAuth(req, res)) return;
   try {
     if (req.method !== "POST") {
@@ -477,7 +499,7 @@ export const uploadCSV = onRequest({ secrets: ["ANTHROPIC_API_KEY"] }, async (re
  * Optional body: { sinceDate: "2026-02-18" } for incremental pulls
  */
 export const fetchFromBigQuery = onRequest(
-  { timeoutSeconds: 3600, memory: "1GiB", secrets: ["ANTHROPIC_API_KEY"] },
+  { timeoutSeconds: 3600, memory: "1GiB", secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] },
   async (req, res) => {
     if (!await requireAuth(req, res)) return;
     try {
@@ -523,6 +545,12 @@ export const fetchFromBigQuery = onRequest(
       const report = await runAnalysisPipeline(records, context, getLLMConfig());
       report.funnelStages = funnelStages;
 
+      // Compute per-region funnel stages
+      for (const [regionKey, regionReport] of Object.entries(report.regions)) {
+        const regionRecords = records.filter(r => r.region === regionKey);
+        regionReport.stageDistribution = CSVParser.calculateFunnel(regionRecords);
+      }
+
       // Transform and store (merge:true preserves existing executiveBriefing during Phase 2 gap)
       const transformed = ReportTransformer.transform(report);
       const reportDate = new Date().toISOString().split("T")[0];
@@ -539,18 +567,19 @@ export const fetchFromBigQuery = onRequest(
         `[${context.executionId}] Report stored: ${report.reportId}`
       );
 
-      // Try LLM enrichment (non-fatal)
+      // Try LLM enrichment (non-fatal) — use same provider as Phase 1
+      const bqLlmConfig = getLLMConfig();
       try {
         let enrichedReport = await Aggregator.enrichWithLLM(
           report,
-          getLLMConfig()
+          bqLlmConfig
         );
         console.log(
           `[${context.executionId}] Phase 2 enrichment complete: Portfolio Analysis`
         );
 
         // Phase 3–5: Twenty Questions, Competitive Displacement, Delta Intelligence
-        enrichedReport = await runAdvancedEnrichment(enrichedReport, getLLMConfig(), context.executionId);
+        enrichedReport = await runAdvancedEnrichment(enrichedReport, bqLlmConfig, context.executionId);
 
         enrichedReport.funnelStages = funnelStages;
         const enrichedTransformed = ReportTransformer.transform(enrichedReport);

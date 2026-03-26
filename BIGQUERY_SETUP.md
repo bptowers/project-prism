@@ -12,7 +12,7 @@ This guide walks you through connecting Project Prism to a BigQuery data source 
 
 ### What Is Already Built (No Code Changes Needed)
 
-- `fetchFromBigQuery` Cloud Function — fully implemented in `functions/src/index.ts` (lines 459–567)
+- `fetchFromBigQuery` Cloud Function — fully implemented in `functions/src/index.ts`
 - `BigQuerySource` class — fully implemented in `functions/src/pipeline/bigquerySource.ts` (445 lines)
 - `@google-cloud/bigquery` npm dependency — already in `functions/package.json`
 - `/api/bigquery` rewrite — already configured in `firebase.json`
@@ -20,9 +20,9 @@ This guide walks you through connecting Project Prism to a BigQuery data source 
 
 ### What You Need to Do
 
-1. Get 3 values from Babatunde: GCP project ID, dataset name, table name
-2. Add those values to `functions/.env`
-3. Ask Babatunde to run one IAM command on his GCP project
+1. ~~Get 3 values from Babatunde~~ — **Done** (see Step 1)
+2. ~~Add those values to `functions/.env`~~ — **Done** (see Step 2)
+3. **Waiting:** IT team grants IAM access on `edw-simprogroup-propagation` (see Step 3)
 4. Rebuild and redeploy the Cloud Functions
 5. Test the connection
 
@@ -54,17 +54,16 @@ Verify the CSV pipeline is still working before adding BigQuery. Last known good
 
 ---
 
-## Step 1: Get Three Values from Babatunde
+## Step 1: BigQuery Source Details (Confirmed)
 
-You need exactly three pieces of information from the data team:
+These values were confirmed by Babatunde (18 March 2026):
 
-| Value | What It Is | Example |
-|-------|-----------|---------|
-| **GCP Project ID** | The Google Cloud project where Salesforce data sits in BigQuery. **NOT** your Firebase project ID. | `simpro-data-warehouse-prod` |
-| **Dataset Name** | The BigQuery dataset (like a folder) containing the Salesforce opportunity table. | `salesforce_raw` |
-| **Table Name** | The specific table with opportunity records. | `opportunities` |
-
-**These are case-sensitive.** Write them down exactly as Babatunde gives them.
+| Value | Confirmed Value |
+|-------|----------------|
+| **GCP Project ID** | `edw-simprogroup-propagation` |
+| **Dataset Name** | `SF_Simpro` |
+| **Table Name** | `sf_opportunity` |
+| **Location** | `US` |
 
 ### Column Names
 
@@ -98,10 +97,13 @@ LLM_MODEL=claude-sonnet-4-6
 LLM_TEMPERATURE=0.3
 LLM_MAX_TOKENS=10000
 
-# BigQuery Data Source (values from data team)
-BQ_PROJECT_ID=simpro-data-warehouse-prod
-BQ_DATASET=salesforce_raw
-BQ_TABLE=opportunities
+# API keys for Gemini and OpenAI are in Firebase Secret Manager (not here).
+# Secret Manager keys are set via: firebase functions:secrets:set GEMINI_API_KEY
+
+# BigQuery Data Source (values from Baba / data team)
+BQ_PROJECT_ID=edw-simprogroup-propagation
+BQ_DATASET=SF_Simpro
+BQ_TABLE=sf_opportunity
 BQ_LOCATION=US
 ```
 
@@ -112,40 +114,50 @@ Default is `US`. If Babatunde says the data is in a different region (e.g., `aus
 
 ---
 
-## Step 3: Ask Babatunde to Grant IAM Access
+## Step 3: IAM Access Grant (via IT Team)
 
-Your Cloud Functions run as this service account:
+Your Cloud Functions v2 run on Cloud Run, which uses the **Compute Engine default service account** (not the App Engine service account):
 ```
-project-prism-489108-a9e2b@appspot.gserviceaccount.com
+898431129113-compute@developer.gserviceaccount.com
 ```
 
-### What Babatunde needs to run
+> **Important:** Firebase Cloud Functions v2 is an abstraction of Cloud Run. Cloud Run uses the Compute Engine default service account, NOT the App Engine service account (`project-prism-489108-a9e2b@appspot.gserviceaccount.com`). Granting IAM to the wrong service account was the root cause of the original "Access Denied" errors (resolved 16 March 2026).
 
-One command, replacing `<his-project-id>` with the GCP Project ID from Step 1:
+### What IT / the data team needs to run
+
+Two commands on the `edw-simprogroup-propagation` project:
 
 ```bash
-gcloud projects add-iam-policy-binding <his-project-id> \
-  --member="serviceAccount:project-prism-489108-a9e2b@appspot.gserviceaccount.com" \
+# Grant read access to BigQuery tables/views
+gcloud projects add-iam-policy-binding edw-simprogroup-propagation \
+  --member="serviceAccount:898431129113-compute@developer.gserviceaccount.com" \
   --role="roles/bigquery.dataViewer"
+
+# Grant ability to run query jobs (jobs execute in Firebase project, but this role
+# is also needed on the data project for cross-project reads)
+gcloud projects add-iam-policy-binding edw-simprogroup-propagation \
+  --member="serviceAccount:898431129113-compute@developer.gserviceaccount.com" \
+  --role="roles/bigquery.jobUser"
 ```
 
 ### What this does
 - `roles/bigquery.dataViewer` is **read-only** — can query tables, cannot modify/delete anything
+- `roles/bigquery.jobUser` allows running query jobs
 - Grants access to all datasets in that project (can be scoped to a single dataset if needed)
 - Standard IAM grant, can be revoked at any time
 
 ### Alternative: Google Cloud Console UI
-1. Go to `console.cloud.google.com`, select his project
+1. Go to `console.cloud.google.com`, select `edw-simprogroup-propagation`
 2. IAM & Admin → IAM → click **+ GRANT ACCESS**
-3. New principals: `project-prism-489108-a9e2b@appspot.gserviceaccount.com`
-4. Role: search for **BigQuery Data Viewer**, select it
+3. New principals: `898431129113-compute@developer.gserviceaccount.com`
+4. Roles: **BigQuery Data Viewer** and **BigQuery Job User**
 5. Click **Save**
 
 ### Verify access was granted
 ```bash
-gcloud projects get-iam-policy <his-project-id> \
+gcloud projects get-iam-policy edw-simprogroup-propagation \
   --flatten="bindings[].members" \
-  --filter="bindings.members:project-prism-489108-a9e2b@appspot.gserviceaccount.com"
+  --filter="bindings.members:898431129113-compute@developer.gserviceaccount.com"
 ```
 Should show `roles/bigquery.dataViewer`.
 
@@ -165,11 +177,26 @@ cd .. && firebase deploy --only functions   # Deploy (1-2 minutes)
 
 ## Step 5: Test the BigQuery Connection
 
-### 5.1 — Get an auth token
-```bash
-gcloud auth print-identity-token
+### 5.1 — Get a Firebase ID token
+
+The HTTP endpoints use Firebase Auth (`admin.auth().verifyIdToken()`), **not** a gcloud identity token. You need a Firebase ID token from the frontend app or a script.
+
+**Option A — From the browser console (easiest):**
+1. Open the Project Prism dashboard in your browser
+2. Open DevTools → Console
+3. Run:
+```javascript
+const { getAuth } = await import('firebase/auth');
+const auth = getAuth();
+const token = await auth.currentUser.getIdToken();
+console.log(token);
 ```
-Copies a long JWT string. **Expires in ~1 hour** — regenerate if needed.
+4. Copy the token output.
+
+**Option B — From the Firebase emulator (local testing):**
+When running locally with emulators, the frontend auto-connects to the Auth emulator. Sign in via the dashboard, then grab the token from the console as above.
+
+> **Note:** `gcloud auth print-identity-token` produces a Google identity token, which is a different token type and will always fail with `403 Forbidden` on these endpoints.
 
 ### 5.2 — Full pull (all records)
 ```bash
@@ -221,9 +248,9 @@ Look for `[exec_...]` prefixed lines.
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `BigQuery configuration missing` | BQ_ env vars not set or not deployed | Check `functions/.env`, rebuild and redeploy (Step 4) |
-| `403 Access Denied` from BigQuery | IAM grant missing | Confirm Babatunde ran the command from Step 3 |
-| `404 Not found: Table` | Wrong project/dataset/table name | Ask Babatunde to double-check the identifiers |
-| `401 Unauthorized` on HTTP request | Auth token expired or invalid | Run `gcloud auth print-identity-token` for a fresh token |
+| `403 Access Denied` from BigQuery | IAM grant missing | Confirm IT team ran the commands from Step 3 |
+| `404 Not found: Table` | Wrong project/dataset/table name | Verify against confirmed values in Step 1 |
+| `401 Unauthorized` on HTTP request | Auth token expired or invalid | Get a fresh Firebase ID token from the dashboard (see Step 5.1). Do NOT use `gcloud auth print-identity-token` |
 | `401` from Claude API during analysis | ANTHROPIC_API_KEY invalid | Run `firebase functions:secrets:access ANTHROPIC_API_KEY` to check |
 | `DEADLINE_EXCEEDED` | Too many records for the timeout | Use `sinceDate` to pull fewer records |
 | curl returns nothing (hangs) | Function still running | Wait 7–15 min for large datasets; check logs if >20 min |
@@ -280,7 +307,7 @@ The cron expression is `0 6 */3 * *`, configured via Google Cloud Scheduler (man
 3. `BigQuerySource.fetchRecords()` pulls all records from BigQuery (full pull, no date filter)
 4. Records go through the same pipeline: validate → LLM analysis (parallel batches) → aggregate
 5. Base report is stored to Firestore with `dataSource: "bigquery"`
-6. Phase 2 LLM enrichment runs (executive briefing, recommendations) — non-fatal if it fails
+6. Phases 2-5 LLM enrichment runs (executive briefing, recommendations, competitive displacement, delta intelligence) — non-fatal if any phase fails
 7. Dashboard updates automatically via real-time Firestore listener
 
 ### Changing the Schedule
@@ -289,7 +316,7 @@ To change the frequency, edit the cron expression in `functions/src/index.ts` on
 
 ```typescript
 export const runWeeklyAnalysis = onSchedule(
-  { schedule: "0 6 */3 * *", timeZone: "UTC", secrets: ["ANTHROPIC_API_KEY"] },
+  { schedule: "0 6 */3 * *", timeZone: "UTC", secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] },
 ```
 
 Common alternatives:
@@ -337,18 +364,18 @@ Failed runs are logged with `status: "failed"` in the `executions` Firestore col
 # Build and deploy
 cd functions && npm run build && cd .. && firebase deploy --only functions
 
-# Get auth token
-gcloud auth print-identity-token
+# Get auth token (from browser console on the Prism dashboard — see Step 5.1)
+# Do NOT use: gcloud auth print-identity-token (wrong token type)
 
 # Full BigQuery pull
 curl -X POST https://project-prism-489108-a9e2b.web.app/api/bigquery \
-  -H "Authorization: Bearer <TOKEN>" \
+  -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{}'
 
 # Incremental pull
 curl -X POST https://project-prism-489108-a9e2b.web.app/api/bigquery \
-  -H "Authorization: Bearer <TOKEN>" \
+  -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"sinceDate": "2026-03-01"}'
 
@@ -361,7 +388,7 @@ curl -X POST https://project-prism-489108-a9e2b.web.app/api/bigquery \
 | BigQuery fetch | 10–30 seconds |
 | LLM analysis (parallel) | 5–10 min for ~100 records |
 | Report storage | < 30 seconds |
-| Phase 2 enrichment | 1–2 minutes |
+| Phases 2-5 enrichment | 2–5 minutes |
 | **Total end-to-end** | **7–15 min for ~100 records** |
 
 ## Automated Schedule

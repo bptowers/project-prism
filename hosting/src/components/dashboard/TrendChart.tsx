@@ -7,14 +7,13 @@ interface Props { trendData: TrendData; }
 
 export const TrendChart: React.FC<Props> = ({ trendData }) => {
   const svg = useMemo(() => {
-    // Defensive fallbacks: old Firestore reports may have `anz` instead of `au`/`nz`
+    // Defensive fallback: old Firestore reports may have `anz` instead of `au`
     const td = trendData as TrendData & { anz?: number[] };
     const auVals: number[] = td.au?.length ? td.au : (td.anz ?? []);
-    const nzVals: number[] = td.nz?.length ? td.nz : [];
 
     const w = 900, h = 180, padL = 45, padR = 20, padT = 20, padB = 35;
     const chartW = w - padL - padR, chartH = h - padT - padB;
-    const allVals = [...trendData.all, ...trendData.na, ...trendData.uk, ...auVals, ...nzVals];
+    const allVals = [...trendData.all, ...trendData.na, ...trendData.uk, ...auVals];
     if (allVals.length === 0) return { viewBox: `0 0 ${w} ${h}`, content: '' };
 
     const minV = Math.min(...allVals) - 3, maxV = Math.max(...allVals) + 3;
@@ -40,7 +39,6 @@ export const TrendChart: React.FC<Props> = ({ trendData }) => {
       { key: 'na', vals: trendData.na, color: 'var(--prism-blue)' },
       { key: 'uk', vals: trendData.uk, color: 'var(--prism-green)' },
       { key: 'au', vals: auVals, color: 'var(--prism-amber)' },
-      { key: 'nz', vals: nzVals, color: 'var(--prism-red)' },
     ];
 
     let svgContent = `<defs><linearGradient id="tG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--accent)" stop-opacity="0.2"/><stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>`;
@@ -83,8 +81,7 @@ export const TrendChart: React.FC<Props> = ({ trendData }) => {
             { label: 'All Regions', color: 'var(--accent)',       dash: false },
             { label: 'North America', color: 'var(--prism-blue)', dash: true  },
             { label: 'UK',            color: 'var(--prism-green)', dash: true  },
-            { label: 'Australia',     color: 'var(--prism-amber)', dash: true  },
-            { label: 'New Zealand',   color: 'var(--prism-red)',   dash: true  },
+            { label: 'AU / NZ',       color: 'var(--prism-amber)', dash: true  },
           ].map(item => (
             <span key={item.label} style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: item.color, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 20, height: item.dash ? 0 : 2, background: item.dash ? 'none' : item.color, borderTop: item.dash ? `2px dashed ${item.color}` : 'none', display: 'inline-block' }} />

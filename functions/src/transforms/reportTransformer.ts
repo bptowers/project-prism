@@ -72,7 +72,6 @@ interface TrendData {
   na: number[];
   uk: number[];
   au: number[];
-  nz: number[];
 }
 
 interface RegionData {
@@ -203,7 +202,7 @@ export class ReportTransformer {
           id: riskId++,
           region: regionReport.region,
           level: deal.riskLevel.toUpperCase() as "HIGH" | "MEDIUM",
-          value: "—",
+          value: deal.opportunityName || deal.opportunityId || "—",
           confidence: 80,
           summary: deal.summary,
           action: deal.signals.length > 0 ? deal.signals[0] : "Review deal",
@@ -243,7 +242,8 @@ export class ReportTransformer {
       na: [0],
       uk: [0],
       au: [0],
-      nz: [0],
+
+
     };
 
     // Placeholder sparklines
@@ -310,7 +310,12 @@ export class ReportTransformer {
       },
     };
 
-    const funnel: FunnelStage[] = [];
+    const funnel: FunnelStage[] = (region.stageDistribution || []).map((s, i) => ({
+      stage: s.stage,
+      count: s.count,
+      revenue: formatCurrency(s.revenue),
+      color: FUNNEL_COLORS[i % FUNNEL_COLORS.length],
+    }));
 
     const winThemes: ThemeItem[] = region.topWinThemes.map((t) => ({
       label: t.theme,
@@ -362,7 +367,8 @@ export class ReportTransformer {
       na: [0],
       uk: [0],
       au: [0],
-      nz: [0],
+
+
     };
 
     const sparklines: Record<string, number[]> = {
@@ -392,14 +398,12 @@ export class ReportTransformer {
     const lower = key.toLowerCase().trim();
     // North America
     if (lower === "na" || lower === "us" || lower.includes("north america") || lower.includes("namer")) return "na";
-    // United Kingdom
-    if (lower === "uk" || lower === "gb" || lower.includes("united kingdom") || lower.includes("britain")) return "uk";
-    // Australia — kept separate from NZ
-    if (lower === "au" || lower === "aus" || lower.includes("australia")) return "au";
-    // New Zealand — kept separate from AU
-    if (lower === "nz" || lower.includes("new zealand")) return "nz";
-    // Legacy combined ANZ key — split into au (default) but flag it
-    if (lower === "anz") return "au";
+    // United Kingdom (includes EMEA/EU — Simpro UK is the only EMEA region)
+    if (lower === "uk" || lower === "gb" || lower.includes("united kingdom") || lower.includes("britain") || lower.includes("emea") || lower === "eu") return "uk";
+    // AU / NZ combined (Simpro ANZ is a single region)
+    if (lower === "au" || lower === "aus" || lower.includes("australia") ||
+        lower === "nz" || lower.includes("new zealand") ||
+        lower === "anz" || lower.includes("apac")) return "au";
     return lower;
   }
 }
