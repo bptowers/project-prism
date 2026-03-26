@@ -478,31 +478,56 @@ export class CSVParser {
   }
 
   /**
+   * Canonical Simpro sales stages shown in the funnel, always in this order.
+   * Every region always shows all of these — counts may be zero.
+   */
+  static readonly CANONICAL_STAGES = [
+    "Discovery",
+    "Validation",
+    "Solution Review & Quote",
+    "Commitment",
+    "Closed Won",
+    "Closed Lost",
+  ];
+
+  /**
    * Simpro sales stage order — used to sort funnel output.
-   * "Contract Review" is mapped to the same position as "Commitment"
-   * since some Salesforce instances use the older label.
    */
   static readonly STAGE_ORDER: Record<string, number> = {
     "Discovery": 1,
     "Validation": 2,
     "Solution Review & Quote": 3,
     "Commitment": 4,
-    "Contract Review": 4, // Legacy SF label — same as Commitment
     "Closed Won": 5,
     "Closed Lost": 6,
   };
 
   /**
+   * Known non-standard stage names mapped to their canonical equivalent.
+   */
+  static readonly STAGE_ALIASES: Record<string, string> = {
+    "Contract Review": "Commitment",
+  };
+
+  /**
    * Calculates funnel stages from parsed records, sorted by Simpro stage order.
-   * Stages not in STAGE_ORDER are appended at the end.
+   * All canonical stages are always included (with count 0 if no deals at that stage),
+   * ensuring consistent labels across all regions when switching tabs.
+   * Non-canonical stages are appended at the end.
    */
   static calculateFunnel(
     records: OpportunityRecord[]
   ): Array<{ stage: string; count: number; revenue: number }> {
+    // Seed all canonical stages at zero so every region shows the same labels
     const stageMap: Record<string, { count: number; revenue: number }> = {};
+    for (const stage of CSVParser.CANONICAL_STAGES) {
+      stageMap[stage] = { count: 0, revenue: 0 };
+    }
 
     for (const record of records) {
-      const stage = record.stage || "Unknown";
+      const rawStage = record.stage || "Unknown";
+      // Normalize known aliases to canonical name
+      const stage = CSVParser.STAGE_ALIASES[rawStage] ?? rawStage;
       if (!stageMap[stage]) {
         stageMap[stage] = { count: 0, revenue: 0 };
       }

@@ -81,6 +81,7 @@ export class GeminiProvider implements ILLMProvider {
             maxOutputTokens: this.config.maxTokens,
             temperature: this.config.temperature,
             topP: this.config.topP || 0.9,
+            responseMimeType: "application/json",
           },
         });
 
@@ -166,6 +167,33 @@ export class GeminiProvider implements ILLMProvider {
   }
 
   /**
+   * Extracts the first complete JSON object from a string using balanced bracket counting.
+   * Handles brackets inside strings correctly. Used as fallback when direct parse fails.
+   */
+  private extractFirstJsonObject(text: string): string | null {
+    const start = text.indexOf("{");
+    if (start === -1) return null;
+
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (escape) { escape = false; continue; }
+      if (ch === "\\" && inString) { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) return text.slice(start, i + 1);
+      }
+    }
+    return null;
+  }
+
+  /**
    * Parses Gemini's JSON response into OpportunityAnalysis structure
    */
   private parseAnalysisResponse(
@@ -173,13 +201,17 @@ export class GeminiProvider implements ILLMProvider {
     opportunityId: string
   ): Partial<OpportunityAnalysis> {
     try {
-      // Extract JSON from response (handle potential markdown formatting)
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error("No JSON found in response");
+      // Try direct parse first (clean path when responseMimeType: "application/json" is set)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let parsed: any;
+      try {
+        parsed = JSON.parse(responseText);
+      } catch {
+        // Fallback: extract the first complete JSON object from the response text
+        const extracted = this.extractFirstJsonObject(responseText);
+        if (!extracted) throw new Error("No JSON found in response");
+        parsed = JSON.parse(extracted);
       }
-
-      const parsed = JSON.parse(jsonMatch[0]);
 
       return {
         opportunityId,
