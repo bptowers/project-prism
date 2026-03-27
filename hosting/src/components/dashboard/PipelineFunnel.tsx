@@ -35,7 +35,7 @@ export const PipelineFunnel: React.FC<Props> = ({ stages }) => {
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0, padding: '0 0.25rem' }}>
                     <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>→</span>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--success)', fontWeight: 500 }}>
-                      {Math.round((stages[idx + 1].count / stage.count) * 100)}%
+                      {stage.count > 0 ? `${Math.round((stages[idx + 1].count / stage.count) * 100)}%` : '—'}
                     </span>
                   </div>
                 )}

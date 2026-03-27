@@ -198,7 +198,7 @@ export const onCSVUpload = onObjectFinalized(
       const reportDate = new Date().toISOString().split("T")[0];
       const reportRef = db.collection("reports").doc(reportDate);
       await reportRef.set({
-        ...report,
+        ...trimReportForStorage(report),
         transformed,
         reportDate: report.reportDate,
         createdAt: FieldValue.serverTimestamp(),
@@ -222,7 +222,7 @@ export const onCSVUpload = onObjectFinalized(
         enrichedReport.funnelStages = funnelStages;
         const enrichedTransformed = ReportTransformer.transform(enrichedReport);
         await reportRef.update({
-          ...enrichedReport,
+          ...trimReportForStorage(enrichedReport),
           transformed: enrichedTransformed,
           enrichedAt: FieldValue.serverTimestamp(),
         });
@@ -303,7 +303,7 @@ export const runWeeklyAnalysis = onSchedule(
       const reportDate = new Date().toISOString().split("T")[0];
       const reportRef = db.collection("reports").doc(reportDate);
       await reportRef.set({
-        ...report,
+        ...trimReportForStorage(report),
         transformed,
         reportDate: report.reportDate,
         createdAt: FieldValue.serverTimestamp(),
@@ -331,7 +331,7 @@ export const runWeeklyAnalysis = onSchedule(
         enrichedReport.funnelStages = funnelStages;
         const enrichedTransformed = ReportTransformer.transform(enrichedReport);
         await reportRef.update({
-          ...enrichedReport,
+          ...trimReportForStorage(enrichedReport),
           transformed: enrichedTransformed,
           enrichedAt: FieldValue.serverTimestamp(),
         });
@@ -556,7 +556,7 @@ export const fetchFromBigQuery = onRequest(
       const reportDate = new Date().toISOString().split("T")[0];
       const reportRef = db.collection("reports").doc(reportDate);
       await reportRef.set({
-        ...report,
+        ...trimReportForStorage(report),
         transformed,
         reportDate: report.reportDate,
         createdAt: FieldValue.serverTimestamp(),
@@ -584,7 +584,7 @@ export const fetchFromBigQuery = onRequest(
         enrichedReport.funnelStages = funnelStages;
         const enrichedTransformed = ReportTransformer.transform(enrichedReport);
         await reportRef.update({
-          ...enrichedReport,
+          ...trimReportForStorage(enrichedReport),
           transformed: enrichedTransformed,
           enrichedAt: FieldValue.serverTimestamp(),
         });
@@ -616,6 +616,40 @@ export const fetchFromBigQuery = onRequest(
     }
   }
 );
+
+/**
+ * Trims unbounded arrays before writing to Firestore.
+ * Firestore has a hard 1 MiB document limit. At 2,000+ records, examples[] and
+ * contexts[] arrays grow without bound. This caps them at safe limits while
+ * preserving all summary data the dashboard needs.
+ */
+function trimReportForStorage(report: AggregatedReport): AggregatedReport {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const r = JSON.parse(JSON.stringify(report)) as AggregatedReport;
+
+  const trimThemes = (themes: AggregatedReport["global"]["topWinThemes"]) =>
+    themes.map(t => ({ ...t, examples: (t.examples || []).slice(0, 5) }));
+
+  const trimCompetitors = (competitors: AggregatedReport["global"]["topCompetitors"]) =>
+    competitors.map(c => ({ ...c, contexts: (c.contexts || []).slice(0, 5) }));
+
+  r.global.topWinThemes = trimThemes(r.global.topWinThemes);
+  r.global.topLossThemes = trimThemes(r.global.topLossThemes);
+  r.global.topCompetitors = trimCompetitors(r.global.topCompetitors);
+  r.global.emergingMarketSignals = (r.global.emergingMarketSignals || []).slice(0, 20);
+
+  for (const region of Object.values(r.regions)) {
+    region.topWinThemes = trimThemes(region.topWinThemes);
+    region.topLossThemes = trimThemes(region.topLossThemes);
+    region.competitorActivity = trimCompetitors(region.competitorActivity);
+    region.marketSignals = (region.marketSignals || []).slice(0, 20);
+    region.atRiskDeals = (region.atRiskDeals || [])
+      .slice(0, 50)
+      .map(d => ({ ...d, signals: (d.signals || []).slice(0, 10) }));
+  }
+
+  return r;
+}
 
 /**
  * Fetches the most recent previous report from Firestore for delta intelligence.
@@ -715,18 +749,22 @@ async function runAnalysisPipeline(
     `[${context.executionId}] Analysis complete: ${analyses.length} successful analyses`
   );
 
-  // Step 3: Store individual analyses
-  const batch = db.batch();
-  for (const analysis of analyses) {
-    const docRef = db
-      .collection("analyses")
-      .doc(context.executionId)
-      .collection("opportunities")
-      .doc(analysis.opportunityId);
-
-    batch.set(docRef, analysis);
+  // Step 3: Store individual analyses in chunks (Firestore hard limit: 500 ops/batch)
+  const FIRESTORE_BATCH_SIZE = 400; // safe buffer below the 500 limit
+  for (let i = 0; i < analyses.length; i += FIRESTORE_BATCH_SIZE) {
+    const chunk = analyses.slice(i, i + FIRESTORE_BATCH_SIZE);
+    const batch = db.batch();
+    for (const analysis of chunk) {
+      const docRef = db
+        .collection("analyses")
+        .doc(context.executionId)
+        .collection("opportunities")
+        .doc(analysis.opportunityId);
+      batch.set(docRef, analysis);
+    }
+    await batch.commit();
+    console.log(`[${context.executionId}] Stored analyses chunk ${Math.floor(i / FIRESTORE_BATCH_SIZE) + 1}/${Math.ceil(analyses.length / FIRESTORE_BATCH_SIZE)} (${chunk.length} records)`);
   }
-  await batch.commit();
 
   console.log(`[${context.executionId}] Stored ${analyses.length} individual analyses`);
 
