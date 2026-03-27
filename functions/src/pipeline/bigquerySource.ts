@@ -187,15 +187,19 @@ export class BigQuerySource {
     const orderCol = orderCandidates[0];
     const limit = this.config.limit || 500;
 
+    // Relevance filter: all open pipeline + closed deals since 2024.
+    // Prevents stale ancient closed deals from consuming LLM capacity.
+    const relevanceFilter = `(is_closed = FALSE OR close_date >= '2024-01-01')`;
+
     if (this.config.sinceDate) {
       return {
-        query: `SELECT * FROM ${fullTable} WHERE ${orderCol} >= @sinceDate ORDER BY ${orderCol} DESC LIMIT ${limit}`,
+        query: `SELECT * FROM ${fullTable} WHERE ${relevanceFilter} AND ${orderCol} >= @sinceDate ORDER BY ${orderCol} DESC LIMIT ${limit}`,
         params: { sinceDate: this.config.sinceDate },
       };
     }
 
     return {
-      query: `SELECT * FROM ${fullTable} ORDER BY ${orderCol} DESC LIMIT ${limit}`,
+      query: `SELECT * FROM ${fullTable} WHERE ${relevanceFilter} ORDER BY ${orderCol} DESC LIMIT ${limit}`,
       params: {},
     };
   }
