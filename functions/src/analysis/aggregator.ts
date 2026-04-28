@@ -199,14 +199,15 @@ export class Aggregator {
    */
   private static extractAndRankThemes(
     analyses: OpportunityAnalysis[],
-    type: "win" | "loss" | "neutral",
+    _type: "win" | "loss" | "neutral",
     limit: number = 8
   ): ThemeCount[] {
     const themeCounts: Record<string, { count: number; examples: string[] }> =
       {};
 
     for (const analysis of analyses) {
-      const themes = analysis.themes[type] || [];
+      // themes field removed — only active deals analyzed, win/loss theme extraction unused
+      const themes: string[] = [];
       for (const theme of themes) {
         if (!themeCounts[theme]) {
           themeCounts[theme] = { count: 0, examples: [] };

@@ -95,7 +95,7 @@ export interface CompetitorActivity {
 }
 
 /**
- * Analyzed result for a single opportunity
+ * Analyzed result for a single opportunity (in-flight deal health)
  */
 export interface OpportunityAnalysis {
   opportunityId: string;
@@ -105,15 +105,23 @@ export interface OpportunityAnalysis {
   stage: string;
   winLossStatus: "won" | "lost" | "active";
   analysisDate: string;
-  themes: {
-    win: string[];
-    loss: string[];
-    neutral?: string[];
-  };
+  dealHealthScore: number;
+  velocityAssessment: "accelerating" | "on-track" | "slowing" | "stalled";
+  activityHealth: "active" | "cooling" | "dormant" | "dark";
+  stakeholderCoverage: "multi-threaded" | "single-threaded" | "unknown";
+  competitorThreat: "none" | "present" | "active-displacement";
   riskSignals: {
     level: "high" | "medium" | "low" | "none";
     signals: string[];
     summary: string;
+  };
+  narrativeGap: {
+    detected: boolean;
+    description: string;
+  };
+  regionalIntelligence: {
+    matchesRegionalPattern: boolean;
+    deviation: string;
   };
   competitors: {
     mentioned: string[];
@@ -123,6 +131,13 @@ export interface OpportunityAnalysis {
   sentiment: {
     score: number;
     label: "positive" | "neutral" | "negative";
+    basis?: string;
+  };
+  recommendedAction: {
+    priority: "P1" | "P2" | "P3";
+    action: string;
+    owner: "AE" | "Manager" | "Executive" | "CSM";
+    deadline: "Today" | "48 hours" | "This week";
   };
   confidence: number;
   processingTimeMs: number;
