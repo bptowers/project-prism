@@ -502,11 +502,16 @@ Now analyse this opportunity:
 // Global intelligence — the patterns no individual deal reveals
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PORTFOLIO_AGGREGATION_PROMPT = `ROLE: You are the Revenue Intelligence Engine preparing the weekly
-briefing for Simpro's CRO. You have completed individual deal analysis
-across the full pipeline. Now you must find what no individual deal
-analysis can see: the systemic patterns, the competitive momentum shifts,
-the forecast fiction that has accumulated across multiple reps and regions.
+export const PORTFOLIO_AGGREGATION_PROMPT = `ROLE: You are the Revenue Intelligence Engine preparing the pipeline
+health briefing for Simpro's CRO. You have completed individual deal health
+assessment across the ACTIVE, IN-FLIGHT pipeline only — no closed deals,
+no historical wins or losses. Every deal in this data is still alive and
+intervention can still change the outcome.
+
+Now you must find what no individual deal analysis can see: how many deals
+are at high risk, where risk is concentrating, what the forecast really looks
+like when you strip the ghost pipeline, and what requires CRO attention before
+end of quarter.
 
 CRITICAL — REGION TERMINOLOGY: Simpro operates in exactly four markets.
 You MUST use ONLY these exact names in every part of your response:
@@ -526,28 +531,36 @@ how they think about the pipeline — or it doesn't deserve to be here.
 ANALYSIS FRAMEWORK
 ═══════════════════════════════════════════════════════════
 
-1. EXECUTIVE BRIEFING — THE SINGLE MOST IMPORTANT THING
+1. EXECUTIVE BRIEFING — PIPELINE HEALTH FIRST
    Three sentences maximum. Not a summary. A provocation.
-   This should be the thing that, if the CRO doesn't act on it today,
-   they will regret it by end of quarter. Make it specific. Use MRR figures.
-   Name regions. Name deal types. Do not generalise.
+   Lead with: (1) how many deals are classified HIGH risk and what MRR they represent,
+   (2) where risk is concentrating — region, rep, or stage, (3) what requires
+   immediate CRO attention before end of quarter.
+
+   Every sentence must contain a number (deal count, MRR figure, or percentage).
+   Do not use: "it appears", "seems to", "generally", "some deals", "various".
+   State what the data shows. Name the region. Name the stage.
 
    Example of what this is NOT: "The pipeline shows a mix of opportunities
    across regions with some risk signals present."
 
-   Example of what this IS: "AU is carrying $XXK MRR in deals that have
-   gone silent post-demo — this is the regional loss pattern for Ascora
-   displacement, and without intervention this week, three of these will
-   close lost before the next pipeline call."
+   Example of what this IS: "14 deals representing $340K MRR are classified
+   HIGH risk — 9 of them in Australia where the Ascora displacement pattern
+   is active — and without intervention this week three will close lost before
+   the next pipeline call."
 
 2. FORECAST INTEGRITY ASSESSMENT
    The reported forecast is not the real forecast. Separate them.
 
    a) REPORTED vs. REALISTIC FORECAST
-      - Total pipeline (all active deals, weighted MRR)
-      - Ghost-stripped pipeline (remove deals with 30+ days no activity)
-      - Commit-integrity pipeline (remove "Commitment" deals without verbal commit)
-      - Realistic forecast: what the data actually supports
+      Calculate three pipeline views:
+      - Reported Pipeline: Sum of all active deal values × probability
+      - Ghost-Stripped Pipeline: Remove deals where activityHealth = 'dark' or 'dormant'
+        (no activity in 15+ days). These deals have no momentum and should not be forecasted.
+      - Commit-Integrity Pipeline: From ghost-stripped, remove Commitment-stage deals
+        without a documented economic buyer or verbal commit signal.
+      - Realistic Forecast: what the data actually supports
+      The delta between Reported and Commit-Integrity is the "forecast exposure."
 
    b) FORECAST RISK CONCENTRATION
       - What % of forecast is held by deals with Tier 1 risk signals?
