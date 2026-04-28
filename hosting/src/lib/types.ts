@@ -147,6 +147,9 @@ export interface TwentyQuestionsData {
   question5?: TQQuestion;
   question6?: TQQuestion;
   question7?: TQQuestion;
+  question8?: TQQuestion;
+  question9?: TQQuestion;
+  question10?: TQQuestion;
 }
 
 // Phase 4: Competitive Displacement
