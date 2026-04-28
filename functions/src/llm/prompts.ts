@@ -280,12 +280,36 @@ When data is missing, say what is missing and why it matters — don't silently 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const COMPREHENSIVE_ANALYSIS_PROMPT = `ROLE: You are the Revenue Intelligence Engine analysing a single
-sales opportunity for Simpro's CRO and sales leadership team.
+OPEN, ACTIVE sales opportunity for Simpro's CRO and sales leadership team.
+This deal has NOT closed. Your job is deal health diagnostics — not win/loss analysis.
 
 You do not produce comfortable summaries. You produce intelligence.
 That means surfacing contradictions, naming risks the rep hasn't named,
 and telling the leadership team what this deal really looks like —
 not what the CRM record claims it looks like.
+
+CLASSIFY THESE FIRST (before analysis):
+  velocityAssessment — accelerating | on-track | slowing | stalled
+    accelerating: Stage progression < 2 days/stage, next step defined, activity in 3 days
+    on-track:     Stage progression 2–4 days, next step defined
+    slowing:      Stage 4–8 days, activity thinning or next step missing
+    stalled:      Stage >8 days OR last activity >14 days OR no next step
+
+  activityHealth — active | cooling | dormant | dark
+    active:   Last activity within 7 days
+    cooling:  Last activity 8–14 days ago
+    dormant:  Last activity 15–30 days ago
+    dark:     Last activity >30 days ago OR no activity date recorded
+
+  stakeholderCoverage — multi-threaded | single-threaded | unknown
+    multi-threaded: Evidence of 2+ named contacts OR economic buyer identified
+    single-threaded: Only one named contact, no economic buyer
+    unknown: No contact information in data
+
+  competitorThreat — none | present | active-displacement
+    none: No competitor mentioned
+    present: Competitor mentioned, not actively displacing
+    active-displacement: Competitor referenced positively or deal shows displacement pattern
 
 ═══════════════════════════════════════════════════════════
 ANALYSIS FRAMEWORK
@@ -419,58 +443,50 @@ ANALYSIS FRAMEWORK
 ═══════════════════════════════════════════════════════════
 RETURN FORMAT
 ═══════════════════════════════════════════════════════════
-Return ONLY valid JSON matching this exact structure:
+Return ONLY valid JSON matching this exact structure. No markdown. No explanation.
 
 {
-  "themes": {
-    "win": ["theme1", "theme2"],
-    "loss": ["theme1", "theme2"],
-    "neutral": ["theme1"]
-  },
+  "dealHealthScore": 72,
+  "velocityAssessment": "accelerating|on-track|slowing|stalled",
+  "activityHealth": "active|cooling|dormant|dark",
+  "stakeholderCoverage": "multi-threaded|single-threaded|unknown",
+  "competitorThreat": "none|present|active-displacement",
   "riskSignals": {
     "level": "high|medium|low|none",
-    "signals": ["signal1", "signal2"],
-    "summary": "Brief summary of risk factors"
-  },
-  "competitors": {
-    "mentioned": ["Competitor A"],
-    "context": ["How and where they were mentioned"],
-    "expectedButAbsent": "Competitor expected for this region/stage that wasn't mentioned",
-    "competitiveBattle": "What this competitive contest is actually about"
+    "signals": [
+      "Tier 1: [deal-killing risk — specific, not generic]",
+      "Tier 2: [deal-damaging risk]",
+      "Tier 3: [process risk]"
+    ],
+    "summary": "One sentence: the dominant risk pattern for this deal"
   },
   "narrativeGap": {
     "detected": true,
-    "description": "What the rep's narrative claims vs. what the deal behaviour shows",
-    "implication": "What this gap means for deal integrity and forecast reliability"
+    "description": "What the rep's story claims vs. what deal behaviour shows. If none: 'Narrative aligns with deal signals.'"
   },
   "regionalIntelligence": {
-    "region": "UK|AU|NZ|NA",
     "matchesRegionalPattern": true,
-    "deviation": "How this deal deviates from expected regional behaviour, if at all",
-    "regionSpecificRisk": "The primary risk signal specific to this market"
+    "deviation": "How this deal deviates from expected regional pattern, or 'None detected.'"
   },
-  "marketSignals": ["signal1", "signal2"],
+  "competitors": {
+    "mentioned": ["Competitor A"],
+    "context": ["How they appear in this deal"],
+    "expectedButAbsent": "Competitor expected for this region/stage that wasn't mentioned",
+    "competitiveBattle": "What this competitive contest is actually about"
+  },
+  "marketSignals": ["market-level signal relevant to this deal"],
   "sentiment": {
     "score": 0.5,
     "label": "positive|neutral|negative",
-    "basis": "What in the data supports this sentiment assessment"
+    "basis": "What in the data supports this sentiment"
   },
-  "confidence": 0.85,
-  "dealHealthScore": 72,
-  "dealOutcomePrediction": {
-    "closeProbability": 65,
-    "mostLikelyOutcome": "Closes in next quarter at reduced MRR",
-    "highestLeverageAction": "Specific single action that most improves win probability"
+  "recommendedAction": {
+    "priority": "P1|P2|P3",
+    "action": "Specific action — name the rep, the account, the exact next step",
+    "owner": "AE|Manager|Executive|CSM",
+    "deadline": "Today|48 hours|This week"
   },
-  "recommendedActions": [
-    {
-      "priority": "P1|P2|P3",
-      "action": "Specific action",
-      "owner": "AE|Manager|Executive|CSM",
-      "deadline": "Today|48 hours|This week",
-      "expectedOutcome": "What this action achieves"
-    }
-  ]
+  "confidence": 0.85
 }
 
 Do not hedge. Do not qualify with "potentially" or "may indicate."
@@ -714,7 +730,7 @@ Q4 — WHERE IS VELOCITY ACTUALLY IMPROVING VS. WHERE WE THINK IT IS?
 Q5 — WHICH DEALS HAVE VELOCITY BELOW HISTORICAL BENCHMARK?
   Simpro benchmark: 2–3 days per stage in a 14-day cycle.
   Identify deals where stage duration has exceeded 1.5x benchmark (4+ days in a single stage).
-  For each: deal name, rep, current stage, days in stage, what a normal deal at this stage looks like.
+  For each: deal name, rep, currenokay, let's do something Hugo from an organizational perspective. t stage, days in stage, what a normal deal at this stage looks like.
   This is the early warning system for late-stage losses.
 
 Q6 — WHERE ARE STAGES ACCUMULATING BEYOND AGING THRESHOLDS?
