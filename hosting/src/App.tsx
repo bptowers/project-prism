@@ -133,14 +133,22 @@ export default function App() {
           period={reportPeriod}
           isLive={isLive}
         />
+
+        {/* Risk Radar — hero position: first widget after briefing */}
+        <div style={{ marginBottom: '2rem' }}>
+          <Panel title="Risk Radar" accent="amber" meta={`${data.risks.length} deals at risk`}>
+            <RiskRadar risks={data.risks} />
+          </Panel>
+        </div>
+
         <StatsRow stats={data.stats} sparklines={data.sparklines} />
         <RegionTabs region={region} onSelect={selectRegion} regionCounts={regionCounts} isLive={isLive} />
         <PipelineFunnel stages={data.funnel} />
 
-        {/* 2x2 Grid */}
+        {/* 3-col Grid: themes + signals */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
+          gridTemplateColumns: 'repeat(3, 1fr)',
           gap: '1.5rem',
           marginBottom: '2rem',
         }}>
@@ -149,9 +157,6 @@ export default function App() {
           </Panel>
           <Panel title="Loss Themes" accent="red" meta={`${data.lossThemes.length} themes`}>
             <ThemeChart themes={data.lossThemes} type="loss" />
-          </Panel>
-          <Panel title="Risk Radar" accent="amber" meta={`${data.risks.length} at risk`}>
-            <RiskRadar risks={data.risks} />
           </Panel>
           <Panel title="Market Signals" accent="blue" meta={`${data.signals.length} signals`}>
             <MarketSignals signals={data.signals} />
