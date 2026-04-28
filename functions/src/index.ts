@@ -92,14 +92,14 @@ function getLLMConfig(providerOverride?: string): LLMConfig {
   // then the hardcoded default.
   const defaultModels: Record<string, string> = {
     openai: process.env.OPENAI_MODEL || "gpt-4o",
-    gemini: process.env.GEMINI_MODEL || "gemini-3.1-pro-preview",
+    gemini: process.env.GEMINI_MODEL || "gemini-1.5-flash",
     claude: process.env.CLAUDE_MODEL || "claude-sonnet-4-6",
   };
 
   // Only use the generic LLM_MODEL if no provider override was requested
   // (i.e., it's the default provider from env, not a per-upload selection)
   const model = providerOverride
-    ? defaultModels[provider] || "gemini-3.1-pro-preview"
+    ? defaultModels[provider] || "gemini-1.5-flash"
     : process.env.LLM_MODEL || defaultModels[provider] || "claude-sonnet-4-6";
 
   return {

@@ -73,7 +73,7 @@ export class GeminiProvider implements ILLMProvider {
         // Inject data into prompt
         const fullPrompt = injectOpportunityData(prompt, opportunityData);
 
-        // Get the generative model
+        // Get the generative model — model name read from LLM_MODEL env var
         const model = this.genAI.getGenerativeModel({
           model: this.config.model,
           systemInstruction: SYSTEM_PROMPT,

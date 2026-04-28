@@ -538,7 +538,7 @@
   <div class="header-inner">
     <div class="header-label">Simpro  ·  Sales Engineering</div>
     <h1>Project <span>Prism</span></h1>
-    <div class="header-sub">Global Revenue Intelligence Engine  ·  Status Dashboard  ·  11 March 2026</div>
+    <div class="header-sub">Global Revenue Intelligence Engine  ·  Status Dashboard  ·  Last Updated 27 March 2026</div>
     <div class="header-stats">
       <div class="header-stat">
         <div class="header-stat-value">5</div>
@@ -549,12 +549,12 @@
         <div class="header-stat-label">Cloud Functions</div>
       </div>
       <div class="header-stat">
-        <div class="header-stat-value">2</div>
-        <div class="header-stat-label">Data Sources</div>
+        <div class="header-stat-value">2,000</div>
+        <div class="header-stat-label">Records / Run</div>
       </div>
       <div class="header-stat">
-        <div class="header-stat-value">4</div>
-        <div class="header-stat-label">Regions Covered</div>
+        <div class="header-stat-value">3</div>
+        <div class="header-stat-label">Regions Active</div>
       </div>
       <div class="header-stat">
         <div class="header-stat-value" style="color:#5CDB6A;">Live</div>
@@ -586,10 +586,19 @@
     <div class="card">
       <div class="card-title">Project Summary</div>
       <p style="font-size:15px; color:var(--text-light); line-height:1.7; margin-bottom:20px;">
-        Project Prism is a Global Revenue Intelligence Engine built for Simpro's sales leadership. It ingests Salesforce opportunity data (via CSV upload or BigQuery), runs each record through LLM analysis using Claude, aggregates the results into regional and global reports, then layers on five phases of strategic intelligence — from portfolio analysis to competitive displacement to temporal trend detection.
+        Project Prism is a Global Revenue Intelligence Engine built for Simpro's sales leadership. It ingests Salesforce opportunity data (via CSV upload or BigQuery), runs each record through LLM analysis, aggregates the results into regional and global reports, then layers on five phases of strategic intelligence — from portfolio analysis to competitive displacement to temporal trend detection.
+      </p>
+      <p style="font-size:15px; line-height:1.7; margin-bottom:16px; padding:16px; border-left:4px solid var(--green); background:rgba(39,174,96,0.08); color:var(--text);">
+        <strong style="color:var(--green);">27 March 2026 — Two Firestore limits hit and fixed. feature/per-region-funnel merged to main and deployed.</strong> Batch write limit (500 ops/transaction) resolved with chunked writes of 400. Document size limit (1 MiB) resolved with <code>trimReportForStorage()</code>. BQ_LIMIT=2,000 confirmed stable. All 7 fixes merged to main, pushed to GitHub, and live on Firebase.
+      </p>
+      <p style="font-size:15px; line-height:1.7; margin-bottom:16px; padding:16px; border-left:4px solid var(--green); background:rgba(39,174,96,0.08); color:var(--text);">
+        <strong style="color:var(--green);">26 March 2026 — Dashboard upgrades shipped.</strong> Five changes deployed today: per-region pipeline funnel built (was empty before), BigQuery record limit increased 500 → 2,000 (4× more data through all phases), Gemini JSON parse errors resolved at scale, stat tile ordering fixed across region tabs, and AU/NZ consolidated into a single region tab matching actual operational structure.
+      </p>
+      <p style="font-size:15px; line-height:1.7; margin-bottom:20px; padding:16px; border-left:4px solid var(--accent); background:rgba(46,117,182,0.06); color:var(--text);">
+        <strong style="color:var(--accent);">19 March 2026 — BigQuery connection is LIVE.</strong> Project Prism is now connected to Simpro's production Salesforce data warehouse (267,165 opportunity records). Live data is flowing into the dashboard with all five enrichment phases completing successfully. The 500 most recent opportunities were analysed and displayed on the dashboard (now increased to 2,000).
       </p>
       <p style="font-size:15px; color:var(--text-light); line-height:1.7;">
-        The pipeline is live on Firebase, deployed to production, and confirmed working. All five enrichment phases execute successfully. A React dashboard renders the intelligence reports with regional breakdowns, risk radar, competitor analysis, and executive briefing.
+        The pipeline supports multi-provider LLM analysis (Gemini as primary, Claude and OpenAI available). Data is pulled from BigQuery via Fivetran-synced Salesforce tables, with configurable record limits and automated every-3-day scheduling.
       </p>
     </div>
 
@@ -601,8 +610,9 @@
           <tr><td style="font-weight:600;">Backend</td><td>Firebase Cloud Functions v2 — an abstraction layer over Google Cloud Run (Node.js 20, TypeScript)</td></tr>
           <tr><td style="font-weight:600;">Database</td><td>Cloud Firestore (managed by Firebase, runs on Google Cloud infrastructure)</td></tr>
           <tr><td style="font-weight:600;">Storage</td><td>Cloud Storage (CSV uploads)</td></tr>
-          <tr><td style="font-weight:600;">LLM</td><td>Claude Sonnet 4.6 (Anthropic API)</td></tr>
-          <tr><td style="font-weight:600;">Data Source</td><td>CSV upload + BigQuery (pending access)</td></tr>
+          <tr><td style="font-weight:600;">LLM</td><td>Gemini 2.5 Pro (primary), Claude Sonnet 4.6 &amp; OpenAI (multi-provider via Factory pattern)</td></tr>
+          <tr><td style="font-weight:600;">Data Source</td><td>BigQuery (live — 267K records, Fivetran-synced from Salesforce) + CSV upload</td></tr>
+          <tr><td style="font-weight:600;">ETL</td><td>Fivetran (Salesforce → BigQuery, lowercase snake_case column mapping)</td></tr>
           <tr><td style="font-weight:600;">Hosting</td><td>Firebase Hosting with SPA fallback</td></tr>
         </table>
       </div>
@@ -750,6 +760,127 @@
             Produced five reference documents: Developer Handover Guide (complete technical handover for any developer), BigQuery Integration Guide (step-by-step setup including IAM, testing, scheduling, monitoring), Cloud Run/Docker/Firebase Reference (architecture decision documentation), BIGQUERY_SETUP.md (committed to repository), and CLAUDE.md (AI assistant project context). All documents account for the specific Firebase project ID, service account, and deployment configuration.
           </div>
         </div>
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">13–16 March 2026</div>
+          <div class="tl-title">BigQuery Debugging — Service Account Discovery</div>
+          <div class="tl-desc">Identified that Cloud Run uses a different service account than expected. Fixed query job location and hardened query builder.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            Three code-side issues resolved: (1) BigQuery client was setting <code>projectId</code> to the remote project, causing query jobs to fail with <code>bigquery.jobs.create</code> permission denied — fixed by removing <code>projectId</code> from the constructor so jobs run in the Firebase project. (2) <code>runWeeklyAnalysis</code> had no <code>timeoutSeconds</code> or <code>memory</code> config and was running on defaults (60s, 256MiB) — added <code>timeoutSeconds: 1800</code> and <code>memory: "1GiB"</code>. (3) The query builder blindly used the first candidate column name for <code>ORDER BY</code> — replaced with <code>COALESCE</code> fallback for resilience against schema variations. A second AI agent reviewed the codebase and identified these gaps independently.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">16–18 March 2026</div>
+          <div class="tl-title">IAM Root Cause — Wrong Service Account</div>
+          <div class="tl-desc">Audit logs revealed permissions were granted to App Engine SA, but Cloud Run uses the Compute Engine SA.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            The root cause of all "Access Denied" errors was discovered via GCP audit logs: Tunde (data team) had granted BigQuery Data Viewer to the App Engine service account (<code>project-prism-489108-a9e2b@appspot.gserviceaccount.com</code>), but Firebase Cloud Functions v2 runs on Cloud Run which uses the Compute Engine default service account (<code>898431129113-compute@developer.gserviceaccount.com</code>). After identifying the mismatch, Tunde granted access to the correct service account on 17 March.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">18–19 March 2026</div>
+          <div class="tl-title">Multi-Provider LLM Support</div>
+          <div class="tl-desc">Rewrote Gemini provider, added API keys to Secret Manager, fixed enrichment phases to respect provider selection.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            Rewrote <code>gemini.ts</code> from Vertex AI SDK to Google AI Studio SDK (API key auth instead of service account). Added <code>GEMINI_API_KEY</code> and <code>OPENAI_API_KEY</code> to Firebase Secret Manager. Fixed enrichment phases 2–5 which were defaulting to Claude regardless of the selected provider — they now consistently use whichever LLM provider is configured. Added per-provider model defaults so switching providers doesn't require manual model name changes.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">27 March 2026</div>
+          <div class="tl-title">Firestore Fix #1 — Batch Write Limit</div>
+          <div class="tl-desc">runWeeklyAnalysis failed with HTTP 500 immediately after BQ_LIMIT hit 2,000. Root cause: single batch.commit() with 2,000 operations — 4× Firestore's 500-op hard limit.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            <code>runAnalysisPipeline</code> in <code>index.ts</code> was writing all individual opportunity analyses to Firestore in a single <code>db.batch()</code> call. Firestore hard limit is 500 operations per transaction. At 2,000 records the batch contained 2,000 <code>set</code> operations — 4× the limit, hence immediate HTTP 500.<br><br>
+            <strong>Fix:</strong> Replaced the single batch with a chunked loop using <code>FIRESTORE_BATCH_SIZE = 400</code> (safe buffer below 500). Each chunk is committed sequentially. At 2,000 records: 5 batches of 400. Applied across all three Cloud Functions.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">27 March 2026</div>
+          <div class="tl-title">Firestore Fix #2 — Document Size Limit</div>
+          <div class="tl-desc">After fix #1, pipeline failed again: aggregated report at 2,000 records was 1.050 MiB — just over Firestore's 1 MiB hard cap per document.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            Four unbounded arrays in the aggregated report grow linearly with record count: <code>ThemeCount.examples[]</code>, <code>CompetitorActivity.contexts[]</code>, <code>marketSignals[]</code>, and <code>atRiskDeals[].signals[]</code>. At 500 records the document was fine; at 2,000 it hit 1.050 MiB — 2KB over the 1 MiB limit.<br><br>
+            <strong>Fix:</strong> Added <code>trimReportForStorage()</code> helper that deep-clones the report and caps arrays before any Firestore write: examples/contexts capped at 5, market signals at 20, at-risk deals at 50, signals per deal at 10. The in-memory report used for Phase 2–5 LLM enrichment is untouched. Applied at all 6 Firestore write points across the three Cloud Functions.<br><br>
+            <strong>Outcome:</strong> BQ_LIMIT=2,000 confirmed stable. <code>runWeeklyAnalysis</code> executed successfully on 27 March. All 7 fixes merged to main, pushed to GitHub (bptowers/project-prism), and deployed to Firebase Live on 27 March 2026.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">26 March 2026</div>
+          <div class="tl-title">Phase 3–5 Dashboard Widgets — Built &amp; Deployed</div>
+          <div class="tl-desc">New React components built for Twenty Questions, Competitive Displacement, and Delta Intelligence.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            Three new dashboard widgets surfacing the Phase 3–5 enrichment data that was previously stored in Firestore but not displayed. <strong>TwentyQuestions</strong> renders Pete's CRO intelligence answers in a structured card view. <strong>CompetitiveDisplacement</strong> shows per-competitor win/loss mechanisms and displacement strategies. <strong>DeltaIntelligence</strong> surfaces trajectory changes, forecast drift, and early warning signals from period-over-period comparison. All three widgets live-query from Firestore and handle loading/empty states gracefully.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">26 March 2026</div>
+          <div class="tl-title">BigQuery Record Limit 500 → 2,000</div>
+          <div class="tl-desc">4× more Salesforce data through all 5 phases. Regional coverage improved significantly.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            Increased <code>BQ_LIMIT</code> from 500 to 2,000 records per run — up from 0.2% to 0.75% of the 267K warehouse. Regional impact: ANZ 332 → 1,307 records, UK 106 → 426, NAMER 62 → 267. Switching from a hard LIMIT to a WHERE clause filter (open pipeline + closed since 2024) is the next iteration to ensure the right records are included rather than just the most recently created.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">26 March 2026</div>
+          <div class="tl-title">Gemini JSON Parse Hardening at 2K Records</div>
+          <div class="tl-desc">Curly braces in deal notes broke response parsing at scale. Fixed with API-level JSON mode and balanced-bracket parser.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            At 2,000 records, deal notes containing curly brace characters caused the greedy regex parser to incorrectly split JSON responses. Fixed with two changes: (1) added <code>responseMimeType: "application/json"</code> to instruct the Gemini API to return strict JSON; (2) replaced the greedy regex with a hardened balanced-bracket counting parser as a fallback. Zero parse failures in the latest run.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">26 March 2026</div>
+          <div class="tl-title">Per-Region Pipeline Funnel + Stat Tile Ordering</div>
+          <div class="tl-desc">Region tabs now show real funnel stage data. Metric cards render in consistent order across all tabs.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            <strong>Pipeline Funnel:</strong> <code>transformRegion()</code> in <code>reportTransformer.ts</code> had <code>const funnel: FunnelStage[] = []</code> hardcoded — never populated. Fixed by adding <code>stageDistribution</code> to <code>RegionReport</code> type, computing it in <code>aggregator.ts</code>, and reading it in the transformer. Consistent stage labels now across all regions: Discovery → Validation → Solution Review &amp; Quote → Commitment → Closed Won → Closed Lost.<br><br>
+            <strong>Stat Tile Ordering:</strong> <code>StatsRow</code> was sorting tiles by highest numeric value, causing metric cards to reorder when switching region tabs. Fixed with a hardcoded render order: Pipeline Value → Win Rate → Revenue at Risk → Active Threats → Forecast Confidence → Deal Velocity.<br><br>
+            <strong>AU/NZ Consolidation:</strong> AU and NZ were separate tabs but Simpro operates them as a single ANZ region. Merged into one tab — dashboard now shows three tabs matching operational structure: All Regions · North America · UK · AU/NZ.
+          </div>
+        </div>
+
+        <div class="tl-item" onclick="toggleDetail(this)">
+          <div class="tl-dot green"></div>
+          <div class="tl-date">19 March 2026</div>
+          <div class="tl-title">BigQuery Connection Live — Full Pipeline End-to-End</div>
+          <div class="tl-desc">Six issues resolved in sequence. Live Salesforce data now flowing into the dashboard.</div>
+          <div class="tl-expand">Click to expand →</div>
+          <div class="tl-detail">
+            Six issues resolved in rapid succession on 19 March:<br><br>
+            <strong>1. Access Denied persisted</strong> — Even after Tunde's SA grant, access was still denied. Escalated with specific questions about role type (Data Viewer vs basic Viewer) and scope (project vs dataset level). Confirmed working on 19 March morning.<br><br>
+            <strong>2. Column name mismatch</strong> — Query used <code>ORDER BY LastModifiedDate</code> but Fivetran (the ETL tool syncing Salesforce to BigQuery) renames all columns to lowercase snake_case. Removed ORDER BY, then re-enabled with <code>created_date</code>.<br><br>
+            <strong>3. Out of memory</strong> — Full table has 267,165 records which exceeded 1GiB function memory. Added configurable <code>BQ_LIMIT=500</code> env var and bumped memory to 2GiB.<br><br>
+            <strong>4. Field mapping mismatch</strong> — Fivetran converts Salesforce API names (e.g. <code>StageName</code>, <code>Account_Name</code>) to lowercase snake_case (<code>stage_name</code>, <code>account_name</code>). All 500 records failed validation. Updated entire field map with Fivetran-format names as primary candidates.<br><br>
+            <strong>5. Anthropic credits exhausted</strong> — Scheduled function defaulted to Claude but Brad's Anthropic credits are at zero. Switched default to Gemini (corporate API key via Google AI Studio).<br><br>
+            <strong>Result:</strong> BigQuery pipeline fully operational. 500 most recent opportunities analysed by Gemini. All 5 enrichment phases complete. Live data showing in dashboard. Risk Radar fix deployed to show opportunity names instead of IDs.
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -1028,7 +1159,14 @@
           <tr data-status="complete"><td>BigQuery Integration Guide</td><td>Documentation</td><td>Step-by-step IAM setup, testing, scheduling, monitoring</td><td><span class="badge badge-complete">Complete</span></td></tr>
           <tr data-status="complete"><td>Cloud Run / Docker Reference</td><td>Documentation</td><td>Architecture decision document: Firebase vs Cloud Run</td><td><span class="badge badge-complete">Complete</span></td></tr>
           <tr data-status="complete"><td>CLAUDE.md</td><td>Documentation</td><td>AI assistant project context for ongoing development</td><td><span class="badge badge-complete">Complete</span></td></tr>
-          <tr data-status="not-started"><td>Dashboard: Phase 3–5 Widgets</td><td>Frontend</td><td>New React components for Twenty Questions, Competitive Displacement, Delta Intelligence</td><td><span class="badge badge-not-started">Not Started</span></td></tr>
+          <tr data-status="live"><td>Dashboard: Phase 3–5 Widgets</td><td>Frontend</td><td>TwentyQuestions, CompetitiveDisplacement, DeltaIntelligence React components — live on dashboard</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>Per-Region Pipeline Funnel</td><td>Frontend</td><td>Region tabs now show real stage distribution data — stageDistribution computed in aggregator and transformer</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>Stat Tile Fixed Ordering</td><td>Frontend</td><td>Metric cards render in consistent order across all region tabs — no more sort-by-value reordering</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>AU/NZ Region Consolidation</td><td>Frontend</td><td>AU and NZ merged into single ANZ tab matching Simpro's operational structure</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>BQ_LIMIT 500 → 2,000</td><td>Backend</td><td>4× record increase through all 5 pipeline phases — 0.2% → 0.75% of warehouse</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>Gemini JSON Parse Hardening</td><td>Backend</td><td>responseMimeType JSON mode + balanced-bracket fallback parser — zero parse failures at 2K records</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>Firestore Batch Write Fix</td><td>Backend</td><td>Chunked writes of 400 (FIRESTORE_BATCH_SIZE) replacing single 2,000-op batch — all 3 Cloud Functions</td><td><span class="badge badge-live">Live</span></td></tr>
+          <tr data-status="live"><td>Firestore Document Size Fix</td><td>Backend</td><td>trimReportForStorage() caps unbounded arrays before persistence — BQ_LIMIT=2,000 confirmed stable</td><td><span class="badge badge-live">Live</span></td></tr>
         </table>
       </div>
     </div>
@@ -1037,7 +1175,80 @@
   <!-- ═══ TEST RESULTS ═══ -->
   <div id="test-results" class="section">
     <div class="card">
-      <div class="card-title">Live Deployment — 11 March 2026</div>
+      <div class="card-title">BigQuery Run — 26 March 2026 (Latest)</div>
+      <p style="font-size:14px; color:var(--text-light); margin-bottom:20px;">Two successful runs confirmed: 06:00 and 11:24 UTC. 2,000 records per run. All 5 phases completed.</p>
+
+      <div class="log-step"><div class="log-check">✓</div><div><div class="log-msg">BigQuery query executed — 2,000 records pulled</div><div class="log-phase">ORDER BY created_date DESC LIMIT 2000 · edw-simprogroup-propagation.SF_Simpro.sf_opportunity</div></div></div>
+      <div class="log-step"><div class="log-check">✓</div><div><div class="log-msg">Records distributed: ANZ 1,307 · UK 426 · NAMER 267</div><div class="log-phase">Region auto-detection via normalizeRegionKey()</div></div></div>
+      <div class="log-step"><div class="log-check">✓</div><div><div class="log-msg">Phase 1 LLM analysis complete (Gemini 2.5 Pro)</div><div class="log-phase">2,000 individual opportunity analyses — batches of 25</div></div></div>
+      <div class="log-step"><div class="log-check">✓</div><div><div class="log-msg">Phase 2 enrichment complete: Portfolio Aggregation</div><div class="log-phase">Executive briefing, recommendations, forecast confidence</div></div></div>
+      <div class="log-step"><div class="log-check">✓</div><div><div class="log-msg">Phase 3 enrichment complete: Twenty Questions</div><div class="log-phase">CRO intelligence layer — JSON parse hardening applied</div></div></div>
+      <div class="log-step"><div class="log-check">✓</div><div><div class="log-msg">Phase 4 enrichment complete: Competitive Displacement</div><div class="log-phase">Win/loss mechanisms per competitor</div></div></div>
+      <div class="log-step"><div class="log-check">✓</div><div><div class="log-msg">Phase 5 enrichment complete: Delta Intelligence</div><div class="log-phase">Temporal comparison against previous report</div></div></div>
+      <div class="log-step"><div class="log-check" style="background:var(--accent);">★</div><div><div class="log-msg" style="font-weight:600;">All enrichment phases complete — ~15 min total runtime</div><div class="log-phase">Two runs confirmed · 06:00 UTC and 11:24 UTC</div></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Pipeline Metrics — 26 March 2026</div>
+      <div class="card-grid">
+        <div style="text-align:center; padding:16px;">
+          <div style="font-size:32px; font-weight:700; color:var(--green);">267,165</div>
+          <div style="font-size:13px; color:var(--grey);">Total Records in Warehouse</div>
+        </div>
+        <div style="text-align:center; padding:16px;">
+          <div style="font-size:32px; font-weight:700; color:var(--accent);">2,000</div>
+          <div style="font-size:13px; color:var(--grey);">Records Analysed (↑ from 500)</div>
+        </div>
+        <div style="text-align:center; padding:16px;">
+          <div style="font-size:32px; font-weight:700; color:var(--green);">5/5</div>
+          <div style="font-size:13px; color:var(--grey);">Enrichment Phases Passed</div>
+        </div>
+        <div style="text-align:center; padding:16px;">
+          <div style="font-size:32px; font-weight:700; color:var(--navy);">~15 min</div>
+          <div style="font-size:13px; color:var(--grey);">End-to-End Run Time</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">BigQuery Live — 19 March 2026</div>
+      <p style="font-size:14px; color:var(--text-light); margin-bottom:20px;">Full end-to-end pipeline: BigQuery → LLM Analysis (Gemini) → Firestore → Dashboard. Six issues resolved in sequence.</p>
+
+      <div class="log-step"><div class="log-check">✓</div><div><div class="log-msg">BigQuery query executed against SF_Simpro.sf_opportunity</div><div class="log-phase">IAM access confirmed — Compute Engine SA with Data Viewer</div></div></div>
+      <div class="log-step"><div class="log-check">✓</div><div><div class="log-msg">Column mapping fixed — Fivetran snake_case names detected</div><div class="log-phase">ORDER BY created_date DESC LIMIT 500</div></div></div>
+      <div class="log-step"><div class="log-check">✓</div><div><div class="log-msg">500 opportunity records fetched and validated</div><div class="log-phase">Field map updated with Fivetran-format names as primary</div></div></div>
+      <div class="log-step"><div class="log-check">✓</div><div><div class="log-msg">LLM analysis complete (Gemini 3.1 Pro)</div><div class="log-phase">Phase 1 — 500 individual opportunity analyses</div></div></div>
+      <div class="log-step"><div class="log-check">✓</div><div><div class="log-msg">Phase 2 enrichment complete: Portfolio Analysis</div><div class="log-phase">Executive briefing, recommendations, forecast confidence</div></div></div>
+      <div class="log-step"><div class="log-check">✓</div><div><div class="log-msg">Phase 3 enrichment complete: Twenty Questions</div><div class="log-phase">CRO intelligence layer</div></div></div>
+      <div class="log-step"><div class="log-check">✓</div><div><div class="log-msg">Phase 4 enrichment complete: Competitive Displacement</div><div class="log-phase">Win/loss mechanisms per competitor</div></div></div>
+      <div class="log-step"><div class="log-check">✓</div><div><div class="log-msg">Phase 5 enrichment complete: Delta Intelligence</div><div class="log-phase">Temporal comparison against previous report</div></div></div>
+      <div class="log-step"><div class="log-check" style="background:var(--accent);">★</div><div><div class="log-msg" style="font-weight:600;">Live Salesforce data showing in dashboard</div><div class="log-phase">Full pipeline execution successful — end-to-end verified</div></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Pipeline Metrics — 19 March 2026 (First Live Run)</div>
+      <div class="card-grid">
+        <div style="text-align:center; padding:16px;">
+          <div style="font-size:32px; font-weight:700; color:var(--green);">267,165</div>
+          <div style="font-size:13px; color:var(--grey);">Total Records in Warehouse</div>
+        </div>
+        <div style="text-align:center; padding:16px;">
+          <div style="font-size:32px; font-weight:700; color:var(--accent);">500</div>
+          <div style="font-size:13px; color:var(--grey);">Records Analysed (First Run)</div>
+        </div>
+        <div style="text-align:center; padding:16px;">
+          <div style="font-size:32px; font-weight:700; color:var(--green);">5/5</div>
+          <div style="font-size:13px; color:var(--grey);">Enrichment Phases Passed</div>
+        </div>
+        <div style="text-align:center; padding:16px;">
+          <div style="font-size:32px; font-weight:700; color:var(--navy);">10 days</div>
+          <div style="font-size:13px; color:var(--grey);">From First Attempt to Live</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">CSV Pipeline — 11 March 2026</div>
       <p style="font-size:14px; color:var(--text-light); margin-bottom:20px;">Cloud Function logs from the successful CSV upload test on Firebase Live.</p>
 
       <div class="log-step"><div class="log-time">12:08</div><div class="log-check">✓</div><div><div class="log-msg">Parsed records from CSV — validation and analysis complete</div><div class="log-phase">Phase 1 — Individual Analysis</div></div></div>
@@ -1079,17 +1290,73 @@
       </div>
     </div>
 
-    <div class="issue-card blocked">
-      <div class="issue-title"><span class="badge badge-blocked">Blocked</span> BigQuery Access Grant</div>
+    <div class="issue-card resolved">
+      <div class="issue-title"><span class="badge badge-complete">Resolved</span> BigQuery Access — Wrong Service Account</div>
       <div class="issue-body">
-        The BigQuery integration code is complete and deployed, but the service account requires <code>roles/bigquery.dataViewer</code> and <code>roles/bigquery.jobUser</code> grants from the data science team. An IT ticket has been submitted. Until this is granted, the automated every-3-day scheduled pull and on-demand BigQuery endpoint cannot be tested with live data.
+        IAM permissions were initially granted to the App Engine service account (<code>project-prism-...@appspot.gserviceaccount.com</code>), but Cloud Functions v2 runs on Cloud Run which uses the Compute Engine SA (<code>898431129113-compute@developer.gserviceaccount.com</code>). Discovered via GCP audit logs on 16 March. Tunde granted Data Viewer to the correct SA on 17 March. Access Denied persisted until 19 March when grant scope was confirmed at the correct level. BigQuery now returns 267K records successfully.
+      </div>
+    </div>
+
+    <div class="issue-card resolved">
+      <div class="issue-title"><span class="badge badge-complete">Resolved</span> Fivetran Column Name Mapping</div>
+      <div class="issue-body">
+        Fivetran (the ETL tool syncing Salesforce to BigQuery) converts all Salesforce API names to lowercase snake_case (e.g. <code>StageName</code> → <code>stage_name</code>, <code>Account_Name</code> → <code>account_name</code>). This caused two cascading failures: (1) <code>ORDER BY LastModifiedDate</code> failed because the column is actually <code>last_modified_date</code> — re-enabled with <code>created_date</code>; (2) all 500 records failed field validation because no Salesforce-format names matched — updated the entire field map with Fivetran-format names as primary candidates.
+      </div>
+    </div>
+
+    <div class="issue-card resolved">
+      <div class="issue-title"><span class="badge badge-complete">Resolved</span> Out of Memory — 267K Records</div>
+      <div class="issue-body">
+        The full <code>sf_opportunity</code> table has 267,165 records which exceeded the 1GiB function memory limit. Added a configurable <code>BQ_LIMIT</code> env var (currently set to 500) and bumped function memory to 2GiB. The <code>ORDER BY created_date DESC LIMIT 500</code> clause ensures the most recent opportunities are analysed.
+      </div>
+    </div>
+
+    <div class="issue-card resolved">
+      <div class="issue-title"><span class="badge badge-complete">Resolved</span> Anthropic API Credits Exhausted</div>
+      <div class="issue-body">
+        The scheduled function defaulted to Claude (<code>LLM_PROVIDER=claude</code>) but Brad's Anthropic API credits reached zero. Switched the default provider to Gemini 3.1 Pro using a corporate Google AI Studio API key. Multi-provider support (Claude, Gemini, OpenAI) is fully implemented via the Factory pattern — providers are swappable at runtime via environment variables.
+      </div>
+    </div>
+
+    <div class="issue-card resolved">
+      <div class="issue-title"><span class="badge badge-complete">Resolved</span> Dashboard Widgets for Phase 3–5 Data</div>
+      <div class="issue-body">
+        Three new React components built and deployed on 26 March 2026: TwentyQuestions (CRO intelligence answers), CompetitiveDisplacement (per-competitor win/loss mechanisms), and DeltaIntelligence (period-over-period trajectory). All three live-query from Firestore and handle loading/empty states. Phase 3–5 data is now fully visible on the dashboard.
+      </div>
+    </div>
+
+    <div class="issue-card resolved">
+      <div class="issue-title"><span class="badge badge-complete">Resolved</span> Per-Region Pipeline Funnel Empty</div>
+      <div class="issue-body">
+        <code>reportTransformer.ts</code> <code>transformRegion()</code> had <code>const funnel: FunnelStage[] = []</code> hardcoded — region tabs showed an empty funnel bar. Fixed by adding <code>stageDistribution</code> to <code>RegionReport</code> type, computing stage counts in <code>aggregator.ts</code>, and reading them in the transformer. Division-by-zero protection added to conversion rate display. Deployed 26 March 2026.
+      </div>
+    </div>
+
+    <div class="issue-card resolved">
+      <div class="issue-title"><span class="badge badge-complete">Resolved</span> Gemini JSON Parse Failures at 2K Records</div>
+      <div class="issue-body">
+        Increasing BQ_LIMIT to 2,000 exposed a parser vulnerability: deal notes containing curly brace characters caused the greedy regex to misparse JSON responses. Fixed with <code>responseMimeType: "application/json"</code> (API-level JSON mode) plus a hardened balanced-bracket counting fallback parser. Zero parse failures in runs since the fix.
+      </div>
+    </div>
+
+    <div class="issue-card resolved">
+      <div class="issue-title"><span class="badge badge-complete">Resolved</span> Firestore Batch Write Limit — 500 ops/transaction</div>
+      <div class="issue-body">
+        <code>runWeeklyAnalysis</code> returned HTTP 500 immediately after BQ_LIMIT was raised to 2,000. All 2,000 analyses were being written in a single <code>db.batch().commit()</code> — 4× Firestore's 500-operation hard cap. Fixed 27 March with chunked writes of 400 records per batch (<code>FIRESTORE_BATCH_SIZE = 400</code>). Applied across all three Cloud Functions.
+      </div>
+    </div>
+
+    <div class="issue-card resolved">
+      <div class="issue-title"><span class="badge badge-complete">Resolved</span> Firestore Document Size Limit — 1 MiB cap</div>
+      <div class="issue-body">
+        After the batch fix, the pipeline failed again: the aggregated report document was 1.050 MiB — 2KB over Firestore's 1 MiB hard limit. Four unbounded arrays grow linearly with record count. Fixed 27 March with <code>trimReportForStorage()</code> helper that caps arrays before persistence while leaving the in-memory report (used for Phase 2–5 enrichment) untouched. BQ_LIMIT=2,000 now confirmed stable.
       </div>
     </div>
 
     <div class="issue-card">
-      <div class="issue-title"><span class="badge badge-next">Upcoming</span> Dashboard Widgets for Phase 3–5 Data</div>
+      <div class="issue-title"><span class="badge badge-blocked">⚠ Deadline</span> Node.js 20 Runtime Upgrade Required</div>
       <div class="issue-body">
-        The new enrichment data (Twenty Questions, Competitive Displacement, Delta Intelligence) is stored in Firestore but has no corresponding React components on the dashboard. The existing dashboard displays Phase 1 and Phase 2 data only. New widget development is needed to surface the Phase 3–5 intelligence to users.
+        Firebase is deprecating Node.js 20 on Cloud Functions. <strong>Deprecation deadline: 30 April 2026. Decommission: 30 October 2026.</strong> The upgrade to Node.js 22 is a config-only change in the Firebase functions runtime setting — no pipeline code changes required. Must be completed before 30 April to avoid any service disruption.
       </div>
     </div>
   </div>
@@ -1101,13 +1368,24 @@
       <div class="table-wrap">
         <table>
           <tr><th>#</th><th>Action</th><th>Owner</th><th>Priority</th><th>Status</th></tr>
-          <tr><td>1</td><td>BigQuery access grant (IT ticket submitted)</td><td>IT / Data Science</td><td style="font-weight:600; color:var(--red);">High</td><td><span class="badge badge-blocked">Blocked</span></td></tr>
-          <tr><td>2</td><td>End-to-end test with live BigQuery data</td><td>Brad</td><td style="font-weight:600; color:var(--amber);">Medium</td><td><span class="badge badge-waiting">Waiting</span></td></tr>
-          <tr><td>3</td><td>Build dashboard widgets for Phase 3–5 enrichment data</td><td>Brad</td><td style="font-weight:600; color:var(--accent);">Medium</td><td><span class="badge badge-next">Next</span></td></tr>
-          <tr><td>4</td><td>Set up Anthropic API spend alerts</td><td>Brad</td><td style="font-weight:600; color:var(--accent);">Medium</td><td><span class="badge badge-next">Next</span></td></tr>
-          <tr><td>5</td><td>Evaluate tiered model strategy (Haiku for Phase 1, Sonnet for Phase 2–5)</td><td>Brad</td><td style="font-weight:600; color:var(--grey);">Low</td><td><span class="badge badge-not-started">Not Started</span></td></tr>
-          <tr><td>6</td><td>Identify and configure additional LLM API keys (Gemini &amp; OpenAI) for multi-provider support</td><td>Brad</td><td style="font-weight:600; color:var(--accent);">Medium</td><td><span class="badge badge-next">Next</span></td></tr>
-          <tr><td>7</td><td>Migrate from personal Anthropic API key to corporate Simpro key via Firebase Secret Manager</td><td>Brad</td><td style="font-weight:600; color:var(--amber);">High</td><td><span class="badge badge-next">Next</span></td></tr>
+          <tr style="background:rgba(63,185,80,0.1);"><td>✓</td><td>Firestore batch write fix — chunked writes of 400, all 3 Cloud Functions</td><td>Brad</td><td style="font-weight:600; color:var(--green);">Done</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr style="background:rgba(63,185,80,0.1);"><td>✓</td><td>Firestore document size fix — trimReportForStorage(), BQ_LIMIT=2,000 stable</td><td>Brad</td><td style="font-weight:600; color:var(--green);">Done</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr style="background:rgba(63,185,80,0.1);"><td>✓</td><td>Phase 3–5 dashboard widgets built and deployed</td><td>Brad</td><td style="font-weight:600; color:var(--green);">Done</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr style="background:rgba(63,185,80,0.1);"><td>✓</td><td>BQ_LIMIT increased 500 → 2,000 — regional coverage 4× improved</td><td>Brad</td><td style="font-weight:600; color:var(--green);">Done</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr style="background:rgba(63,185,80,0.1);"><td>✓</td><td>Per-region pipeline funnel fix — region tabs show real stage data</td><td>Brad</td><td style="font-weight:600; color:var(--green);">Done</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr style="background:rgba(63,185,80,0.1);"><td>✓</td><td>AU/NZ region consolidated into single tab matching operational structure</td><td>Brad</td><td style="font-weight:600; color:var(--green);">Done</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr style="background:rgba(63,185,80,0.1);"><td>✓</td><td>BigQuery pipeline fully operational end-to-end — live data in dashboard</td><td>Brad / Tunde</td><td style="font-weight:600; color:var(--green);">Done</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr style="background:rgba(63,185,80,0.1);"><td>✓</td><td>Multi-provider LLM support (Gemini primary, Claude &amp; OpenAI available)</td><td>Brad</td><td style="font-weight:600; color:var(--green);">Done</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr style="background:rgba(63,185,80,0.1);"><td>✓</td><td>Fivetran field mapping — snake_case column names integrated</td><td>Brad</td><td style="font-weight:600; color:var(--green);">Done</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr style="background:rgba(63,185,80,0.1);"><td>✓</td><td>BigQuery IAM — correct service account, Data Viewer granted</td><td>Tunde</td><td style="font-weight:600; color:var(--green);">Done</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr style="background:rgba(63,185,80,0.1);"><td>✓</td><td>Risk Radar fix — shows opportunity names instead of IDs</td><td>Brad</td><td style="font-weight:600; color:var(--green);">Done</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr style="background:rgba(63,185,80,0.1);"><td>✓</td><td>Merge feature/per-region-funnel → main, push to GitHub, deploy to Firebase — all 7 fixes live</td><td>Brad</td><td style="font-weight:600; color:var(--green);">Done</td><td><span class="badge badge-complete">Complete</span></td></tr>
+          <tr><td style="color:var(--red); font-weight:700;">!</td><td><strong>Upgrade Node.js runtime: 20 → 22</strong><br><span style="font-size:12px;color:var(--grey);">Firebase deprecation deadline 30 April 2026. Config-only change in firebase.json.</span></td><td>Brad</td><td><span class="badge badge-blocked">⚠ Deadline</span></td><td><span class="badge badge-next">Next</span></td></tr>
+          <tr><td>1</td><td>Add BigQuery WHERE clause filter<br><span style="font-size:12px;color:var(--grey);">Currently pulling the 2,000 most recently <em>created</em> records regardless of deal status — this means stale, irrelevant, or closed-years-ago records are consuming LLM capacity. A WHERE clause (open pipeline + closed since 2024) ensures every record analysed is actually useful, dramatically improving signal quality for Phases 3 &amp; 4 (competitive intelligence and win/loss patterns). One SQL change in bigquerySource.ts.</span></td><td>Brad</td><td style="font-weight:600; color:var(--amber);">Medium</td><td><span class="badge badge-next">Next</span></td></tr>
+          <tr><td>2</td><td>Deal velocity data source<br><span style="font-size:12px;color:var(--grey);">Phase 3 CRO Intelligence widget has a placeholder. Needs real avg. days-in-stage from BigQuery.</span></td><td>Brad</td><td style="font-weight:600; color:var(--amber);">Medium</td><td><span class="badge badge-next">Next</span></td></tr>
+          <tr><td>3</td><td>Migrate to corporate Simpro API key<br><span style="font-size:12px;color:var(--grey);">Currently on personal Anthropic key. Runs every 3 days × 2,000 records × 5 phases.</span></td><td>Brad</td><td style="font-weight:600; color:var(--amber);">Medium</td><td><span class="badge badge-next">Next</span></td></tr>
+          <tr><td>4</td><td>Set up API spend alerts (Anthropic / Gemini)<br><span style="font-size:12px;color:var(--grey);">Spend visibility before costs become a surprise.</span></td><td>Brad</td><td style="font-weight:600; color:var(--amber);">Medium</td><td><span class="badge badge-next">Next</span></td></tr>
+          <tr><td>5</td><td>Tiered model strategy<br><span style="font-size:12px;color:var(--grey);">Haiku / Gemini Flash for Phase 1, Sonnet / Gemini Pro for Phases 2–5. Cuts Phase 1 time ~15m → ~5m.</span></td><td>Brad</td><td style="font-weight:600; color:var(--grey);">Low</td><td><span class="badge badge-not-started">Not Started</span></td></tr>
         </table>
       </div>
     </div>
