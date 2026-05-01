@@ -70,11 +70,11 @@ To test the full pipeline locally:
 The data flow is: **CSV Upload → Parse → Validate → LLM Analysis → Aggregate → Transform → Store → API**
 
 Key layers in `functions/src/`:
-- **`types.ts`** — Single source of truth for all TypeScript interfaces (OpportunityRecord, OpportunityAnalysis, AggregatedReport, etc.)
+- **`types.ts`** — Single source of truth for all TypeScript interfaces (OpportunityRecord, OpportunityAnalysis, AggregatedReport, etc.). `OpportunityAnalysis` models in-flight deal health (dealHealthScore, velocityAssessment, activityHealth, stakeholderCoverage, competitorThreat, riskSignals, narrativeGap, recommendedAction with P1/P2/P3 priority).
 - **`index.ts`** — 6 Cloud Function entry points (see below)
-- **`llm/`** — LLM provider abstraction using Factory pattern. `provider.ts` defines `ILLMProvider` interface; `claude.ts`, `gemini.ts`, `openai.ts` implement it. `prompts.ts` has analysis prompt templates.
-- **`pipeline/`** — `csvParser.ts` handles CSV ingestion with Salesforce field mapping, composite field builders, and region auto-detection. `validator.ts` does data quality scoring and PII detection/scrubbing.
-- **`analysis/`** — `analyzer.ts` orchestrates batched LLM processing (25 records/batch, concurrent processing, retry with exponential backoff). `aggregator.ts` generates regional and global reports from individual analyses.
+- **`llm/`** — LLM provider abstraction using Factory pattern. `provider.ts` defines `ILLMProvider` interface; `claude.ts`, `gemini.ts`, `openai.ts` implement it. `prompts.ts` has all prompt templates (COMPREHENSIVE_ANALYSIS_PROMPT, PORTFOLIO_AGGREGATION_PROMPT, TWENTY_QUESTIONS_PROMPT, COMPETITIVE_DISPLACEMENT_PROMPT, DELTA_INTELLIGENCE_PROMPT). Gemini uses `gemini-1.5-flash` (2.x models are gated on new API accounts).
+- **`pipeline/`** — `csvParser.ts` handles CSV ingestion with Salesforce field mapping, composite field builders, and region auto-detection. `validator.ts` does data quality scoring and PII detection/scrubbing. BigQuery source filters to open opportunities only (`winLossStatus = 'active'`).
+- **`analysis/`** — `analyzer.ts` orchestrates batched LLM processing: batches of 25 records, 5 records concurrently within each batch, all batches run in parallel via `Promise.all` (keeps wall-clock time under the 540s function timeout). `aggregator.ts` generates regional and global reports from individual analyses; `enrichWithLLM()` runs up to 5 enrichment phases (see below).
 - **`transforms/`** — `reportTransformer.ts` converts backend `AggregatedReport` into the frontend `RegionData` shape for the dashboard.
 
 ### Cloud Functions
@@ -90,15 +90,15 @@ Key layers in `functions/src/`:
 ### Frontend (hosting)
 React SPA with Vite. Uses `@/` path alias (mapped to `src/`).
 
-- **`src/App.tsx`** — Main layout (top to bottom): Header + UploadModal, PrismBar, live/sample data indicator, empty state (when no data), then animated content: AIBriefing → StatsRow → RegionTabs → PipelineFunnel → 2x2 grid (Win/Loss Themes, Risk Radar, Market Signals) → TrendChart → CompetitorIntel → Recommendations → ProcessingFooter. Uses `framer-motion` for enter animations.
+- **`src/App.tsx`** — Main layout (top to bottom): Header + UploadModal, PrismBar, live/sample data indicator, empty state (when no data), then animated content: AIBriefing → **RiskRadar** (hero position, first widget) → StatsRow → RegionTabs → PipelineFunnel → 3-col grid (Win Themes, Loss Themes, Market Signals) → TrendChart → CompetitorIntel → Recommendations → TwentyQuestions → CompetitiveDisplacement → DeltaIntelligence → ProcessingFooter. Uses `framer-motion` for enter animations.
 - **`src/hooks/`** — `useRegion.ts` (region selection + data, plus `isLive`/`hasLiveData`/`showingContent` for live-vs-sample toggle), `useFirestore.ts` (Firestore queries), `useUpload.ts` (CSV upload)
-- **`src/components/dashboard/`** — Dashboard widgets: AIBriefing, StatsRow, RegionTabs, PipelineFunnel, ThemeChart, RiskRadar, MarketSignals, TrendChart, CompetitorIntel, Recommendations, UploadModal
+- **`src/components/dashboard/`** — Dashboard widgets: AIBriefing, StatsRow, RegionTabs, PipelineFunnel, ThemeChart, RiskRadar, MarketSignals, TrendChart, CompetitorIntel, Recommendations, TwentyQuestions, CompetitiveDisplacement, DeltaIntelligence, UploadModal
 - **`src/components/ui/`** — Reusable UI primitives (Panel, Badge, Button, Sparkline)
 - **`src/components/layout/`** — Layout components (Header, PrismBar, ProcessingFooter)
 - **`src/data/sampleData.ts`** — Hardcoded sample data for development
 - **`src/theme/`** — ThemeProvider with light/dark mode, design tokens (`tokens.ts`), animations (`animations.ts`)
 - **`src/lib/firebase.ts`** — Firebase client init with automatic emulator connection in dev
-- **`src/lib/types.ts`** — Frontend-specific type definitions
+- **`src/lib/types.ts`** — Frontend-specific type definitions. `RegionData` is the core per-region data shape. Also defines typed interfaces for the three enrichment overlays: `TwentyQuestionsData` (10 CRO questions), `CompetitiveDisplacementData`, and `DeltaIntelligenceData` (pipeline trajectory, deal-level changes, early warnings).
 
 ### Firestore Collections
 - `/reports/{date}` — Aggregated reports by date
@@ -113,7 +113,7 @@ Both sub-projects have `.env.example` files. Copy to `.env` and populate.
 ```
 ANTHROPIC_API_KEY=<key>   # preferred; also readable as LLM_API_KEY
 LLM_PROVIDER=claude|gemini|openai
-LLM_MODEL=claude-sonnet-4-5-20250929
+LLM_MODEL=claude-sonnet-4-6   # use gemini-1.5-flash for Gemini (2.x models gated on new API accounts)
 LLM_TEMPERATURE=0.3
 LLM_MAX_TOKENS=2000
 
@@ -140,6 +140,6 @@ Uses Vite env vars prefixed with `VITE_FIREBASE_*` (apiKey, authDomain, projectI
 - **All 4 HTTP endpoints require a Firebase ID token**: `Authorization: Bearer <idToken>`. The `requireAuth` middleware in `index.ts` verifies this via `admin.auth().verifyIdToken()`
 - Firestore rules require `request.auth != null` for reads on `reports` and `analyses`; writes from the client are always denied (Cloud Functions use Admin SDK, bypassing rules)
 - `ANTHROPIC_API_KEY` is stored as a Firebase Secret Manager secret, not a plain env var — all functions declare `secrets: ["ANTHROPIC_API_KEY"]` in their config
-- The pipeline has a **two-phase enrichment pattern**: base report is stored immediately after aggregation, then `Aggregator.enrichWithLLM()` adds executive briefing, recommendations, and forecast confidence as a non-fatal follow-up update
+- The pipeline has a **multi-phase enrichment pattern**: base report is stored immediately after aggregation, then `Aggregator.enrichWithLLM()` runs up to 5 non-fatal enrichment passes — Phase 1: executive briefing + recommendations + forecast confidence (PORTFOLIO_AGGREGATION_PROMPT); Phase 2: pipeline health narrative; Phase 3: 10 CRO questions (TWENTY_QUESTIONS_PROMPT, stored as `twentyQuestions`); Phase 4: competitive displacement intelligence (COMPETITIVE_DISPLACEMENT_PROMPT, stored as `competitiveDisplacement`); Phase 5: delta intelligence vs. prior report (DELTA_INTELLIGENCE_PROMPT, stored as `deltaIntelligence`). Each phase is independently non-fatal.
 - The CSV parser handles real Salesforce export column names with composite field builders and win/loss status normalization
 - LLM prompts wrap user-supplied content between `[BEGIN_USER_DATA]` / `[END_USER_DATA]` markers to prevent prompt injection

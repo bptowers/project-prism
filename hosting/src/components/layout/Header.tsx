@@ -6,9 +6,11 @@ import { useTheme } from '@/theme/ThemeProvider';
 
 interface HeaderProps {
   onUploadClick?: () => void;
+  period?: string;
+  isLive?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onUploadClick }) => {
+export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive }) => {
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -31,14 +33,12 @@ export const Header: React.FC<HeaderProps> = ({ onUploadClick }) => {
           </span>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <select style={{
+          <div style={{
             background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)',
-            padding: '0.5rem 1rem', borderRadius: 5, fontFamily: 'var(--font-mono)', fontSize: '0.75rem', cursor: 'pointer',
+            padding: '0.5rem 1rem', borderRadius: 5, fontFamily: 'var(--font-mono)', fontSize: '0.75rem',
           }}>
-            <option>Week of Feb 3, 2026</option>
-            <option>Week of Jan 27, 2026</option>
-            <option>Week of Jan 20, 2026</option>
-          </select>
+            {isLive ? period || 'Latest Live Report' : 'No Live Report'}
+          </div>
           <Button variant="export">Export PDF</Button>
           <Button variant="export">Export Slides</Button>
           <Button variant="primary" onClick={onUploadClick}>Upload CSV</Button>

@@ -1,5 +1,5 @@
 export type Region = 'all' | 'na' | 'uk' | 'au';
-export type RiskLevel = 'HIGH' | 'MEDIUM';
+export type RiskLevel = 'HIGH' | 'MEDIUM' | 'LOW';
 export type ThreatLevel = 'high' | 'medium' | 'low';
 export type Priority = 'P1' | 'P2' | 'P3';
 
@@ -34,9 +34,16 @@ export interface ThemeItem {
 
 export interface RiskDeal {
   id: number;
+  opportunityId?: string;
+  accountName?: string;
+  stage?: string;
+  rep?: string;
+  segment?: string;
   region: string;
   level: RiskLevel;
   value: string;
+  pipelineValue?: number;
+  healthScore?: number;
   confidence: number;
   summary: string;
   action: string;

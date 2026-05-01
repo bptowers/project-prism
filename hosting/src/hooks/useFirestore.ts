@@ -22,7 +22,7 @@ export function useLatestReport() {
       },
       (err) => {
         console.error('Firestore query error:', err);
-        setError('Firestore query failed — using sample data');
+        setError('Firestore query failed');
         setLoading(false);
       }
     );

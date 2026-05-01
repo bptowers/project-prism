@@ -4,6 +4,7 @@ import { itemVariants } from '@/theme/animations';
 
 interface AIBriefingProps {
   briefing?: string;
+  fallbackBriefing?: string;
   totalOpportunities?: number;
   period?: string;
   isLive?: boolean;
@@ -11,11 +12,13 @@ interface AIBriefingProps {
 
 export const AIBriefing: React.FC<AIBriefingProps> = ({
   briefing,
+  fallbackBriefing,
   totalOpportunities,
   period,
   isLive = false,
 }) => {
-  const label = period || 'Weekly Intelligence Summary';
+  const label = isLive ? period || 'Latest live analysis' : 'Awaiting live analysis';
+  const displayBriefing = briefing || fallbackBriefing;
 
   return (
     <motion.div variants={itemVariants} style={{
@@ -40,7 +43,7 @@ export const AIBriefing: React.FC<AIBriefingProps> = ({
             borderRadius: '50%',
             animation: isLive ? 'pulse 2s ease infinite' : 'none',
           }} />
-          {isLive ? 'AI-GENERATED BRIEFING' : 'SAMPLE BRIEFING'}
+          {isLive ? 'AI-GENERATED BRIEFING' : 'NO LIVE BRIEFING'}
         </span>
         <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.125rem' }}>{label}</span>
         {isLive && totalOpportunities && (
@@ -53,10 +56,10 @@ export const AIBriefing: React.FC<AIBriefingProps> = ({
         )}
       </div>
 
-      {isLive && briefing ? (
+      {isLive && displayBriefing ? (
         // Live LLM-generated briefing — render as plain text with preserved formatting
         <p style={{ fontSize: '1rem', color: 'var(--text-secondary)', lineHeight: 1.75, maxWidth: 1100, margin: 0 }}>
-          {briefing}
+          {displayBriefing}
         </p>
       ) : isLive && !briefing ? (
         // Live data loaded but enrichment still running
@@ -64,9 +67,8 @@ export const AIBriefing: React.FC<AIBriefingProps> = ({
           Intelligence briefing generating… analysis complete, enrichment pass in progress.
         </p>
       ) : (
-        // Sample data — clearly labelled
-        <p style={{ fontSize: '1rem', color: 'var(--text-secondary)', lineHeight: 1.75, maxWidth: 1100, margin: 0, opacity: 0.7 }}>
-          Global pipeline stands at <strong style={{ color: 'var(--text-primary)' }}>$47.2M</strong> across <strong style={{ color: 'var(--text-primary)' }}>347 opportunities</strong>, with a blended win rate of <span style={{ color: 'var(--success)', fontWeight: 600 }}>42%</span> — up 3 points from last quarter. The primary concern this week is a coordinated <span style={{ color: 'var(--error)', fontWeight: 600 }}>competitor FUD campaign on pricing</span> detected across 14 deals in NA and UK. <em style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>(Upload a CSV to replace this with live intelligence.)</em>
+        <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', margin: 0 }}>
+          No live report available yet. Upload a CSV or trigger a BigQuery analysis to populate this briefing.
         </p>
       )}
     </motion.div>

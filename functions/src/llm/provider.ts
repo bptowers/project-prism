@@ -136,9 +136,9 @@ export class LLMProviderFactory {
         topP: 0.9,
       },
       gemini: {
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-2.5-flash",
         temperature: 0.3,
-        maxTokens: 2000,
+        maxTokens: 8192,
       },
       openai: {
         model: "gpt-4o",

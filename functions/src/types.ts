@@ -77,9 +77,18 @@ export interface RiskDeal {
   opportunityId: string;
   accountName: string;
   opportunityName: string;
+  stage: string;
+  salesRep?: string;
+  segment?: string;
+  amount?: number;
+  probability?: number;
+  dealHealthScore: number;
+  activityHealth: "active" | "cooling" | "dormant" | "dark";
+  velocityAssessment: "accelerating" | "on-track" | "slowing" | "stalled";
   riskLevel: "high" | "medium" | "low";
   signals: string[];
   summary: string;
+  recommendedAction?: string;
   lastUpdated: string;
 }
 
@@ -103,6 +112,11 @@ export interface OpportunityAnalysis {
   opportunityName: string;
   region: string;
   stage: string;
+  amount?: number;
+  expectedMRR?: number;
+  salesRep?: string;
+  probability?: number;
+  dealType?: string;
   winLossStatus: "won" | "lost" | "active";
   analysisDate: string;
   dealHealthScore: number;
@@ -156,6 +170,9 @@ export interface RegionReport {
   topWinThemes: ThemeCount[];
   topLossThemes: ThemeCount[];
   atRiskDeals: RiskDeal[];
+  /** Every active deal scored for risk — feeds the Risk Radar bubble chart so
+   *  healthy (green/yellow) deals are visible alongside flagged ones. */
+  allActiveDeals: RiskDeal[];
   competitorActivity: CompetitorActivity[];
   marketSignals: string[];
   sentimentTrend: {

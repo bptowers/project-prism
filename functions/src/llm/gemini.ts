@@ -3,7 +3,7 @@
  * Implementation of Google's Gemini API via Google AI Studio for revenue intelligence analysis
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/generative-ai";
 import { ILLMProvider, LLMAnalysisOutput, LLMProviderError, LLMRateLimitError } from "./provider.js";
 import { LLMConfig, OpportunityAnalysis, OpportunityRecord } from "../types.js";
 import { formatOpportunityForPrompt, injectOpportunityData, SYSTEM_PROMPT } from "./prompts.js";
@@ -17,6 +17,134 @@ export class GeminiProvider implements ILLMProvider {
   private config: LLMConfig;
   private requestCount = 0;
   private lastRequestTime = 0;
+
+  private static readonly OPPORTUNITY_ANALYSIS_SCHEMA: ResponseSchema = {
+    type: SchemaType.OBJECT,
+    properties: {
+      dealHealthScore: { type: SchemaType.NUMBER },
+      velocityAssessment: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: ["accelerating", "on-track", "slowing", "stalled"],
+      },
+      activityHealth: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: ["active", "cooling", "dormant", "dark"],
+      },
+      stakeholderCoverage: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: ["multi-threaded", "single-threaded", "unknown"],
+      },
+      competitorThreat: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: ["none", "present", "active-displacement"],
+      },
+      riskSignals: {
+        type: SchemaType.OBJECT,
+        properties: {
+          level: {
+            type: SchemaType.STRING,
+            format: "enum",
+            enum: ["high", "medium", "low", "none"],
+          },
+          signals: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+          },
+          summary: { type: SchemaType.STRING },
+        },
+        required: ["level", "signals", "summary"],
+      },
+      narrativeGap: {
+        type: SchemaType.OBJECT,
+        properties: {
+          detected: { type: SchemaType.BOOLEAN },
+          description: { type: SchemaType.STRING },
+        },
+        required: ["detected", "description"],
+      },
+      regionalIntelligence: {
+        type: SchemaType.OBJECT,
+        properties: {
+          matchesRegionalPattern: { type: SchemaType.BOOLEAN },
+          deviation: { type: SchemaType.STRING },
+        },
+        required: ["matchesRegionalPattern", "deviation"],
+      },
+      competitors: {
+        type: SchemaType.OBJECT,
+        properties: {
+          mentioned: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+          },
+          context: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+          },
+        },
+        required: ["mentioned", "context"],
+      },
+      marketSignals: {
+        type: SchemaType.ARRAY,
+        items: { type: SchemaType.STRING },
+      },
+      sentiment: {
+        type: SchemaType.OBJECT,
+        properties: {
+          score: { type: SchemaType.NUMBER },
+          label: {
+            type: SchemaType.STRING,
+            format: "enum",
+            enum: ["positive", "neutral", "negative"],
+          },
+          basis: { type: SchemaType.STRING },
+        },
+        required: ["score", "label"],
+      },
+      recommendedAction: {
+        type: SchemaType.OBJECT,
+        properties: {
+          priority: {
+            type: SchemaType.STRING,
+            format: "enum",
+            enum: ["P1", "P2", "P3"],
+          },
+          action: { type: SchemaType.STRING },
+          owner: {
+            type: SchemaType.STRING,
+            format: "enum",
+            enum: ["AE", "Manager", "Executive", "CSM"],
+          },
+          deadline: {
+            type: SchemaType.STRING,
+            format: "enum",
+            enum: ["Today", "48 hours", "This week"],
+          },
+        },
+        required: ["priority", "action", "owner", "deadline"],
+      },
+      confidence: { type: SchemaType.NUMBER },
+    },
+    required: [
+      "dealHealthScore",
+      "velocityAssessment",
+      "activityHealth",
+      "stakeholderCoverage",
+      "competitorThreat",
+      "riskSignals",
+      "narrativeGap",
+      "regionalIntelligence",
+      "competitors",
+      "marketSignals",
+      "sentiment",
+      "recommendedAction",
+      "confidence",
+    ],
+  };
 
   /**
    * Initialize Gemini provider with configuration
@@ -82,6 +210,7 @@ export class GeminiProvider implements ILLMProvider {
             temperature: this.config.temperature,
             topP: this.config.topP || 0.9,
             responseMimeType: "application/json",
+            responseSchema: GeminiProvider.OPPORTUNITY_ANALYSIS_SCHEMA,
           },
         });
 
@@ -94,10 +223,30 @@ export class GeminiProvider implements ILLMProvider {
         const responseText = response.response.text();
 
         // Parse JSON response
-        const analysis = this.parseAnalysisResponse(
-          responseText,
-          opportunity.opportunityId
-        );
+        let analysis: Partial<OpportunityAnalysis>;
+        try {
+          analysis = this.parseAnalysisResponse(
+            responseText,
+            opportunity.opportunityId
+          );
+        } catch (parseError) {
+          const candidates = response.response.candidates || [];
+          const finishReasons = candidates
+            .map((candidate) => candidate.finishReason || "unknown")
+            .join(",");
+          const finishMessages = candidates
+            .map((candidate) => candidate.finishMessage || "")
+            .filter(Boolean)
+            .join(" | ");
+          console.error(
+            `Failed to parse Gemini response for ${opportunity.opportunityId}: ${String(parseError)} ` +
+            `responseLength=${responseText.length} finishReasons=${finishReasons || "none"} ` +
+            `finishMessages=${finishMessages || "none"} ` +
+            `usage=${JSON.stringify(response.response.usageMetadata || {})} ` +
+            `preview=${JSON.stringify(responseText.slice(0, 500))}`
+          );
+          throw parseError;
+        }
 
         results.push({
           analysis,

@@ -36,9 +36,16 @@ interface ThemeItem {
 
 interface FrontendRiskDeal {
   id: number;
+  opportunityId?: string;
+  accountName?: string;
+  stage?: string;
+  rep?: string;
+  segment?: string;
   region: string;
-  level: "HIGH" | "MEDIUM";
+  level: "HIGH" | "MEDIUM" | "LOW";
   value: string;
+  pipelineValue: number;
+  healthScore: number;
   confidence: number;
   summary: string;
   action: string;
@@ -193,19 +200,31 @@ export class ReportTransformer {
       revenue: `${t.count} deals`,
     }));
 
-    // Risk deals (across all regions)
+    // Deals to plot on the Risk Radar — prefer the full active pipeline so
+    // healthy deals are visible; fall back to atRiskDeals for legacy reports
+    // that pre-date the allActiveDeals field.
     const risks: FrontendRiskDeal[] = [];
     let riskId = 1;
     for (const regionReport of Object.values(report.regions)) {
-      for (const deal of regionReport.atRiskDeals) {
+      const sourceDeals = regionReport.allActiveDeals?.length
+        ? regionReport.allActiveDeals
+        : regionReport.atRiskDeals;
+      for (const deal of sourceDeals) {
         risks.push({
           id: riskId++,
+          opportunityId: deal.opportunityId,
+          accountName: deal.accountName,
+          stage: deal.stage,
+          rep: deal.salesRep || "Unassigned",
+          segment: deal.segment || "Unknown",
           region: regionReport.region,
-          level: deal.riskLevel.toUpperCase() as "HIGH" | "MEDIUM",
+          level: deal.riskLevel.toUpperCase() as "HIGH" | "MEDIUM" | "LOW",
           value: deal.opportunityName || deal.opportunityId || "—",
-          confidence: 80,
+          pipelineValue: deal.amount || 0,
+          healthScore: deal.dealHealthScore,
+          confidence: deal.dealHealthScore ? Math.max(0, Math.min(100, 100 - deal.dealHealthScore)) : 80,
           summary: deal.summary,
-          action: deal.signals.length > 0 ? deal.signals[0] : "Review deal",
+          action: deal.recommendedAction || (deal.signals.length > 0 ? deal.signals[0] : "Review deal"),
           daysStalled: 0,
         });
       }
@@ -329,14 +348,22 @@ export class ReportTransformer {
       revenue: `${t.count} deals`,
     }));
 
-    const risks: FrontendRiskDeal[] = region.atRiskDeals.map((d, i) => ({
+    const sourceDeals = region.allActiveDeals?.length ? region.allActiveDeals : region.atRiskDeals;
+    const risks: FrontendRiskDeal[] = sourceDeals.map((d, i) => ({
       id: i + 1,
+      opportunityId: d.opportunityId,
+      accountName: d.accountName,
+      stage: d.stage,
+      rep: d.salesRep || "Unassigned",
+      segment: d.segment || "Unknown",
       region: region.region,
-      level: d.riskLevel.toUpperCase() as "HIGH" | "MEDIUM",
-      value: "—",
-      confidence: 80,
+      level: d.riskLevel.toUpperCase() as "HIGH" | "MEDIUM" | "LOW",
+      value: d.opportunityName || d.opportunityId || "—",
+      pipelineValue: d.amount || 0,
+      healthScore: d.dealHealthScore,
+      confidence: d.dealHealthScore ? Math.max(0, Math.min(100, 100 - d.dealHealthScore)) : 80,
       summary: d.summary,
-      action: d.signals.length > 0 ? d.signals[0] : "Review deal",
+      action: d.recommendedAction || (d.signals.length > 0 ? d.signals[0] : "Review deal"),
       daysStalled: 0,
     }));
 

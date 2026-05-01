@@ -102,8 +102,11 @@ export class Aggregator {
     const winThemes = this.extractAndRankThemes(wins, "win");
     const lossThemes = this.extractAndRankThemes(losses, "loss");
 
-    // Identify at-risk deals
+    // Identify at-risk deals (high/medium only — used for stats and counts)
     const atRiskDeals = this.identifyAtRiskDeals(active);
+    // Every active deal as a scored RiskDeal — used by the Risk Radar so
+    // healthy deals show as green/yellow rather than the chart being all red.
+    const allActiveDeals = this.scoreAllActiveDeals(active);
 
     // Aggregate competitor activity
     const competitorActivity = this.aggregateCompetitors(analyses);
@@ -129,6 +132,7 @@ export class Aggregator {
       topWinThemes: winThemes,
       topLossThemes: lossThemes,
       atRiskDeals,
+      allActiveDeals,
       competitorActivity,
       marketSignals,
       sentimentTrend,
@@ -252,9 +256,18 @@ export class Aggregator {
           opportunityId: deal.opportunityId,
           accountName: deal.accountName,
           opportunityName: deal.opportunityName,
+          stage: deal.stage,
+          salesRep: deal.salesRep,
+          segment: deal.dealType,
+          amount: deal.expectedMRR ?? deal.amount,
+          probability: deal.probability,
+          dealHealthScore: deal.dealHealthScore,
+          activityHealth: deal.activityHealth,
+          velocityAssessment: deal.velocityAssessment,
           riskLevel: riskLevel as "high" | "medium",
           signals: deal.riskSignals.signals,
           summary: deal.riskSignals.summary,
+          recommendedAction: deal.recommendedAction?.action,
           lastUpdated: deal.analysisDate,
         });
       }
@@ -264,6 +277,36 @@ export class Aggregator {
     return atRisk.sort((a, b) => {
       const levelOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
       return levelOrder[a.riskLevel] - levelOrder[b.riskLevel];
+    });
+  }
+
+  /**
+   * Builds a RiskDeal entry for every active opportunity (regardless of risk
+   * level) so the Risk Radar can plot the full pipeline distribution.
+   */
+  private static scoreAllActiveDeals(activeDeals: OpportunityAnalysis[]): RiskDeal[] {
+    return activeDeals.map((deal) => {
+      const rawLevel = deal.riskSignals?.level;
+      const riskLevel: "high" | "medium" | "low" =
+        rawLevel === "high" || rawLevel === "medium" ? rawLevel : "low";
+      return {
+        opportunityId: deal.opportunityId,
+        accountName: deal.accountName,
+        opportunityName: deal.opportunityName,
+        stage: deal.stage,
+        salesRep: deal.salesRep,
+        segment: deal.dealType,
+        amount: deal.expectedMRR ?? deal.amount,
+        probability: deal.probability,
+        dealHealthScore: deal.dealHealthScore,
+        activityHealth: deal.activityHealth,
+        velocityAssessment: deal.velocityAssessment,
+        riskLevel,
+        signals: deal.riskSignals?.signals ?? [],
+        summary: deal.riskSignals?.summary ?? "",
+        recommendedAction: deal.recommendedAction?.action,
+        lastUpdated: deal.analysisDate,
+      };
     });
   }
 
