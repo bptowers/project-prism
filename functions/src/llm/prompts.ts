@@ -293,13 +293,19 @@ CLASSIFY THESE FIRST (before analysis):
     accelerating: Stage progression < 2 days/stage, next step defined, activity in 3 days
     on-track:     Stage progression 2–4 days, next step defined
     slowing:      Stage 4–8 days, activity thinning or next step missing
-    stalled:      Stage >8 days OR last activity >14 days OR no next step
+    stalled:      Stage >8 days OR (last activity date present AND >14 days ago) OR no next step
+    NOTE: If Last Activity date is unavailable, do not use its absence to push toward "stalled".
+    Assess velocity based on stage duration and Last Modified date instead.
 
   activityHealth — active | cooling | dormant | dark
     active:   Last activity within 7 days
     cooling:  Last activity 8–14 days ago
     dormant:  Last activity 15–30 days ago
-    dark:     Last activity >30 days ago OR no activity date recorded
+    dark:     Last activity >30 days ago
+    NOTE: If Last Activity is unavailable (shown as —), do NOT default to "dark".
+    Instead, use Last Modified date as a proxy. If Last Modified is within 14 days,
+    classify as "cooling" at worst. Only classify as "dark" when there is positive
+    evidence of >30 days silence, not merely because the activity date field is empty.
 
   stakeholderCoverage — multi-threaded | single-threaded | unknown
     multi-threaded: Evidence of 2+ named contacts OR economic buyer identified
@@ -316,37 +322,45 @@ ANALYSIS FRAMEWORK
 ═══════════════════════════════════════════════════════════
 
 1. DEAL HEALTH SCORE (0–100)
-   This is not a rep sentiment score. It is an objective assessment based on:
+   This is not a rep sentiment score. It is an objective assessment based on four categories.
 
-   a) STAGE INTEGRITY (0–25 points)
-      Does the deal have the required fields for its current stage?
-      Has it been in the current stage longer than the 2–3 day benchmark?
-      Is the close date achievable from the current stage? (14-day total cycle benchmark)
-      A deal in Solution Review & Quote with a close date 2 days out = 0 points here.
+   SCORING PRINCIPLE — Score based on EVIDENCE, not absence of evidence.
+   Missing CRM data means incomplete information, NOT confirmed failure.
+   Each category has a DATA-UNAVAILABLE FLOOR (shown below). Start there when data is absent.
+   Award ABOVE the floor for positive evidence. Deduct BELOW it only for confirmed negatives.
+   A score below 15 total requires explicit supporting evidence — missing fields alone are not enough.
 
-   b) BUYER ENGAGEMENT QUALITY (0–25 points)
-      Is there a champion? (Presence alone = 10 pts. Quality matters more — see below.)
-      CHAMPION QUALITY ASSESSMENT:
-        - Is the champion named and in a decision-influencing role? (+5)
-        - Has the champion shown internal advocacy behaviour? (brought others in, scheduled execs) (+5)
-        - Or is "champion" just the first person the rep spoke to? (deduct points)
-      Is an economic buyer identified for deals >$2K MRR?
-      Is the deal single-threaded (one contact only)? = Critical risk.
-      Last activity date relative to current date — recency of buyer engagement.
+   a) STAGE INTEGRITY (0–25 points) — Floor: 13 for any active deal in a named stage
+      + Toward 25: Stage-appropriate fields populated, close date achievable, progression evident
+      - Toward 5: Close date is in the past by >30 days while deal is still marked active
+      - Score of 0 ONLY for: confirmed zombie — same stage >60 days, no data change, no notes ever
 
-   c) COMPETITIVE CLARITY (0–25 points)
-      Is the primary competitor identified? (Expected by region: UK→JobLogic, NA→ServiceTitan, AU→Ascora, NZ→Tradify)
-      Is Simpro's competitive positioning documented in notes?
-      Has a reference customer relevant to this deal been offered or requested?
-      If no competitor is named for a deal >$500 MRR past Validation = 0 points here.
+   b) BUYER ENGAGEMENT QUALITY (0–25 points) — Floor: 12 for any deal with contact evidence
+      + Toward 25: Named champion in a decision role showing internal advocacy (brought others in, scheduled execs)
+      + 18-22 pts: Real champion with evidence of activity
+      + 14-18 pts: Champion exists, quality uncertain
+      - Toward 5: No champion AND no contact evidence AND deal >$2K MRR past Discovery
+      - Score of 0 ONLY for: explicit buyer disengagement confirmed (went dark, cancelled meetings, unsubscribed)
 
-   d) MOMENTUM SIGNALS (0–25 points)
-      Progression through stages — is the deal moving forward or bouncing?
-      Activity pattern — consistent engagement or burst-then-silence?
-      Next step documented and time-bound?
-      Watch for THE DEAD CAT SIGNAL: A deal that went quiet, briefly re-engaged,
-      then went quiet again. Brief re-engagement after silence is not momentum — it
-      is often a final courtesy before a quiet loss.
+   c) COMPETITIVE CLARITY (0–25 points) — Floor: 12 for any active deal
+      + Toward 25: Named competitor identified, positioning documented in notes, reference offered
+      - Toward 5: Deal is >$2K MRR AND past Validation AND zero competitor mention — deduct, but NOT to 0.
+        Absence of logging ≠ absence of competitive work.
+      - Score of 0 ONLY for: large deals (>$5K MRR) in late stage where rep explicitly has no competitive intel
+
+   d) MOMENTUM SIGNALS (0–25 points) — Floor: 12 for any deal with a documented next step or recent update
+      + Toward 25: Activity within 7 days, time-bound next step, stage is progressing forward
+      - Toward 5: Confirmed stall >14 days with no engagement evidence, close date slipped repeatedly
+      - Score of 0 ONLY for: explicit Dead Cat pattern confirmed OR >45 days of silence with evidence
+
+   CALIBRATION CHECK — Before finalising the score, verify:
+   - A deal in Signature or Approved stage with rep probability ≥70% should score ≥45 unless there is
+     confirmed deal risk (competitor arriving late, champion going dark, no signed intent documented).
+   - A Discovery deal with a named rep, any activity, and a real company should score 40-55.
+   - A deal with NO data at all (no notes, no champion, no dates) should score ~50 (floor on all categories).
+   - If your score is below 20, list the specific confirmed evidence that justifies it.
+   Watch for THE DEAD CAT SIGNAL: A deal that went quiet, briefly re-engaged, then went quiet again.
+   Brief re-engagement after silence is not momentum — it is often a final courtesy before a quiet loss.
 
 2. NARRATIVE vs. REALITY GAP ANALYSIS
    This is the most important section. Compare what the rep wrote vs. what the deal behaviour shows.
@@ -696,18 +710,13 @@ Here is the aggregated report summary:
 // The AI-First CRO framework. Direct answers. No hedging. No summaries.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const TWENTY_QUESTIONS_PROMPT = `ROLE: You are answering ten specific in-flight pipeline intelligence questions
-for Pete Mansel, CRO of Simpro. Pete wrote the book on AI-First revenue leadership.
-He does not want summaries. He does not want hedging.
-He wants direct, named, specific answers about OPEN, ACTIVE deals —
-the kind a trusted analyst gives in a pre-meeting briefing when the stakes are real.
+export const TWENTY_QUESTIONS_PROMPT = `ROLE: You are a revenue intelligence analyst answering ten specific in-flight pipeline questions
+for a Chief Revenue Officer. Provide direct, specific answers — no summaries, no hedging.
 
-Every answer must reference actual deal names, rep names, regions, and MRR figures
-where available. If the data supports a specific name or number, use it.
-Generalisations are a failure mode here.
-
-IMPORTANT: Rep names are intentional. This is a CRO-level intelligence tool.
-Rep performance visibility is expected and appropriate.
+Every answer must reference actual deal names, account names, regions, and MRR figures
+from the data where available. Generalisations are a failure mode.
+If a data field identifies the account manager or sales rep, include it.
+This is a business pipeline analysis tool operating on anonymised CRM data.
 
 THE TEN QUESTIONS:
 

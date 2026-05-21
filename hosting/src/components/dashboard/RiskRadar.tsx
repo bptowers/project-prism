@@ -2,8 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import type { RiskDeal } from '@/lib/types';
 import { DealDetailModal } from '@/components/dashboard/DealDetailModal';
+import { useDealReviews } from '@/hooks/useDealReviews';
 
-interface Props { risks: RiskDeal[]; }
+interface Props {
+  risks: RiskDeal[];
+  onFilteredRisksChange?: (risks: RiskDeal[], isFiltered: boolean) => void;
+  deltaIntelligence?: import('@/lib/types').DeltaIntelligenceData;
+}
 
 type RiskBand = 'Green' | 'Yellow' | 'Red';
 type FilterGroup = 'stages' | 'reps' | 'regions' | 'bands';
@@ -180,6 +185,33 @@ function buildRiskDimensions(risks: RiskDeal[]): RiskDimension[] {
 
 function toggleList(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter(item => item !== value) : [...list, value];
+}
+
+function exportToCSV(risks: RiskDeal[]): void {
+  const headers = ['Account Name','Opportunity Name','Region','Stage','Rep','Risk Level','Health Score','Pipeline Value','Days Stalled','Confidence','Summary','Recommended Action'];
+  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const rows = risks.map(r => [
+    r.accountName ?? '',
+    r.value,
+    r.region,
+    normalizeStage(r.stage),
+    r.rep ?? 'Unassigned',
+    r.level,
+    r.healthScore ?? '',
+    r.pipelineValue ?? 0,
+    r.daysStalled,
+    r.confidence,
+    escape(r.summary),
+    escape(r.action),
+  ].join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `prism-deals-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function Chip({
@@ -360,7 +392,7 @@ function PipelineRiskMap({ risks }: { risks: RiskDeal[] }) {
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', padding: '1.25rem' }}>
       <h3 style={{ margin: 0, marginBottom: 4, fontSize: '1rem', fontWeight: 800 }}>Pipeline Risk Map</h3>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: 12 }}>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
         Risk Score ↑
       </div>
       <svg viewBox={`0 0 ${plotWidth} ${plotHeight + 58}`} role="img" aria-label="Pipeline risk bubble chart" style={{ width: '100%', height: 'auto', display: 'block' }}>
@@ -473,7 +505,7 @@ function RiskDriversRadar({
     return (
       <div>
         <h3 style={{ margin: 0, marginBottom: 4, fontSize: '1rem', fontWeight: 800 }}>Top Risk Drivers</h3>
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>No risk drivers match the current filters.</div>
+        <div style={{ color: 'var(--text-secondary)', fontSize: '0.76rem' }}>No risk drivers match the current filters.</div>
       </div>
     );
   }
@@ -481,7 +513,7 @@ function RiskDriversRadar({
   return (
     <div>
       <h3 style={{ margin: 0, marginBottom: 4, fontSize: '1rem', fontWeight: 800 }}>Top Risk Drivers</h3>
-      <div style={{ color: 'var(--text-muted)', fontSize: '0.76rem', marginBottom: 10 }}>Driver radar weighted by risk severity and pipeline</div>
+      <div style={{ color: 'var(--text-secondary)', fontSize: '0.76rem', marginBottom: 10 }}>Driver radar weighted by risk severity and pipeline</div>
 
       <svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Top risk drivers radar chart" style={{ width: '100%', maxWidth: 340, height: 'auto', display: 'block', margin: '0 auto 0.85rem' }}>
         {gridLevels.map(level => (
@@ -537,7 +569,7 @@ function RiskDriverRanking({ dimensions }: { dimensions: RiskDimension[] }) {
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', padding: '1.25rem' }}>
       <h3 style={{ margin: 0, marginBottom: 4, fontSize: '1rem', fontWeight: 800 }}>Risk Driver Ranking</h3>
-      <div style={{ color: 'var(--text-muted)', fontSize: '0.76rem', marginBottom: 16 }}>Highest normalized driver scores</div>
+      <div style={{ color: 'var(--text-secondary)', fontSize: '0.76rem', marginBottom: 16 }}>Highest normalized driver scores</div>
       <div style={{ display: 'grid', gap: 13 }}>
         {ranked.map((driver, index) => {
           const width = Math.max(8, driver.value);
@@ -567,7 +599,7 @@ function LateStageDealsStrip({ risks }: { risks: RiskDeal[] }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem', marginBottom: 14 }}>
         <div>
           <h3 style={{ margin: 0, marginBottom: 4, fontSize: '1rem', fontWeight: 800 }}>Most At-Risk Late-Stage Deals</h3>
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>Proposal, Negotiation, Commit, Contract Review, Approved stages</div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.76rem' }}>Proposal, Negotiation, Commit, Contract Review, Approved stages</div>
         </div>
         <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.72rem' }}>{risks.length} shown</span>
       </div>
@@ -594,16 +626,20 @@ function LateStageDealsStrip({ risks }: { risks: RiskDeal[] }) {
   );
 }
 
-export const RiskRadar: React.FC<Props> = ({ risks }) => {
+export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, deltaIntelligence }) => {
+  const deterioratedCount = deltaIntelligence?.significantDealChanges?.deteriorated?.length ?? 0;
   const [selectedDeal, setSelectedDeal] = useState<RiskDeal | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [lateOnly, setLateOnly] = useState(false);
+  const [hideReviewed, setHideReviewed] = useState(false);
   const [filters, setFilters] = useState<Record<FilterGroup, string[]>>({
     stages: [],
     reps: [],
     regions: [],
     bands: [],
   });
+
+  const { reviewed, isReviewed, toggleReview } = useDealReviews();
 
   const options = useMemo(() => {
     const stageSet = new Set<string>();
@@ -643,6 +679,20 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
     return risks.filter(risk => matchesFilters(risk, filters, lateOnly));
   }, [filters, lateOnly, risks]);
 
+  const visibleFilteredRisks = useMemo(() => {
+    return hideReviewed
+      ? filteredRisks.filter(r => !isReviewed(r.opportunityId || r.value))
+      : filteredRisks;
+  }, [filteredRisks, hideReviewed, isReviewed]);
+
+  const isFiltered = filters.stages.length > 0 || filters.reps.length > 0 || filters.regions.length > 0 || filters.bands.length > 0 || lateOnly;
+
+  useEffect(() => {
+    // Always fire with filteredRisks (not visibleFilteredRisks) so stats row
+    // is unaffected by the hide-reviewed toggle.
+    onFilteredRisksChange?.(filteredRisks, isFiltered);
+  }, [filteredRisks, isFiltered, onFilteredRisksChange]);
+
   const summary = useMemo(() => {
     const totalWeight = filteredRisks.reduce((sum, r) => sum + weightedValue(r), 0);
     const valueTotal = filteredRisks.reduce((sum, r) => sum + dealValue(r), 0);
@@ -663,12 +713,12 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
     return { totalWeight, valueTotal, distribution, confidence, drivers, dimensions };
   }, [filteredRisks]);
 
-  const lateStageRisks = filteredRisks
+  const lateStageRisks = visibleFilteredRisks
     .filter(risk => isLateStage(risk.stage))
     .sort((a, b) => riskScore(b) - riskScore(a) || weightedValue(b) - weightedValue(a))
     .slice(0, 5);
 
-  const visibleRisks = (showAll ? filteredRisks : filteredRisks.slice(0, MAX_DEALS));
+  const visibleRisks = (showAll ? visibleFilteredRisks : visibleFilteredRisks.slice(0, MAX_DEALS));
 
   const toggleFilter = (group: FilterGroup, value: string) => {
     setFilters(current => ({ ...current, [group]: toggleList(current[group], value) }));
@@ -688,18 +738,98 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
 
   return (
     <div style={{ display: 'grid', gap: '1.25rem' }}>
+      {deterioratedCount > 0 && (
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '0.4rem 0.85rem',
+          borderRadius: 6,
+          background: 'var(--error-subtle)',
+          border: '1px solid var(--error)',
+          fontSize: '0.78rem',
+          fontFamily: 'var(--font-mono)',
+          color: 'var(--error)',
+          fontWeight: 700,
+          alignSelf: 'flex-start',
+        }}>
+          ↓ {deterioratedCount} deal{deterioratedCount !== 1 ? 's' : ''} deteriorated since last run
+        </div>
+      )}
+      {reviewed.size > 0 && (
+        <div style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.72rem',
+          color: 'var(--success)',
+          alignSelf: 'flex-start',
+        }}>
+          ✓ {reviewed.size} deal{reviewed.size !== 1 ? 's' : ''} marked as reviewed
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
         <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', padding: '1.25rem' }}>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', letterSpacing: '0.08em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 10 }}>
             Revenue Confidence
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span style={{ fontSize: '2.55rem', lineHeight: 1, fontWeight: 850, color: summary.confidence < 50 ? 'var(--warning)' : 'var(--success)' }}>
-              {summary.confidence}
-            </span>
-            <span style={{ color: 'var(--text-secondary)', fontSize: '1.25rem' }}>/100</span>
-          </div>
-          <div style={{ marginTop: 8, color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+          {(() => {
+            const conf = summary.confidence;
+            const arcColor = conf >= 70 ? 'var(--success)' : conf >= 40 ? 'var(--warning)' : 'var(--error)';
+            const cx = 80, cy = 80, r = 60;
+            // Foreground arc: sweeps from 180° (left) toward 0° (right) proportional to conf/100
+            const angle = Math.PI - (conf / 100) * Math.PI;
+            const endX = cx + r * Math.cos(angle);
+            const endY = cy - r * Math.sin(angle);
+            const largeArcFlag = conf > 50 ? 1 : 0;
+            const fgPath = `M ${cx - r} ${cy} A ${r} ${r} 0 ${largeArcFlag} 1 ${endX.toFixed(2)} ${endY.toFixed(2)}`;
+            return (
+              <svg viewBox="0 0 160 90" style={{ width: '100%', maxWidth: 160, display: 'block' }} aria-label={`Revenue confidence: ${conf} out of 100`}>
+                {/* Background arc */}
+                <path
+                  d={`M 20 80 A 60 60 0 0 1 140 80`}
+                  fill="none"
+                  stroke="var(--border)"
+                  strokeWidth={10}
+                  strokeLinecap="round"
+                />
+                {/* Foreground arc */}
+                {conf > 0 && (
+                  <path
+                    d={fgPath}
+                    fill="none"
+                    stroke={arcColor}
+                    strokeWidth={10}
+                    strokeLinecap="round"
+                  />
+                )}
+                {/* Confidence number */}
+                <text
+                  x={cx}
+                  y={cy - 2}
+                  textAnchor="middle"
+                  dominantBaseline="auto"
+                  fontSize={28}
+                  fontWeight={850}
+                  fill={arcColor}
+                  fontFamily="inherit"
+                >
+                  {conf}
+                </text>
+                {/* /100 label */}
+                <text
+                  x={cx}
+                  y={cy + 14}
+                  textAnchor="middle"
+                  dominantBaseline="auto"
+                  fontSize={11}
+                  fill="var(--text-muted)"
+                  fontFamily="inherit"
+                >
+                  /100
+                </text>
+              </svg>
+            );
+          })()}
+          <div style={{ marginTop: 4, color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
             Weighted by deal value
           </div>
         </div>
@@ -743,11 +873,33 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
           <FilterBlock label="Region" values={options.regions} selected={filters.regions} onToggle={value => toggleFilter('regions', value)} />
           <FilterBlock label="Risk Level" values={options.bands} selected={filters.bands} onToggle={value => toggleFilter('bands', value)} dotFor={value => bandColor[value as RiskBand]} />
         </div>
-        <div style={{ marginTop: 14 }}>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.66rem', letterSpacing: '0.08em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-            Quick Filter
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 14 }}>
+          <div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.66rem', letterSpacing: '0.08em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+              Quick Filter
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <Chip active={lateOnly} onClick={() => setLateOnly(!lateOnly)}>Late-stage only</Chip>
+              <Chip active={hideReviewed} onClick={() => setHideReviewed(!hideReviewed)}>Hide reviewed</Chip>
+            </div>
           </div>
-          <Chip active={lateOnly} onClick={() => setLateOnly(!lateOnly)}>Late-stage only</Chip>
+          <button
+            onClick={() => exportToCSV(filteredRisks)}
+            disabled={filteredRisks.length === 0}
+            style={{
+              padding: '0.38rem 0.85rem',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              background: 'var(--bg-elevated)',
+              color: 'var(--text-secondary)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.72rem',
+              cursor: filteredRisks.length === 0 ? 'not-allowed' : 'pointer',
+              opacity: filteredRisks.length === 0 ? 0.4 : 1,
+            }}
+          >
+            Export CSV ({filteredRisks.length})
+          </button>
         </div>
       </div>
 
@@ -763,14 +915,18 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
 
       <LateStageDealsStrip risks={lateStageRisks.length ? lateStageRisks : filteredRisks.slice(0, 5)} />
 
-      {filteredRisks.length === 0 ? (
+      {visibleFilteredRisks.length === 0 ? (
         <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '1.25rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.82rem' }}>
-          No deals match the active filters.
+          {filteredRisks.length > 0 && hideReviewed
+            ? `All ${filteredRisks.length} deal${filteredRisks.length !== 1 ? 's' : ''} have been reviewed.`
+            : 'No deals match the active filters.'}
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '0.85rem' }}>
           {visibleRisks.map((risk, index) => {
             const band = riskBand(risk);
+            const reviewKey = risk.opportunityId || risk.value;
+            const dealReviewed = isReviewed(reviewKey);
             return (
               <button
                 key={`${risk.id}-${index}`}
@@ -784,10 +940,11 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
                   cursor: 'pointer',
                   borderLeft: `4px solid ${bandColor[band]}`,
                   boxShadow: 'none',
-                  transition: 'box-shadow 0.15s ease, transform 0.15s ease',
+                  transition: 'box-shadow 0.15s ease, transform 0.15s ease, opacity 0.15s ease',
+                  opacity: dealReviewed ? 0.65 : 1,
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.65rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.65rem' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: 4, flexWrap: 'wrap' }}>
                       <Badge variant={band === 'Red' ? 'high' : band === 'Yellow' ? 'medium' : 'low'}>{band}</Badge>
@@ -798,6 +955,29 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
                       {risk.value}
                     </div>
                   </div>
+                  {/* Reviewed toggle — stopPropagation so it doesn't open the modal */}
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      toggleReview(reviewKey);
+                    }}
+                    title={dealReviewed ? 'Mark as not reviewed' : 'Mark as reviewed'}
+                    style={{
+                      background: 'none',
+                      border: `1px solid ${dealReviewed ? 'var(--success)' : 'var(--border)'}`,
+                      borderRadius: 4,
+                      padding: '2px 7px',
+                      fontSize: '0.65rem',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      color: dealReviewed ? 'var(--success)' : 'var(--text-muted)',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {dealReviewed ? '✓ Reviewed' : 'Review'}
+                  </button>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: 4 }}>Risk</div>
                     <div style={{ color: bandColor[band], fontWeight: 850 }}>{riskScore(risk)}</div>
@@ -812,7 +992,7 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
         </div>
       )}
 
-      {filteredRisks.length > MAX_DEALS && (
+      {visibleFilteredRisks.length > MAX_DEALS && (
         <button
           onClick={() => setShowAll(!showAll)}
           style={{
@@ -827,7 +1007,7 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
             cursor: 'pointer',
           }}
         >
-          {showAll ? 'Show top risks only' : `Show all ${filteredRisks.length} risks`}
+          {showAll ? 'Show top risks only' : `Show all ${visibleFilteredRisks.length} risks`}
         </button>
       )}
       <DealDetailModal deal={selectedDeal} onClose={() => setSelectedDeal(null)} />

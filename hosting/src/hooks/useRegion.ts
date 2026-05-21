@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { Region, RegionData, RiskDeal, StatData, TwentyQuestionsData, CompetitiveDisplacementData, DeltaIntelligenceData } from '@/lib/types';
 import { useLatestReport } from '@/hooks/useFirestore';
 
-function computeInFlightStats(risks: RiskDeal[]): { avgHealthScore: StatData; dealsAtRisk: StatData } {
+function computeInFlightStats(risks: RiskDeal[]): { avgHealthScore: StatData; dealsAtRisk: StatData; velocity: StatData } {
   const withScore = risks.filter(r => typeof r.healthScore === 'number');
   const avgScore = withScore.length > 0
     ? Math.round(withScore.reduce((sum, r) => sum + (r.healthScore ?? 0), 0) / withScore.length)
@@ -10,6 +10,11 @@ function computeInFlightStats(risks: RiskDeal[]): { avgHealthScore: StatData; de
 
   const atRiskCount = risks.filter(r => r.level === 'HIGH' || r.level === 'MEDIUM').length;
   const atRiskPct = risks.length > 0 ? Math.round((atRiskCount / risks.length) * 100) : 0;
+
+  // Compute avg days stalled across all deals
+  const avgDaysStalled = risks.length > 0
+    ? Math.round(risks.reduce((sum, r) => sum + (r.daysStalled || 0), 0) / risks.length)
+    : null;
 
   return {
     avgHealthScore: {
@@ -23,6 +28,16 @@ function computeInFlightStats(risks: RiskDeal[]): { avgHealthScore: StatData; de
       change: `${atRiskCount} deals`,
       dir: atRiskPct > 50 ? 'up' : 'flat',
       sub: 'HIGH or MEDIUM risk',
+    },
+    velocity: {
+      value: avgDaysStalled !== null ? `${avgDaysStalled}d` : '—',
+      change: avgDaysStalled !== null
+        ? (avgDaysStalled <= 7 ? 'Healthy' : avgDaysStalled <= 21 ? 'Slowing' : 'Stalled')
+        : '—',
+      dir: avgDaysStalled !== null
+        ? (avgDaysStalled <= 7 ? 'up' : 'down')
+        : 'flat',
+      sub: 'avg days since last activity',
     },
   };
 }
@@ -75,6 +90,7 @@ export function useRegion() {
         ...baseData.stats,
         avgHealthScore: computed.avgHealthScore,
         dealsAtRisk: computed.dealsAtRisk,
+        velocity: computed.velocity,
       },
     };
   }, [baseData]);

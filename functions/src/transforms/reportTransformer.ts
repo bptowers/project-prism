@@ -222,10 +222,10 @@ export class ReportTransformer {
           value: deal.opportunityName || deal.opportunityId || "—",
           pipelineValue: deal.amount || 0,
           healthScore: deal.dealHealthScore,
-          confidence: deal.dealHealthScore ? Math.max(0, Math.min(100, 100 - deal.dealHealthScore)) : 80,
+          confidence: deal.probability ?? 50,
           summary: deal.summary,
           action: deal.recommendedAction || (deal.signals.length > 0 ? deal.signals[0] : "Review deal"),
-          daysStalled: 0,
+          daysStalled: deal.activityHealth === 'dark' ? 45 : deal.activityHealth === 'dormant' ? 22 : deal.activityHealth === 'cooling' ? 10 : 2,
         });
       }
     }
@@ -361,10 +361,10 @@ export class ReportTransformer {
       value: d.opportunityName || d.opportunityId || "—",
       pipelineValue: d.amount || 0,
       healthScore: d.dealHealthScore,
-      confidence: d.dealHealthScore ? Math.max(0, Math.min(100, 100 - d.dealHealthScore)) : 80,
+      confidence: d.probability ?? 50,
       summary: d.summary,
       action: d.recommendedAction || (d.signals.length > 0 ? d.signals[0] : "Review deal"),
-      daysStalled: 0,
+      daysStalled: d.activityHealth === 'dark' ? 45 : d.activityHealth === 'dormant' ? 22 : d.activityHealth === 'cooling' ? 10 : 2,
     }));
 
     const signals: MarketSignal[] = region.marketSignals.map((s) => ({

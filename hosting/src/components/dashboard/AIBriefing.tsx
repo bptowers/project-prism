@@ -2,6 +2,31 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { itemVariants } from '@/theme/animations';
 
+function highlightBriefingText(text: string): React.ReactNode[] {
+  const pattern = /(\$[\d,.]+[KMB]?|\d+%|\b\d+\b)/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    parts.push(
+      <strong key={match.index} style={{ color: 'var(--text-primary)', fontWeight: 800 }}>
+        {match[0]}
+      </strong>
+    );
+    lastIndex = pattern.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts;
+}
+
 interface AIBriefingProps {
   briefing?: string;
   fallbackBriefing?: string;
@@ -57,9 +82,9 @@ export const AIBriefing: React.FC<AIBriefingProps> = ({
       </div>
 
       {isLive && displayBriefing ? (
-        // Live LLM-generated briefing — render as plain text with preserved formatting
+        // Live LLM-generated briefing — numbers and metrics bolded for faster scanning
         <p style={{ fontSize: '1rem', color: 'var(--text-secondary)', lineHeight: 1.75, maxWidth: 1100, margin: 0 }}>
-          {displayBriefing}
+          {highlightBriefingText(displayBriefing)}
         </p>
       ) : isLive && !briefing ? (
         // Live data loaded but enrichment still running

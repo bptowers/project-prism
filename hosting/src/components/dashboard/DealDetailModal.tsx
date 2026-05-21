@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { RiskDeal } from '@/lib/types';
 
@@ -99,7 +100,7 @@ export const DealDetailModal: React.FC<Props> = ({ deal, onClose }) => {
     ? deal.level === 'HIGH' ? 'var(--error)' : deal.level === 'MEDIUM' ? 'var(--warning)' : 'var(--success)'
     : 'var(--text-muted)';
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {deal && (
         <motion.div
@@ -252,6 +253,7 @@ export const DealDetailModal: React.FC<Props> = ({ deal, onClose }) => {
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };

@@ -201,6 +201,18 @@ export class GeminiProvider implements ILLMProvider {
         // Inject data into prompt
         const fullPrompt = injectOpportunityData(prompt, opportunityData);
 
+        // Portfolio-level calls (twenty-questions, competitive-displacement, etc.) use
+        // a completely different output schema than individual deal analysis. Applying
+        // OPPORTUNITY_ANALYSIS_SCHEMA to them causes Gemini to return an empty response
+        // because the two schemas are incompatible. Skip structured output for these calls
+        // and rely on the caller's regex-based JSON extraction instead.
+        const isPortfolioCall = [
+          "twenty-questions",
+          "competitive-displacement",
+          "delta-intelligence",
+          "executive-briefing",
+        ].includes(opportunity.opportunityId);
+
         // Get the generative model — model name read from LLM_MODEL env var
         const model = this.genAI.getGenerativeModel({
           model: this.config.model,
@@ -209,8 +221,12 @@ export class GeminiProvider implements ILLMProvider {
             maxOutputTokens: this.config.maxTokens,
             temperature: this.config.temperature,
             topP: this.config.topP || 0.9,
+            // Portfolio calls: JSON mode without schema (free-form structure).
+            // Individual deal calls: JSON mode with strict schema.
             responseMimeType: "application/json",
-            responseSchema: GeminiProvider.OPPORTUNITY_ANALYSIS_SCHEMA,
+            ...(isPortfolioCall ? {} : {
+              responseSchema: GeminiProvider.OPPORTUNITY_ANALYSIS_SCHEMA,
+            }),
           },
         });
 
@@ -238,13 +254,32 @@ export class GeminiProvider implements ILLMProvider {
             .map((candidate) => candidate.finishMessage || "")
             .filter(Boolean)
             .join(" | ");
-          console.error(
-            `Failed to parse Gemini response for ${opportunity.opportunityId}: ${String(parseError)} ` +
+          // Empty response = Gemini safety block. Return a neutral fallback rather than
+          // throwing and retrying — the retry would hit the same block and waste quota.
+          const isEmptyResponse = responseText.length === 0;
+          console.warn(
+            `${isEmptyResponse ? "Empty (safety-blocked)" : "Unparseable"} Gemini response for ` +
+            `${opportunity.opportunityId}: ${String(parseError)} ` +
             `responseLength=${responseText.length} finishReasons=${finishReasons || "none"} ` +
-            `finishMessages=${finishMessages || "none"} ` +
-            `usage=${JSON.stringify(response.response.usageMetadata || {})} ` +
-            `preview=${JSON.stringify(responseText.slice(0, 500))}`
+            `finishMessages=${finishMessages || "none"}`
           );
+          if (isEmptyResponse) {
+            if (isPortfolioCall) {
+              // Portfolio calls have their own non-fatal error handling upstream — just throw
+              // so the enrichment phase skips gracefully without a misleading fallback.
+              throw parseError;
+            }
+            // Individual deal: use a neutral fallback so the deal still appears in the report
+            results.push({
+              analysis: this.buildFallbackAnalysis(opportunity.opportunityId),
+              rawResponse: "",
+              processingTimeMs: Date.now() - startTime,
+              success: true,
+              tokensUsed: { input: 0, output: 0 },
+            });
+            this.requestCount++;
+            continue;
+          }
           throw parseError;
         }
 
@@ -312,6 +347,38 @@ export class GeminiProvider implements ILLMProvider {
       name: "Google Gemini",
       model: this.config.model,
       version: "1.0.0",
+    };
+  }
+
+  /**
+   * Returns a neutral fallback analysis used when Gemini's response is blocked or empty.
+   * The deal stays in the report at a moderate risk level rather than being silently dropped.
+   */
+  private buildFallbackAnalysis(opportunityId: string): Partial<OpportunityAnalysis> {
+    return {
+      opportunityId,
+      dealHealthScore: 50,
+      velocityAssessment: "slowing",
+      activityHealth: "cooling",
+      stakeholderCoverage: "unknown",
+      competitorThreat: "none",
+      riskSignals: {
+        level: "medium",
+        signals: ["Analysis unavailable — content blocked by safety filter"],
+        summary: "This deal could not be automatically analysed. Manual review recommended.",
+      },
+      narrativeGap: { detected: false, description: "Analysis unavailable." },
+      regionalIntelligence: { matchesRegionalPattern: true, deviation: "None detected." },
+      competitors: { mentioned: [], context: [] },
+      marketSignals: [],
+      sentiment: { score: 0, label: "neutral", basis: "Analysis unavailable." },
+      recommendedAction: {
+        priority: "P3",
+        action: "Manual review required — automated analysis could not be completed.",
+        owner: "Manager",
+        deadline: "This week",
+      },
+      confidence: 0.3,
     };
   }
 
