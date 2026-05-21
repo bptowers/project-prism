@@ -5,12 +5,12 @@ import { Sparkline } from '@/components/ui/Sparkline';
 import type { Stats } from '@/lib/types';
 
 const statConfig: Record<string, { label: string; borderColor: string; sparkColor: string; valueColor?: string }> = {
-  pipeline: { label: 'Pipeline Value', borderColor: 'var(--accent)', sparkColor: 'var(--accent)' },
-  winRate: { label: 'Win Rate', borderColor: 'var(--success)', sparkColor: 'var(--success)', valueColor: 'var(--success)' },
-  atRisk: { label: 'Revenue at Risk', borderColor: 'var(--error)', sparkColor: 'var(--error)', valueColor: 'var(--error)' },
-  velocity: { label: 'Deal Velocity', borderColor: 'var(--prism-blue)', sparkColor: 'var(--prism-blue)' },
-  forecast: { label: 'Forecast Confidence', borderColor: 'var(--accent)', sparkColor: 'var(--accent)' },
-  threats: { label: 'Active Threats', borderColor: 'var(--error)', sparkColor: 'var(--error)', valueColor: 'var(--error)' },
+  pipeline:       { label: 'Pipeline Value',      borderColor: 'var(--accent)',      sparkColor: 'var(--accent)' },
+  avgHealthScore: { label: 'Avg Health Score',    borderColor: 'var(--success)',     sparkColor: 'var(--success)',  valueColor: 'var(--success)' },
+  atRisk:         { label: 'Revenue at Risk',     borderColor: 'var(--error)',       sparkColor: 'var(--error)',    valueColor: 'var(--error)' },
+  dealsAtRisk:    { label: 'Deals at Risk',       borderColor: 'var(--error)',       sparkColor: 'var(--error)',    valueColor: 'var(--error)' },
+  forecast:       { label: 'Forecast Confidence', borderColor: 'var(--accent)',      sparkColor: 'var(--accent)' },
+  velocity:       { label: 'Deal Velocity',       borderColor: 'var(--prism-blue)',  sparkColor: 'var(--prism-blue)' },
 };
 
 interface Props {
@@ -20,10 +20,11 @@ interface Props {
 
 export const StatsRow: React.FC<Props> = ({ stats, sparklines }) => (
   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-    {(['pipeline', 'winRate', 'atRisk', 'threats', 'forecast', 'velocity'] as const).map(key => {
-      const stat = stats[key];
+    {(['pipeline', 'avgHealthScore', 'atRisk', 'dealsAtRisk', 'forecast', 'velocity'] as Array<keyof typeof statConfig>).map(key => {
+      const stat = stats[key as keyof typeof stats];
+      if (!stat) return null;
       const cfg = statConfig[key];
-      const isNegativeMetric = key === 'atRisk' || key === 'threats';
+      const isNegativeMetric = key === 'atRisk' || key === 'dealsAtRisk';
       const changeClass = (stat.dir === 'up' && !isNegativeMetric) || (stat.dir === 'down' && isNegativeMetric) ? 'good' : 'bad';
       return (
         <motion.div key={key} variants={itemVariants} whileHover={{ y: -3, boxShadow: 'var(--shadow-lg)' }}

@@ -9,9 +9,10 @@ import { AIBriefing } from '@/components/dashboard/AIBriefing';
 import { StatsRow } from '@/components/dashboard/StatsRow';
 import { RegionTabs } from '@/components/dashboard/RegionTabs';
 import { PipelineFunnel } from '@/components/dashboard/PipelineFunnel';
-import { ThemeChart } from '@/components/dashboard/ThemeChart';
 import { RiskRadar } from '@/components/dashboard/RiskRadar';
-import { MarketSignals } from '@/components/dashboard/MarketSignals';
+import { RiskByStage } from '@/components/dashboard/RiskByStage';
+import { ActivityHealth } from '@/components/dashboard/ActivityHealth';
+import { ForecastIntegrity } from '@/components/dashboard/ForecastIntegrity';
 import { TrendChart } from '@/components/dashboard/TrendChart';
 import { CompetitorIntel } from '@/components/dashboard/CompetitorIntel';
 import { Recommendations } from '@/components/dashboard/Recommendations';
@@ -50,7 +51,7 @@ function buildFallbackBriefing(data: RegionData, totalOpportunities?: number): s
 }
 
 export default function App() {
-  const { region, data, selectRegion, loading, isLive, showingContent, executiveBriefing, totalOpportunities, reportPeriod, reportDate, regionCounts, twentyQuestions, competitiveDisplacement, deltaIntelligence } = useRegion();
+  const { region, data, allData, selectRegion, loading, isLive, showingContent, executiveBriefing, totalOpportunities, reportPeriod, reportDate, regionCounts, twentyQuestions, competitiveDisplacement, deltaIntelligence } = useRegion();
   const [uploadOpen, setUploadOpen] = useState(false);
   const displayPeriod = formatReportDate(reportDate, reportPeriod);
   const fallbackBriefing = isLive && !executiveBriefing ? buildFallbackBriefing(data, totalOpportunities) : undefined;
@@ -129,8 +130,8 @@ export default function App() {
 
         {/* Risk Radar — hero position: first widget after briefing */}
         <div style={{ marginBottom: '2rem' }}>
-          <Panel title="Risk Radar" accent="amber" meta={`${data.risks.filter(r => r.level === 'HIGH' || r.level === 'MEDIUM').length} of ${data.risks.length} deals at risk`} maxHeight="none">
-            <RiskRadar risks={data.risks} />
+          <Panel title="Risk Radar" accent="amber" meta={`${allData.risks.filter(r => r.level === 'HIGH' || r.level === 'MEDIUM').length} of ${allData.risks.length} deals at risk`} maxHeight="none">
+            <RiskRadar risks={allData.risks} />
           </Panel>
         </div>
 
@@ -138,21 +139,21 @@ export default function App() {
         <RegionTabs region={region} onSelect={selectRegion} regionCounts={regionCounts} isLive={isLive} />
         <PipelineFunnel stages={data.funnel} />
 
-        {/* 3-col Grid: themes + signals */}
+        {/* 3-col Grid: in-flight pipeline intelligence */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
           gap: '1.5rem',
           marginBottom: '2rem',
         }}>
-          <Panel title="Win Themes" accent="green" meta={`${data.winThemes.length} themes`}>
-            <ThemeChart themes={data.winThemes} type="win" />
+          <Panel title="Risk by Stage" accent="amber" meta={`${data.risks.length} deals`}>
+            <RiskByStage risks={data.risks} />
           </Panel>
-          <Panel title="Loss Themes" accent="red" meta={`${data.lossThemes.length} themes`}>
-            <ThemeChart themes={data.lossThemes} type="loss" />
+          <Panel title="Activity Health" accent="red" meta={`${data.risks.filter(r => r.daysStalled >= 14).length} dormant`}>
+            <ActivityHealth risks={data.risks} />
           </Panel>
-          <Panel title="Market Signals" accent="blue" meta={`${data.signals.length} signals`}>
-            <MarketSignals signals={data.signals} />
+          <Panel title="Forecast Integrity" accent="blue" meta={`${data.risks.filter(r => r.confidence > 60 && (r.healthScore ?? 100) < 40).length} misaligned`}>
+            <ForecastIntegrity risks={data.risks} forecastStat={data.stats.forecast} />
           </Panel>
         </div>
 

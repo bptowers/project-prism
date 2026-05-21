@@ -1,6 +1,31 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import type { Region, RegionData, TwentyQuestionsData, CompetitiveDisplacementData, DeltaIntelligenceData } from '@/lib/types';
+import type { Region, RegionData, RiskDeal, StatData, TwentyQuestionsData, CompetitiveDisplacementData, DeltaIntelligenceData } from '@/lib/types';
 import { useLatestReport } from '@/hooks/useFirestore';
+
+function computeInFlightStats(risks: RiskDeal[]): { avgHealthScore: StatData; dealsAtRisk: StatData } {
+  const withScore = risks.filter(r => typeof r.healthScore === 'number');
+  const avgScore = withScore.length > 0
+    ? Math.round(withScore.reduce((sum, r) => sum + (r.healthScore ?? 0), 0) / withScore.length)
+    : null;
+
+  const atRiskCount = risks.filter(r => r.level === 'HIGH' || r.level === 'MEDIUM').length;
+  const atRiskPct = risks.length > 0 ? Math.round((atRiskCount / risks.length) * 100) : 0;
+
+  return {
+    avgHealthScore: {
+      value: avgScore !== null ? `${avgScore}` : '—',
+      change: avgScore !== null ? (avgScore >= 70 ? 'Healthy' : avgScore >= 40 ? 'Caution' : 'At Risk') : '—',
+      dir: avgScore !== null ? (avgScore >= 70 ? 'up' : 'down') : 'flat',
+      sub: 'avg deal health score',
+    },
+    dealsAtRisk: {
+      value: risks.length > 0 ? `${atRiskPct}%` : '—',
+      change: `${atRiskCount} deals`,
+      dir: atRiskPct > 50 ? 'up' : 'flat',
+      sub: 'HIGH or MEDIUM risk',
+    },
+  };
+}
 
 const EMPTY_STAT = { value: '—', change: '—', dir: 'flat' as const, sub: '' };
 
@@ -35,12 +60,47 @@ export function useRegion() {
   const isLive = hasLiveData;
   const showingContent = isLive;
 
-  const data: RegionData = useMemo(() => {
+  const baseData: RegionData = useMemo(() => {
     if (report?.transformed?.[region]) {
       return report.transformed[region];
     }
     return EMPTY_REGION_DATA;
   }, [region, report]);
+
+  const data: RegionData = useMemo(() => {
+    const computed = computeInFlightStats(baseData.risks ?? []);
+    return {
+      ...baseData,
+      stats: {
+        ...baseData.stats,
+        avgHealthScore: computed.avgHealthScore,
+        dealsAtRisk: computed.dealsAtRisk,
+      },
+    };
+  }, [baseData]);
+
+  const allData: RegionData = useMemo(() => {
+    if (report?.transformed?.all) {
+      const regionalRisks = Object.entries(report.transformed)
+        .filter(([key]) => key !== 'all')
+        .flatMap(([key, regionData]) =>
+          (regionData.risks || []).map((risk) => ({
+            ...risk,
+            region: risk.region || key,
+          }))
+        );
+
+      const existingRegions = new Set((report.transformed.all.risks || []).map((risk) => risk.region).filter(Boolean));
+      const regionalRegions = new Set(regionalRisks.map((risk) => risk.region).filter(Boolean));
+      const allRisksAreComplete = regionalRegions.size === 0 || existingRegions.size >= regionalRegions.size;
+
+      return {
+        ...report.transformed.all,
+        risks: allRisksAreComplete ? report.transformed.all.risks : regionalRisks,
+      };
+    }
+    return EMPTY_REGION_DATA;
+  }, [report]);
 
   const selectRegion = useCallback((r: Region) => setRegion(r), []);
 
@@ -78,7 +138,7 @@ export function useRegion() {
   }, [isLive, report]);
 
   return {
-    region, data, selectRegion, loading, isLive, hasLiveData, showingContent,
+    region, data, allData, selectRegion, loading, isLive, hasLiveData, showingContent,
     executiveBriefing: displayBriefing, totalOpportunities, reportPeriod, regionCounts,
     reportDate,
     twentyQuestions, competitiveDisplacement, deltaIntelligence,

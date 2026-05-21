@@ -12,11 +12,13 @@ export interface StatData {
 
 export interface Stats {
   pipeline: StatData;
-  winRate: StatData;
+  winRate?: StatData;         // deprecated — legacy; may still exist in older Firestore reports
   atRisk: StatData;
   velocity: StatData;
   forecast: StatData;
-  threats: StatData;
+  threats?: StatData;         // deprecated — replaced by dealsAtRisk
+  avgHealthScore?: StatData;  // average deal health score (0-100)
+  dealsAtRisk?: StatData;     // % of deals rated HIGH or MEDIUM risk
 }
 
 export interface FunnelStage {

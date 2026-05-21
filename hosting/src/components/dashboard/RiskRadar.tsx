@@ -1,12 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import type { RiskDeal } from '@/lib/types';
+import { DealDetailModal } from '@/components/dashboard/DealDetailModal';
 
 interface Props { risks: RiskDeal[]; }
 
 type RiskBand = 'Green' | 'Yellow' | 'Red';
 type FilterGroup = 'stages' | 'reps' | 'regions' | 'bands';
 type ActiveFilters = Record<FilterGroup, string[]>;
+type RiskDimension = { label: string; value: number; pipeline: number };
 
 const MAX_DEALS = 12;
 const STAGE_ORDER = ['Discovery', 'Qualification', 'Solution', 'Proposal', 'Negotiation', 'Commit', 'Contract Review', 'Approved'];
@@ -103,6 +105,10 @@ function percent(value: number, total: number): number {
   return Math.round((value / total) * 100);
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
 function classifySignal(text: string): string {
   const lower = text.toLowerCase();
   if (lower.includes('ghost') || lower.includes('dark') || lower.includes('activity') || lower.includes('engagement')) return 'Engagement';
@@ -111,6 +117,65 @@ function classifySignal(text: string): string {
   if (lower.includes('competitor') || lower.includes('competitive')) return 'Competitive pressure';
   if (lower.includes('economic buyer') || lower.includes('stakeholder') || lower.includes('single')) return 'Stakeholder coverage';
   return 'Process hygiene';
+}
+
+function dimensionSignals(risk: RiskDeal): string[] {
+  const lower = `${risk.summary} ${risk.action}`.toLowerCase();
+  const signals: string[] = [];
+
+  if (lower.includes('ghost') || lower.includes('dark') || lower.includes('activity') || lower.includes('engagement') || lower.includes('no response')) {
+    signals.push('Engagement');
+  }
+  if (lower.includes('stalled') || lower.includes('stage') || lower.includes('velocity') || lower.includes('close date') || risk.daysStalled >= 4) {
+    signals.push('Velocity');
+  }
+  if (lower.includes('forecast') || lower.includes('probability') || lower.includes('commit') || lower.includes('fiction')) {
+    signals.push('Forecast');
+  }
+  if (lower.includes('stakeholder') || lower.includes('champion') || lower.includes('economic buyer') || lower.includes('committee') || lower.includes('single')) {
+    signals.push('Stakeholders');
+  }
+  if (lower.includes('competitor') || lower.includes('competitive') || lower.includes('fud') || lower.includes('poc')) {
+    signals.push('Competition');
+  }
+  if (lower.includes('pricing') || lower.includes('budget') || lower.includes('cost') || lower.includes('commercial')) {
+    signals.push('Commercial');
+  }
+  if (lower.includes('qualification') || lower.includes('missing') || lower.includes('no next') || lower.includes('hygiene') || lower.includes('review')) {
+    signals.push('Process');
+  }
+  if (isLateStage(risk.stage)) {
+    signals.push('Late Stage');
+  }
+
+  return signals.length ? signals : ['Process'];
+}
+
+function buildRiskDimensions(risks: RiskDeal[]): RiskDimension[] {
+  const labels = ['Engagement', 'Velocity', 'Forecast', 'Stakeholders', 'Competition', 'Commercial', 'Process', 'Late Stage'];
+  const totals = labels.reduce<Record<string, RiskDimension>>((acc, label) => {
+    acc[label] = { label, value: 0, pipeline: 0 };
+    return acc;
+  }, {});
+
+  for (const risk of risks) {
+    const dimensions = dimensionSignals(risk);
+    const pipeline = dealValue(risk);
+    const weight = weightedValue(risk);
+    const severity = Math.max(0.25, riskScore(risk) / 100);
+    const contribution = weight * severity;
+
+    for (const label of dimensions) {
+      totals[label].value += contribution;
+      totals[label].pipeline += pipeline / dimensions.length;
+    }
+  }
+
+  const max = Math.max(...Object.values(totals).map(item => item.value), 1);
+  return labels.map(label => ({
+    ...totals[label],
+    value: Math.round((totals[label].value / max) * 100),
+  }));
 }
 
 function toggleList(list: string[], value: string): string[] {
@@ -188,16 +253,69 @@ function FilterBlock({
   );
 }
 
+function SelectFilter({
+  label,
+  value,
+  options,
+  allLabel,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  allLabel: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <div style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: '0.66rem',
+        letterSpacing: '0.08em',
+        color: 'var(--text-muted)',
+        textTransform: 'uppercase',
+        marginBottom: 8,
+      }}>
+        {label}
+      </div>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        style={{
+          width: '100%',
+          minHeight: 32,
+          padding: '0.38rem 2rem 0.38rem 0.65rem',
+          border: `1px solid ${value ? 'var(--accent)' : 'var(--border)'}`,
+          borderRadius: 6,
+          background: value ? 'var(--accent-subtle)' : 'var(--bg-elevated)',
+          color: value ? 'var(--accent)' : 'var(--text-secondary)',
+          fontSize: '0.75rem',
+          fontWeight: 700,
+          fontFamily: 'var(--font-body)',
+          cursor: 'pointer',
+          outline: 'none',
+        }}
+      >
+        <option value="">{allLabel}</option>
+        {options.map(option => (
+          <option key={option} value={option}>{option}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 const MAX_BUBBLES = 40;
 
 function PipelineRiskMap({ risks }: { risks: RiskDeal[] }) {
   const plotWidth = 760;
-  const plotHeight = 260;
+  const plotHeight = 280;
   const left = 42;
-  const top = 24;
+  const top = 28;
+  const right = 28;
   const stageLabels = STAGE_ORDER.filter(stage => risks.some(r => normalizeStage(r.stage) === stage));
   const stages = stageLabels.length ? stageLabels : STAGE_ORDER.slice(0, 6);
-  const stageWidth = (plotWidth - left - 24) / stages.length;
+  const stageWidth = (plotWidth - left - right) / stages.length;
 
   // Per-stage counts always reflect the full risks set (so the "(N)" labels
   // under each stage stay accurate even when the bubbles are capped).
@@ -213,6 +331,31 @@ function PipelineRiskMap({ risks }: { risks: RiskDeal[] }) {
     : risks;
   const truncated = risks.length > MAX_BUBBLES;
   const maxValue = Math.max(...plottedRisks.map(weightedValue), 1);
+  const stageOffsets: Record<string, number> = {};
+  const points = [...plottedRisks]
+    .sort((a, b) => weightedValue(b) - weightedValue(a))
+    .map((risk) => {
+      const stage = normalizeStage(risk.stage);
+      const stageIndex = Math.max(0, stages.indexOf(stage));
+      const count = stageOffsets[stage] || 0;
+      stageOffsets[stage] = count + 1;
+      const columns = Math.min(5, Math.max(1, stageCounts[stage] || 1));
+      const column = count % columns;
+      const row = Math.floor(count / columns);
+      const spread = Math.min(stageWidth * 0.34, 52);
+      const columnOffset = columns === 1 ? 0 : (column - (columns - 1) / 2) * (spread / Math.max(1, columns - 1));
+      const rowOffset = ((row % 3) - 1) * 7;
+      const radius = clamp(5 + Math.sqrt(weightedValue(risk) / maxValue) * 12, 6, 17);
+      const score = riskScore(risk);
+      return {
+        risk,
+        score,
+        radius,
+        band: riskBand(risk),
+        x: left + stageWidth * stageIndex + stageWidth / 2 + columnOffset,
+        y: clamp(top + plotHeight - (score / 100) * plotHeight + rowOffset, top + radius, top + plotHeight - radius),
+      };
+    });
 
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', padding: '1.25rem' }}>
@@ -220,13 +363,13 @@ function PipelineRiskMap({ risks }: { risks: RiskDeal[] }) {
       <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: 12 }}>
         Risk Score ↑
       </div>
-      <svg viewBox={`0 0 ${plotWidth} ${plotHeight + 52}`} role="img" aria-label="Pipeline risk bubble chart" style={{ width: '100%', height: 'auto', display: 'block' }}>
-        <rect x={left + stageWidth * Math.max(0, stages.findIndex(isLateStage))} y={top} width={stageWidth * stages.filter(isLateStage).length} height={plotHeight} fill="var(--error-subtle)" opacity="0.55" />
+      <svg viewBox={`0 0 ${plotWidth} ${plotHeight + 58}`} role="img" aria-label="Pipeline risk bubble chart" style={{ width: '100%', height: 'auto', display: 'block' }}>
+        <rect x={left + stageWidth * Math.max(0, stages.findIndex(isLateStage))} y={top} width={stageWidth * stages.filter(isLateStage).length} height={plotHeight} fill="var(--error-subtle)" opacity="0.35" />
         {[0, 25, 50, 75, 100].map(tick => {
           const y = top + plotHeight - (tick / 100) * plotHeight;
           return (
             <g key={tick}>
-              <line x1={left} y1={y} x2={plotWidth - 24} y2={y} stroke="var(--border)" strokeWidth="1" opacity="0.7" />
+              <line x1={left} y1={y} x2={plotWidth - right} y2={y} stroke="var(--border)" strokeWidth="1" opacity="0.7" />
               <text x={12} y={y + 4} fill="var(--text-muted)" fontSize="11">{tick}</text>
             </g>
           );
@@ -235,10 +378,10 @@ function PipelineRiskMap({ risks }: { risks: RiskDeal[] }) {
           const x = left + stageWidth * index;
           return (
             <g key={stage}>
-              <line x1={x} y1={top} x2={x} y2={top + plotHeight} stroke="var(--border)" strokeWidth="1" opacity="0.45" />
+              <line x1={x} y1={top} x2={x} y2={top + plotHeight} stroke="var(--border)" strokeWidth="1" opacity="0.35" />
               <text
                 x={x + stageWidth / 2}
-                y={top + plotHeight + 24}
+                y={top + plotHeight + 26}
                 textAnchor="middle"
                 fill="var(--text-secondary)"
                 fontSize="11"
@@ -246,33 +389,36 @@ function PipelineRiskMap({ risks }: { risks: RiskDeal[] }) {
               >
                 {stage}
               </text>
-              <text x={x + stageWidth / 2} y={top + plotHeight + 40} textAnchor="middle" fill="var(--text-muted)" fontSize="10">
+              <text x={x + stageWidth / 2} y={top + plotHeight + 42} textAnchor="middle" fill="var(--text-muted)" fontSize="10">
                 ({stageCounts[stage] || 0})
               </text>
             </g>
           );
         })}
-        {plottedRisks.map((risk, index) => {
-          const stage = normalizeStage(risk.stage);
-          const stageIndex = Math.max(0, stages.indexOf(stage));
-          const jitter = ((index % 7) - 3) * 7;
-          const x = left + stageWidth * stageIndex + stageWidth / 2 + jitter;
-          const y = top + plotHeight - (riskScore(risk) / 100) * plotHeight;
-          const radius = 5 + Math.sqrt(weightedValue(risk) / maxValue) * 14;
-          const band = riskBand(risk);
+        {points.map(({ risk, score, radius, band, x, y }, index) => {
           return (
-            <circle
-              key={`${risk.id}-${index}`}
-              cx={x}
-              cy={y}
-              r={radius}
-              fill={bandColor[band]}
-              opacity="0.75"
-              stroke="var(--bg-surface)"
-              strokeWidth="1.5"
-            >
-              <title>{`${risk.value}: ${formatCurrency(dealValue(risk))}, risk ${riskScore(risk)}`}</title>
-            </circle>
+            <g key={`${risk.id}-${index}`}>
+              <circle
+                cx={x}
+                cy={y}
+                r={radius + 2}
+                fill="transparent"
+                stroke={bandColor[band]}
+                strokeOpacity="0.16"
+                strokeWidth="4"
+              />
+              <circle
+                cx={x}
+                cy={y}
+                r={radius}
+                fill={bandColor[band]}
+                opacity="0.78"
+                stroke="var(--bg-surface)"
+                strokeWidth="2"
+              >
+                <title>{`${risk.value}: ${formatCurrency(dealValue(risk))}, risk ${score}`}</title>
+              </circle>
+            </g>
           );
         })}
       </svg>
@@ -294,8 +440,162 @@ function PipelineRiskMap({ risks }: { risks: RiskDeal[] }) {
   );
 }
 
+function RiskDriversRadar({
+  dimensions,
+  valueTotal,
+}: {
+  dimensions: RiskDimension[];
+  valueTotal: number;
+}) {
+  const size = 300;
+  const center = size / 2;
+  const radius = 96;
+  const chartDrivers = dimensions;
+  const angleStep = (Math.PI * 2) / Math.max(chartDrivers.length, 1);
+
+  const pointFor = (index: number, scale: number) => {
+    const angle = -Math.PI / 2 + index * angleStep;
+    return {
+      x: center + Math.cos(angle) * radius * scale,
+      y: center + Math.sin(angle) * radius * scale,
+    };
+  };
+
+  const gridLevels = [0.25, 0.5, 0.75, 1];
+  const polygonPoints = chartDrivers
+    .map(({ value }, index) => {
+      const point = pointFor(index, clamp(value / 100, 0.05, 1));
+      return `${point.x},${point.y}`;
+    })
+    .join(' ');
+
+  if (chartDrivers.every(driver => driver.value === 0)) {
+    return (
+      <div>
+        <h3 style={{ margin: 0, marginBottom: 4, fontSize: '1rem', fontWeight: 800 }}>Top Risk Drivers</h3>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>No risk drivers match the current filters.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h3 style={{ margin: 0, marginBottom: 4, fontSize: '1rem', fontWeight: 800 }}>Top Risk Drivers</h3>
+      <div style={{ color: 'var(--text-muted)', fontSize: '0.76rem', marginBottom: 10 }}>Driver radar weighted by risk severity and pipeline</div>
+
+      <svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Top risk drivers radar chart" style={{ width: '100%', maxWidth: 340, height: 'auto', display: 'block', margin: '0 auto 0.85rem' }}>
+        {gridLevels.map(level => (
+          <polygon
+            key={level}
+            points={chartDrivers.map((_, index) => {
+              const point = pointFor(index, level);
+              return `${point.x},${point.y}`;
+            }).join(' ')}
+            fill="none"
+            stroke="var(--border)"
+            strokeWidth="1"
+          />
+        ))}
+        {chartDrivers.map(({ label }, index) => {
+          const edge = pointFor(index, 1);
+          const labelPoint = pointFor(index, 1.28);
+          const anchor = Math.abs(labelPoint.x - center) < 10 ? 'middle' : labelPoint.x > center ? 'start' : 'end';
+          return (
+            <g key={label}>
+              <line x1={center} y1={center} x2={edge.x} y2={edge.y} stroke="var(--border)" strokeWidth="1" opacity="0.75" />
+              <text
+                x={labelPoint.x}
+                y={labelPoint.y}
+                textAnchor={anchor}
+                dominantBaseline="middle"
+                fill="var(--text-secondary)"
+                fontSize="10"
+                fontWeight="700"
+              >
+                {label}
+              </text>
+            </g>
+          );
+        })}
+        <polygon points={polygonPoints} fill="rgba(37, 99, 235, 0.18)" stroke="var(--prism-blue)" strokeWidth="2.5" />
+        {chartDrivers.map(({ label, value, pipeline }, index) => {
+          const point = pointFor(index, clamp(value / 100, 0.05, 1));
+          return (
+            <circle key={label} cx={point.x} cy={point.y} r="4.5" fill="var(--prism-blue)" stroke="var(--bg-surface)" strokeWidth="2">
+              <title>{`${label}: ${value}/100${valueTotal > 0 ? `, ${formatCurrency(pipeline)} pipeline` : ''}`}</title>
+            </circle>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function RiskDriverRanking({ dimensions }: { dimensions: RiskDimension[] }) {
+  const ranked = [...dimensions].sort((a, b) => b.value - a.value).slice(0, 6);
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', padding: '1.25rem' }}>
+      <h3 style={{ margin: 0, marginBottom: 4, fontSize: '1rem', fontWeight: 800 }}>Risk Driver Ranking</h3>
+      <div style={{ color: 'var(--text-muted)', fontSize: '0.76rem', marginBottom: 16 }}>Highest normalized driver scores</div>
+      <div style={{ display: 'grid', gap: 13 }}>
+        {ranked.map((driver, index) => {
+          const width = Math.max(8, driver.value);
+          return (
+            <div key={driver.label} style={{ display: 'grid', gridTemplateColumns: '18px 1fr auto', gap: 10, alignItems: 'center', fontSize: '0.78rem' }}>
+              <span style={{ color: 'var(--text-muted)' }}>{index + 1}</span>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', color: 'var(--text-primary)', fontWeight: 750, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{driver.label}</span>
+                <span style={{ display: 'block', height: 6, marginTop: 6, background: 'var(--bg-elevated)', borderRadius: 999, overflow: 'hidden' }}>
+                  <span style={{ display: 'block', width: `${width}%`, height: '100%', background: 'var(--prism-blue)', borderRadius: 999 }} />
+                </span>
+              </span>
+              <span style={{ color: 'var(--prism-blue)', fontFamily: 'var(--font-mono)', fontSize: '0.72rem', fontWeight: 800 }}>
+                {driver.value}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function LateStageDealsStrip({ risks }: { risks: RiskDeal[] }) {
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', padding: '1.25rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem', marginBottom: 14 }}>
+        <div>
+          <h3 style={{ margin: 0, marginBottom: 4, fontSize: '1rem', fontWeight: 800 }}>Most At-Risk Late-Stage Deals</h3>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>Proposal, Negotiation, Commit, Contract Review, Approved stages</div>
+        </div>
+        <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.72rem' }}>{risks.length} shown</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10 }}>
+        {risks.map(risk => {
+          const band = riskBand(risk);
+          return (
+            <div key={`${risk.id}-${risk.value}`} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, padding: '0.9rem', borderRadius: 7, background: 'var(--bg-elevated)', borderLeft: `3px solid ${bandColor[band]}` }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{risk.value}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', marginTop: 4 }}>
+                  {normalizeStage(risk.stage)} · {risk.rep || 'Unassigned'}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: '0.72rem' }}>
+                <div style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{formatCurrency(dealValue(risk))}</div>
+                <div style={{ color: bandColor[band], marginTop: 4 }}>Risk: {riskScore(risk)}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export const RiskRadar: React.FC<Props> = ({ risks }) => {
-  const [expanded, setExpanded] = useState<number | null>(null);
+  const [selectedDeal, setSelectedDeal] = useState<RiskDeal | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [lateOnly, setLateOnly] = useState(false);
   const [filters, setFilters] = useState<Record<FilterGroup, string[]>>({
@@ -333,6 +633,12 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
     };
   }, [risks, filters, lateOnly]);
 
+  useEffect(() => {
+    if (filters.reps.length && !options.reps.includes(filters.reps[0])) {
+      setFilters(current => ({ ...current, reps: [] }));
+    }
+  }, [filters.reps, options.reps]);
+
   const filteredRisks = useMemo(() => {
     return risks.filter(risk => matchesFilters(risk, filters, lateOnly));
   }, [filters, lateOnly, risks]);
@@ -353,7 +659,8 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
       acc[driver] = (acc[driver] || 0) + weightedValue(risk);
       return acc;
     }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
-    return { totalWeight, valueTotal, distribution, confidence, drivers };
+    const dimensions = buildRiskDimensions(filteredRisks);
+    return { totalWeight, valueTotal, distribution, confidence, drivers, dimensions };
   }, [filteredRisks]);
 
   const lateStageRisks = filteredRisks
@@ -365,6 +672,10 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
 
   const toggleFilter = (group: FilterGroup, value: string) => {
     setFilters(current => ({ ...current, [group]: toggleList(current[group], value) }));
+  };
+
+  const selectRep = (value: string) => {
+    setFilters(current => ({ ...current, reps: value ? [value] : [] }));
   };
 
   if (risks.length === 0) {
@@ -428,7 +739,7 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', alignItems: 'start' }}>
           <FilterBlock label="Stage" values={options.stages} selected={filters.stages} onToggle={value => toggleFilter('stages', value)} />
-          <FilterBlock label="Rep" values={options.reps} selected={filters.reps} onToggle={value => toggleFilter('reps', value)} />
+          <SelectFilter label="Rep" value={filters.reps[0] || ''} options={options.reps} allLabel="All reps" onChange={selectRep} />
           <FilterBlock label="Region" values={options.regions} selected={filters.regions} onToggle={value => toggleFilter('regions', value)} />
           <FilterBlock label="Risk Level" values={options.bands} selected={filters.bands} onToggle={value => toggleFilter('bands', value)} dotFor={value => bandColor[value as RiskBand]} />
         </div>
@@ -440,48 +751,17 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 1.55fr) minmax(300px, 0.85fr) minmax(280px, 0.8fr)', gap: '1rem' }}>
         <PipelineRiskMap risks={filteredRisks} />
 
         <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', padding: '1.25rem', display: 'grid', gap: '1.5rem' }}>
-          <div>
-            <h3 style={{ margin: 0, marginBottom: 4, fontSize: '1rem', fontWeight: 800 }}>Top Risk Drivers</h3>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.76rem', marginBottom: 14 }}>Ranked by pipeline $ at risk</div>
-            <div style={{ display: 'grid', gap: 11 }}>
-              {summary.drivers.map(([driver, value], index) => (
-                <div key={driver} style={{ display: 'grid', gridTemplateColumns: '18px 1fr auto', gap: 10, alignItems: 'center', fontSize: '0.82rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>{index + 1}</span>
-                  <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{driver}</span>
-                  <span style={{ color: 'var(--error)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
-                    {summary.valueTotal > 0 ? formatCurrency(value) : `${Math.round(value)} deals`}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <h3 style={{ margin: 0, marginBottom: 4, fontSize: '1rem', fontWeight: 800 }}>Most At-Risk Late-Stage Deals</h3>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.76rem', marginBottom: 14 }}>Proposal, Negotiation, Commit stages</div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              {(lateStageRisks.length ? lateStageRisks : filteredRisks.slice(0, 5)).map(risk => (
-                <div key={`${risk.id}-${risk.value}`} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, padding: '0.85rem', borderRadius: 7, background: 'var(--bg-elevated)' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 800, fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{risk.value}</div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', marginTop: 3 }}>
-                      {normalizeStage(risk.stage)} · {risk.rep || 'Unassigned'}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: '0.73rem' }}>
-                    <div style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{formatCurrency(dealValue(risk))}</div>
-                    <div style={{ color: bandColor[riskBand(risk)], marginTop: 3 }}>Risk: {riskScore(risk)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <RiskDriversRadar dimensions={summary.dimensions} valueTotal={summary.valueTotal} />
         </div>
+
+        <RiskDriverRanking dimensions={summary.dimensions} />
       </div>
+
+      <LateStageDealsStrip risks={lateStageRisks.length ? lateStageRisks : filteredRisks.slice(0, 5)} />
 
       {filteredRisks.length === 0 ? (
         <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '1.25rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.82rem' }}>
@@ -494,7 +774,7 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
             return (
               <button
                 key={`${risk.id}-${index}`}
-                onClick={() => setExpanded(expanded === index ? null : index)}
+                onClick={() => setSelectedDeal(risk)}
                 style={{
                   textAlign: 'left',
                   padding: '1rem',
@@ -503,7 +783,7 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
                   background: 'var(--bg-surface)',
                   cursor: 'pointer',
                   borderLeft: `4px solid ${bandColor[band]}`,
-                  boxShadow: expanded === index ? 'var(--shadow-md)' : 'none',
+                  boxShadow: 'none',
                   transition: 'box-shadow 0.15s ease, transform 0.15s ease',
                 }}
               >
@@ -526,14 +806,6 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
                 <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                   {risk.summary}
                 </div>
-                {expanded === index && (
-                  <div style={{ marginTop: '0.85rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border)', display: 'grid', gap: '0.5rem' }}>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      Recommended Action
-                    </div>
-                    <div style={{ fontSize: '0.82rem', color: 'var(--accent)', fontWeight: 700 }}>{risk.action}</div>
-                  </div>
-                )}
               </button>
             );
           })}
@@ -558,6 +830,7 @@ export const RiskRadar: React.FC<Props> = ({ risks }) => {
           {showAll ? 'Show top risks only' : `Show all ${filteredRisks.length} risks`}
         </button>
       )}
+      <DealDetailModal deal={selectedDeal} onClose={() => setSelectedDeal(null)} />
     </div>
   );
 };
