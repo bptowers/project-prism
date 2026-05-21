@@ -1,7 +1,7 @@
 export const colors = {
   light: {
     bg: { deep: '#f8f9fb', surface: '#ffffff', elevated: '#f0f1f4', overlay: '#e5e7ec' },
-    text: { primary: '#111827', secondary: '#4b5563', muted: '#9ca3af' },
+    text: { primary: '#111827', secondary: '#374151', muted: '#6b7280' },
     accent: { base: '#2563eb', emphasis: '#1d4ed8', subtle: 'rgba(37, 99, 235, 0.1)' },
     success: { base: '#16a34a', subtle: 'rgba(22, 163, 74, 0.1)' },
     error: { base: '#dc2626', subtle: 'rgba(220, 38, 38, 0.1)' },
@@ -11,7 +11,7 @@ export const colors = {
   },
   dark: {
     bg: { deep: '#0f1117', surface: '#1a1d27', elevated: '#242837', overlay: '#2e3345' },
-    text: { primary: '#f0f1f4', secondary: '#b0b4c0', muted: '#6b7085' },
+    text: { primary: '#f0f1f4', secondary: '#c8cdd8', muted: '#9ca3b4' },
     accent: { base: '#3b82f6', emphasis: '#60a5fa', subtle: 'rgba(59, 130, 246, 0.15)' },
     success: { base: '#22c55e', subtle: 'rgba(34, 197, 94, 0.15)' },
     error: { base: '#ef4444', subtle: 'rgba(239, 68, 68, 0.15)' },

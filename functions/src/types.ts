@@ -77,9 +77,18 @@ export interface RiskDeal {
   opportunityId: string;
   accountName: string;
   opportunityName: string;
+  stage: string;
+  salesRep?: string;
+  segment?: string;
+  amount?: number;
+  probability?: number;
+  dealHealthScore: number;
+  activityHealth: "active" | "cooling" | "dormant" | "dark";
+  velocityAssessment: "accelerating" | "on-track" | "slowing" | "stalled";
   riskLevel: "high" | "medium" | "low";
   signals: string[];
   summary: string;
+  recommendedAction?: string;
   lastUpdated: string;
 }
 
@@ -95,7 +104,7 @@ export interface CompetitorActivity {
 }
 
 /**
- * Analyzed result for a single opportunity
+ * Analyzed result for a single opportunity (in-flight deal health)
  */
 export interface OpportunityAnalysis {
   opportunityId: string;
@@ -103,17 +112,30 @@ export interface OpportunityAnalysis {
   opportunityName: string;
   region: string;
   stage: string;
+  amount?: number;
+  expectedMRR?: number;
+  salesRep?: string;
+  probability?: number;
+  dealType?: string;
   winLossStatus: "won" | "lost" | "active";
   analysisDate: string;
-  themes: {
-    win: string[];
-    loss: string[];
-    neutral?: string[];
-  };
+  dealHealthScore: number;
+  velocityAssessment: "accelerating" | "on-track" | "slowing" | "stalled";
+  activityHealth: "active" | "cooling" | "dormant" | "dark";
+  stakeholderCoverage: "multi-threaded" | "single-threaded" | "unknown";
+  competitorThreat: "none" | "present" | "active-displacement";
   riskSignals: {
     level: "high" | "medium" | "low" | "none";
     signals: string[];
     summary: string;
+  };
+  narrativeGap: {
+    detected: boolean;
+    description: string;
+  };
+  regionalIntelligence: {
+    matchesRegionalPattern: boolean;
+    deviation: string;
   };
   competitors: {
     mentioned: string[];
@@ -123,6 +145,13 @@ export interface OpportunityAnalysis {
   sentiment: {
     score: number;
     label: "positive" | "neutral" | "negative";
+    basis?: string;
+  };
+  recommendedAction: {
+    priority: "P1" | "P2" | "P3";
+    action: string;
+    owner: "AE" | "Manager" | "Executive" | "CSM";
+    deadline: "Today" | "48 hours" | "This week";
   };
   confidence: number;
   processingTimeMs: number;
@@ -141,6 +170,9 @@ export interface RegionReport {
   topWinThemes: ThemeCount[];
   topLossThemes: ThemeCount[];
   atRiskDeals: RiskDeal[];
+  /** Every active deal scored for risk — feeds the Risk Radar bubble chart so
+   *  healthy (green/yellow) deals are visible alongside flagged ones. */
+  allActiveDeals: RiskDeal[];
   competitorActivity: CompetitorActivity[];
   marketSignals: string[];
   sentimentTrend: {

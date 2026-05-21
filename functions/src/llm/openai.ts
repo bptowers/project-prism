@@ -199,19 +199,25 @@ export class OpenAIProvider implements ILLMProvider {
 
       return {
         opportunityId,
-        themes: {
-          win: Array.isArray(parsed.themes?.win) ? parsed.themes.win : [],
-          loss: Array.isArray(parsed.themes?.loss) ? parsed.themes.loss : [],
-          neutral: Array.isArray(parsed.themes?.neutral)
-            ? parsed.themes.neutral
-            : [],
-        },
+        dealHealthScore: typeof parsed.dealHealthScore === "number" ? Math.max(0, Math.min(100, parsed.dealHealthScore)) : 50,
+        velocityAssessment: parsed.velocityAssessment || "slowing",
+        activityHealth: parsed.activityHealth || "cooling",
+        stakeholderCoverage: parsed.stakeholderCoverage || "unknown",
+        competitorThreat: parsed.competitorThreat || "none",
         riskSignals: {
           level: parsed.riskSignals?.level || "none",
           signals: Array.isArray(parsed.riskSignals?.signals)
             ? parsed.riskSignals.signals
             : [],
           summary: parsed.riskSignals?.summary || "",
+        },
+        narrativeGap: {
+          detected: parsed.narrativeGap?.detected === true,
+          description: parsed.narrativeGap?.description || "Narrative aligns with deal signals.",
+        },
+        regionalIntelligence: {
+          matchesRegionalPattern: parsed.regionalIntelligence?.matchesRegionalPattern !== false,
+          deviation: parsed.regionalIntelligence?.deviation || "None detected.",
         },
         competitors: {
           mentioned: Array.isArray(parsed.competitors?.mentioned)
@@ -229,6 +235,13 @@ export class OpenAIProvider implements ILLMProvider {
             ? Math.max(-1, Math.min(1, parsed.sentiment.score))
             : 0,
           label: parsed.sentiment?.label || "neutral",
+          basis: parsed.sentiment?.basis || "",
+        },
+        recommendedAction: {
+          priority: parsed.recommendedAction?.priority || "P3",
+          action: parsed.recommendedAction?.action || "Review deal status with rep",
+          owner: parsed.recommendedAction?.owner || "Manager",
+          deadline: parsed.recommendedAction?.deadline || "This week",
         },
         confidence: typeof parsed.confidence === "number"
           ? Math.max(0, Math.min(1, parsed.confidence))

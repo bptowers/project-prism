@@ -15,10 +15,11 @@ interface PanelProps {
   title: string;
   accent: AccentColor;
   meta?: string;
+  maxHeight?: string;
   children: React.ReactNode;
 }
 
-export const Panel: React.FC<PanelProps> = ({ title, accent, meta, children }) => (
+export const Panel: React.FC<PanelProps> = ({ title, accent, meta, maxHeight = '420px', children }) => (
   <motion.div
     variants={itemVariants}
     whileHover={cardHover}
@@ -55,7 +56,7 @@ export const Panel: React.FC<PanelProps> = ({ title, accent, meta, children }) =
       padding: '1.25rem 1.5rem',
       flex: 1,
       overflowY: 'auto',
-      maxHeight: '420px',
+      maxHeight,
     }}>
       {children}
     </div>

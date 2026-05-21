@@ -280,49 +280,87 @@ When data is missing, say what is missing and why it matters — don't silently 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const COMPREHENSIVE_ANALYSIS_PROMPT = `ROLE: You are the Revenue Intelligence Engine analysing a single
-sales opportunity for Simpro's CRO and sales leadership team.
+OPEN, ACTIVE sales opportunity for Simpro's CRO and sales leadership team.
+This deal has NOT closed. Your job is deal health diagnostics — not win/loss analysis.
 
 You do not produce comfortable summaries. You produce intelligence.
 That means surfacing contradictions, naming risks the rep hasn't named,
 and telling the leadership team what this deal really looks like —
 not what the CRM record claims it looks like.
 
+CLASSIFY THESE FIRST (before analysis):
+  velocityAssessment — accelerating | on-track | slowing | stalled
+    accelerating: Stage progression < 2 days/stage, next step defined, activity in 3 days
+    on-track:     Stage progression 2–4 days, next step defined
+    slowing:      Stage 4–8 days, activity thinning or next step missing
+    stalled:      Stage >8 days OR (last activity date present AND >14 days ago) OR no next step
+    NOTE: If Last Activity date is unavailable, do not use its absence to push toward "stalled".
+    Assess velocity based on stage duration and Last Modified date instead.
+
+  activityHealth — active | cooling | dormant | dark
+    active:   Last activity within 7 days
+    cooling:  Last activity 8–14 days ago
+    dormant:  Last activity 15–30 days ago
+    dark:     Last activity >30 days ago
+    NOTE: If Last Activity is unavailable (shown as —), do NOT default to "dark".
+    Instead, use Last Modified date as a proxy. If Last Modified is within 14 days,
+    classify as "cooling" at worst. Only classify as "dark" when there is positive
+    evidence of >30 days silence, not merely because the activity date field is empty.
+
+  stakeholderCoverage — multi-threaded | single-threaded | unknown
+    multi-threaded: Evidence of 2+ named contacts OR economic buyer identified
+    single-threaded: Only one named contact, no economic buyer
+    unknown: No contact information in data
+
+  competitorThreat — none | present | active-displacement
+    none: No competitor mentioned
+    present: Competitor mentioned, not actively displacing
+    active-displacement: Competitor referenced positively or deal shows displacement pattern
+
 ═══════════════════════════════════════════════════════════
 ANALYSIS FRAMEWORK
 ═══════════════════════════════════════════════════════════
 
 1. DEAL HEALTH SCORE (0–100)
-   This is not a rep sentiment score. It is an objective assessment based on:
+   This is not a rep sentiment score. It is an objective assessment based on four categories.
 
-   a) STAGE INTEGRITY (0–25 points)
-      Does the deal have the required fields for its current stage?
-      Has it been in the current stage longer than the 2–3 day benchmark?
-      Is the close date achievable from the current stage? (14-day total cycle benchmark)
-      A deal in Solution Review & Quote with a close date 2 days out = 0 points here.
+   SCORING PRINCIPLE — Score based on EVIDENCE, not absence of evidence.
+   Missing CRM data means incomplete information, NOT confirmed failure.
+   Each category has a DATA-UNAVAILABLE FLOOR (shown below). Start there when data is absent.
+   Award ABOVE the floor for positive evidence. Deduct BELOW it only for confirmed negatives.
+   A score below 15 total requires explicit supporting evidence — missing fields alone are not enough.
 
-   b) BUYER ENGAGEMENT QUALITY (0–25 points)
-      Is there a champion? (Presence alone = 10 pts. Quality matters more — see below.)
-      CHAMPION QUALITY ASSESSMENT:
-        - Is the champion named and in a decision-influencing role? (+5)
-        - Has the champion shown internal advocacy behaviour? (brought others in, scheduled execs) (+5)
-        - Or is "champion" just the first person the rep spoke to? (deduct points)
-      Is an economic buyer identified for deals >$2K MRR?
-      Is the deal single-threaded (one contact only)? = Critical risk.
-      Last activity date relative to current date — recency of buyer engagement.
+   a) STAGE INTEGRITY (0–25 points) — Floor: 13 for any active deal in a named stage
+      + Toward 25: Stage-appropriate fields populated, close date achievable, progression evident
+      - Toward 5: Close date is in the past by >30 days while deal is still marked active
+      - Score of 0 ONLY for: confirmed zombie — same stage >60 days, no data change, no notes ever
 
-   c) COMPETITIVE CLARITY (0–25 points)
-      Is the primary competitor identified? (Expected by region: UK→JobLogic, NA→ServiceTitan, AU→Ascora, NZ→Tradify)
-      Is Simpro's competitive positioning documented in notes?
-      Has a reference customer relevant to this deal been offered or requested?
-      If no competitor is named for a deal >$500 MRR past Validation = 0 points here.
+   b) BUYER ENGAGEMENT QUALITY (0–25 points) — Floor: 12 for any deal with contact evidence
+      + Toward 25: Named champion in a decision role showing internal advocacy (brought others in, scheduled execs)
+      + 18-22 pts: Real champion with evidence of activity
+      + 14-18 pts: Champion exists, quality uncertain
+      - Toward 5: No champion AND no contact evidence AND deal >$2K MRR past Discovery
+      - Score of 0 ONLY for: explicit buyer disengagement confirmed (went dark, cancelled meetings, unsubscribed)
 
-   d) MOMENTUM SIGNALS (0–25 points)
-      Progression through stages — is the deal moving forward or bouncing?
-      Activity pattern — consistent engagement or burst-then-silence?
-      Next step documented and time-bound?
-      Watch for THE DEAD CAT SIGNAL: A deal that went quiet, briefly re-engaged,
-      then went quiet again. Brief re-engagement after silence is not momentum — it
-      is often a final courtesy before a quiet loss.
+   c) COMPETITIVE CLARITY (0–25 points) — Floor: 12 for any active deal
+      + Toward 25: Named competitor identified, positioning documented in notes, reference offered
+      - Toward 5: Deal is >$2K MRR AND past Validation AND zero competitor mention — deduct, but NOT to 0.
+        Absence of logging ≠ absence of competitive work.
+      - Score of 0 ONLY for: large deals (>$5K MRR) in late stage where rep explicitly has no competitive intel
+
+   d) MOMENTUM SIGNALS (0–25 points) — Floor: 12 for any deal with a documented next step or recent update
+      + Toward 25: Activity within 7 days, time-bound next step, stage is progressing forward
+      - Toward 5: Confirmed stall >14 days with no engagement evidence, close date slipped repeatedly
+      - Score of 0 ONLY for: explicit Dead Cat pattern confirmed OR >45 days of silence with evidence
+
+   CALIBRATION CHECK — Before finalising the score, verify:
+   - A deal in Signature or Approved stage with rep probability ≥70% should score ≥45 unless there is
+     confirmed deal risk (competitor arriving late, champion going dark, no signed intent documented).
+   - A Discovery deal with a named rep, any activity, and a real company should score 40-55.
+   - A deal with NO data at all (no notes, no champion, no dates) should score ~50 (floor on all categories).
+   - If your score is below 20, list the specific confirmed evidence that justifies it.
+   Watch for THE DEAD CAT SIGNAL: A deal that went quiet, briefly re-engaged, then went quiet again.
+   Brief re-engagement after silence is not momentum — it is often a final courtesy before a quiet loss.
 
 2. NARRATIVE vs. REALITY GAP ANALYSIS
    This is the most important section. Compare what the rep wrote vs. what the deal behaviour shows.
@@ -419,58 +457,50 @@ ANALYSIS FRAMEWORK
 ═══════════════════════════════════════════════════════════
 RETURN FORMAT
 ═══════════════════════════════════════════════════════════
-Return ONLY valid JSON matching this exact structure:
+Return ONLY valid JSON matching this exact structure. No markdown. No explanation.
 
 {
-  "themes": {
-    "win": ["theme1", "theme2"],
-    "loss": ["theme1", "theme2"],
-    "neutral": ["theme1"]
-  },
+  "dealHealthScore": 72,
+  "velocityAssessment": "accelerating|on-track|slowing|stalled",
+  "activityHealth": "active|cooling|dormant|dark",
+  "stakeholderCoverage": "multi-threaded|single-threaded|unknown",
+  "competitorThreat": "none|present|active-displacement",
   "riskSignals": {
     "level": "high|medium|low|none",
-    "signals": ["signal1", "signal2"],
-    "summary": "Brief summary of risk factors"
-  },
-  "competitors": {
-    "mentioned": ["Competitor A"],
-    "context": ["How and where they were mentioned"],
-    "expectedButAbsent": "Competitor expected for this region/stage that wasn't mentioned",
-    "competitiveBattle": "What this competitive contest is actually about"
+    "signals": [
+      "Tier 1: [deal-killing risk — specific, not generic]",
+      "Tier 2: [deal-damaging risk]",
+      "Tier 3: [process risk]"
+    ],
+    "summary": "One sentence: the dominant risk pattern for this deal"
   },
   "narrativeGap": {
     "detected": true,
-    "description": "What the rep's narrative claims vs. what the deal behaviour shows",
-    "implication": "What this gap means for deal integrity and forecast reliability"
+    "description": "What the rep's story claims vs. what deal behaviour shows. If none: 'Narrative aligns with deal signals.'"
   },
   "regionalIntelligence": {
-    "region": "UK|AU|NZ|NA",
     "matchesRegionalPattern": true,
-    "deviation": "How this deal deviates from expected regional behaviour, if at all",
-    "regionSpecificRisk": "The primary risk signal specific to this market"
+    "deviation": "How this deal deviates from expected regional pattern, or 'None detected.'"
   },
-  "marketSignals": ["signal1", "signal2"],
+  "competitors": {
+    "mentioned": ["Competitor A"],
+    "context": ["How they appear in this deal"],
+    "expectedButAbsent": "Competitor expected for this region/stage that wasn't mentioned",
+    "competitiveBattle": "What this competitive contest is actually about"
+  },
+  "marketSignals": ["market-level signal relevant to this deal"],
   "sentiment": {
     "score": 0.5,
     "label": "positive|neutral|negative",
-    "basis": "What in the data supports this sentiment assessment"
+    "basis": "What in the data supports this sentiment"
   },
-  "confidence": 0.85,
-  "dealHealthScore": 72,
-  "dealOutcomePrediction": {
-    "closeProbability": 65,
-    "mostLikelyOutcome": "Closes in next quarter at reduced MRR",
-    "highestLeverageAction": "Specific single action that most improves win probability"
+  "recommendedAction": {
+    "priority": "P1|P2|P3",
+    "action": "Specific action — name the rep, the account, the exact next step",
+    "owner": "AE|Manager|Executive|CSM",
+    "deadline": "Today|48 hours|This week"
   },
-  "recommendedActions": [
-    {
-      "priority": "P1|P2|P3",
-      "action": "Specific action",
-      "owner": "AE|Manager|Executive|CSM",
-      "deadline": "Today|48 hours|This week",
-      "expectedOutcome": "What this action achieves"
-    }
-  ]
+  "confidence": 0.85
 }
 
 Do not hedge. Do not qualify with "potentially" or "may indicate."
@@ -486,11 +516,16 @@ Now analyse this opportunity:
 // Global intelligence — the patterns no individual deal reveals
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PORTFOLIO_AGGREGATION_PROMPT = `ROLE: You are the Revenue Intelligence Engine preparing the weekly
-briefing for Simpro's CRO. You have completed individual deal analysis
-across the full pipeline. Now you must find what no individual deal
-analysis can see: the systemic patterns, the competitive momentum shifts,
-the forecast fiction that has accumulated across multiple reps and regions.
+export const PORTFOLIO_AGGREGATION_PROMPT = `ROLE: You are the Revenue Intelligence Engine preparing the pipeline
+health briefing for Simpro's CRO. You have completed individual deal health
+assessment across the ACTIVE, IN-FLIGHT pipeline only — no closed deals,
+no historical wins or losses. Every deal in this data is still alive and
+intervention can still change the outcome.
+
+Now you must find what no individual deal analysis can see: how many deals
+are at high risk, where risk is concentrating, what the forecast really looks
+like when you strip the ghost pipeline, and what requires CRO attention before
+end of quarter.
 
 CRITICAL — REGION TERMINOLOGY: Simpro operates in exactly four markets.
 You MUST use ONLY these exact names in every part of your response:
@@ -510,28 +545,36 @@ how they think about the pipeline — or it doesn't deserve to be here.
 ANALYSIS FRAMEWORK
 ═══════════════════════════════════════════════════════════
 
-1. EXECUTIVE BRIEFING — THE SINGLE MOST IMPORTANT THING
+1. EXECUTIVE BRIEFING — PIPELINE HEALTH FIRST
    Three sentences maximum. Not a summary. A provocation.
-   This should be the thing that, if the CRO doesn't act on it today,
-   they will regret it by end of quarter. Make it specific. Use MRR figures.
-   Name regions. Name deal types. Do not generalise.
+   Lead with: (1) how many deals are classified HIGH risk and what MRR they represent,
+   (2) where risk is concentrating — region, rep, or stage, (3) what requires
+   immediate CRO attention before end of quarter.
+
+   Every sentence must contain a number (deal count, MRR figure, or percentage).
+   Do not use: "it appears", "seems to", "generally", "some deals", "various".
+   State what the data shows. Name the region. Name the stage.
 
    Example of what this is NOT: "The pipeline shows a mix of opportunities
    across regions with some risk signals present."
 
-   Example of what this IS: "AU is carrying $XXK MRR in deals that have
-   gone silent post-demo — this is the regional loss pattern for Ascora
-   displacement, and without intervention this week, three of these will
-   close lost before the next pipeline call."
+   Example of what this IS: "14 deals representing $340K MRR are classified
+   HIGH risk — 9 of them in Australia where the Ascora displacement pattern
+   is active — and without intervention this week three will close lost before
+   the next pipeline call."
 
 2. FORECAST INTEGRITY ASSESSMENT
    The reported forecast is not the real forecast. Separate them.
 
    a) REPORTED vs. REALISTIC FORECAST
-      - Total pipeline (all active deals, weighted MRR)
-      - Ghost-stripped pipeline (remove deals with 30+ days no activity)
-      - Commit-integrity pipeline (remove "Commitment" deals without verbal commit)
-      - Realistic forecast: what the data actually supports
+      Calculate three pipeline views:
+      - Reported Pipeline: Sum of all active deal values × probability
+      - Ghost-Stripped Pipeline: Remove deals where activityHealth = 'dark' or 'dormant'
+        (no activity in 15+ days). These deals have no momentum and should not be forecasted.
+      - Commit-Integrity Pipeline: From ghost-stripped, remove Commitment-stage deals
+        without a documented economic buyer or verbal commit signal.
+      - Realistic Forecast: what the data actually supports
+      The delta between Reported and Commit-Integrity is the "forecast exposure."
 
    b) FORECAST RISK CONCENTRATION
       - What % of forecast is held by deals with Tier 1 risk signals?
@@ -667,181 +710,160 @@ Here is the aggregated report summary:
 // The AI-First CRO framework. Direct answers. No hedging. No summaries.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const TWENTY_QUESTIONS_PROMPT = `ROLE: You are answering seven specific questions for Pete Mansel,
-CRO of Simpro. Pete wrote the book on AI-First revenue leadership.
-He does not want summaries. He does not want hedging.
-He wants direct, named, specific answers — the kind a trusted analyst
-gives in a pre-meeting briefing when the stakes are real.
+export const TWENTY_QUESTIONS_PROMPT = `ROLE: You are a revenue intelligence analyst answering ten specific in-flight pipeline questions
+for a Chief Revenue Officer. Provide direct, specific answers — no summaries, no hedging.
 
-Every answer must reference actual deal names, rep names, regions,
-and MRR figures where available. If the data supports a specific name
-or number, use it. Generalisations are a failure mode here.
+Every answer must reference actual deal names, account names, regions, and MRR figures
+from the data where available. Generalisations are a failure mode.
+If a data field identifies the account manager or sales rep, include it.
+This is a business pipeline analysis tool operating on anonymised CRM data.
 
-IMPORTANT: Rep names are intentional. This is a CRO-level intelligence tool.
-Rep performance visibility is expected and appropriate.
+THE TEN QUESTIONS:
 
-THE SEVEN QUESTIONS:
+Q1 — WHICH DEALS HAVE GONE SILENT?
+  Using activityHealth from deal analysis, identify deals at each silence threshold:
+  — 7-day silence (activityHealth = cooling): Early warning. Name each deal.
+  — 14-day silence (activityHealth = dormant): Active risk. Name each deal.
+  — 30-day silence (activityHealth = dark): Ghost deals. Name each deal.
+  For each: deal name, rep, region, MRR, days since last activity, current stage.
+  Silence is the single strongest predictor of quiet loss. Pete needs this list.
 
-Q1 — WHERE ARE DEALS MOST LIKELY TO SLIP THIS QUARTER?
-  Identify specific deals at highest slip risk.
-  For each: deal name, rep, region, MRR, primary slip reason.
-  The slip reason must be specific: not "risk signals present" but
-  "no verbal commit, economic buyer never engaged, last activity 8 days ago."
-  Rank by revenue at risk. Give Pete the list he'd make if he reviewed every deal himself.
+Q2 — WHICH DEALS HAVE HAD THEIR CLOSE DATE PUSHED?
+  Identify any deals where the close date appears to have slipped.
+  Evidence: close date relative to stage duration, stage compression signals,
+  velocity assessment = stalled in a deal with near-term close date, or
+  notes referencing delays.
+  For each: deal name, rep, region, MRR, inferred previous close date, current close date,
+  and the specific reason the slip likely occurred.
+  Close date slippage is often a trailing indicator. The real slip happened weeks ago.
 
-Q2 — WHAT DOES PIPELINE LOOK LIKE WITHOUT 30-DAY INACTIVE DEALS?
-  This is the ghost-stripping exercise.
-  Compare reported pipeline against ghost-stripped pipeline (30+ days no activity removed).
-  Show the MRR delta. Name every inactive deal.
-  This is the difference between the pipeline we think we have and the pipeline that exists.
-  No rep wants to hear this. Pete needs to.
+Q3 — WHERE IS PIPELINE COVERAGE BELOW 3X FOR THIS QUARTER?
+  For each region, calculate: active pipeline MRR vs. quarter revenue target.
+  Coverage = (active pipeline MRR) / (quarterly target MRR).
+  Flag any region or team where coverage is below 3.0x.
+  Identify the fastest path to coverage — what would need to close to get to 3x?
 
-Q3 — WHICH REPS HAVE THE HEALTHIEST PIPELINE BY BUYER ENGAGEMENT?
-  Not deal count. Not total pipeline value. Pipeline quality.
-  Quality = buyer engagement signals: activity recency, champion identified,
-  economic buyer engaged, next steps documented, competitor known.
-  Rank top 3 and bottom 3. Be specific about why each ranks where they rank.
-  This is a coaching map, not a performance review.
+Q4 — WHICH REPS HAVE THE HIGHEST CONCENTRATION OF HIGH-RISK DEALS?
+  Not deal count. Not total pipeline value. Risk concentration.
+  Rank reps by: (high-risk deals) / (total deals) AND by (high-risk MRR) / (total MRR).
+  For the top 3 most at-risk reps: name them, name their region,
+  quantify the MRR at risk, and identify the primary risk pattern.
+  This is a coaching intervention map, not a performance review.
 
-Q4 — WHERE IS VELOCITY ACTUALLY IMPROVING VS. WHERE WE THINK IT IS?
-  Separate perception from signal.
-  Which regions or deal segments are genuinely moving faster through stages?
-  Which appear healthy on the surface but are slowing when you look at stage duration data?
-  Name the deals and regions that illustrate both sides of this question.
-  If AU is perceived as improving but three AU deals have been in Solution Review for 8+ days
-  each — that is not improvement, that is perception lag.
+Q5 — WHICH LATE-STAGE DEALS HAVE NO ECONOMIC BUYER?
+  Identify all deals in Commitment stage or later where:
+  — economicBuyer field is empty, OR
+  — stakeholderCoverage = single-threaded or unknown
+  These deals are structurally at risk regardless of rep sentiment.
+  For each: deal name, rep, region, stage, MRR, days in stage, and recommended action.
+  An enterprise deal without an economic buyer at Commitment is a forecast fiction.
 
-Q5 — WHICH DEALS HAVE VELOCITY BELOW HISTORICAL BENCHMARK?
-  Simpro benchmark: 2–3 days per stage in a 14-day cycle.
-  Identify deals where stage duration has exceeded 1.5x benchmark (4+ days in a single stage).
-  For each: deal name, rep, current stage, days in stage, what a normal deal at this stage looks like.
-  This is the early warning system for late-stage losses.
+Q6 — WHERE IS COMPETITIVE PRESSURE INTENSIFYING?
+  Using competitorThreat = active-displacement from deal analyses:
+  Identify deals where Simpro is under active competitive displacement pressure.
+  Group by competitor and region: which competitor is most active, where, and on what MRR?
+  For each at-risk deal: deal name, rep, region, competitor, MRR, specific displacement signal.
+  Competitive pressure that isn't managed always resolves in the competitor's favour.
 
-Q6 — WHERE ARE STAGES ACCUMULATING BEYOND AGING THRESHOLDS?
-  Identify the funnel bottleneck — where deals pile up but don't convert.
-  Which stage has the most deals exceeding their duration target?
-  What is the combined MRR value stuck there?
-  Is this a systemic process failure or concentrated in specific reps?
-  Name the deals and the reps. Give Pete a picture of the logjam.
+Q7 — WHICH DEALS HAVE THE WIDEST GAP BETWEEN STATED PROBABILITY AND DEAL HEALTH SCORE?
+  Compare: the probability field (rep's assessment) vs. dealHealthScore (objective analysis).
+  Flag deals where: probability > 60% but dealHealthScore < 40 (optimism bias)
+  Or where: probability < 30% but dealHealthScore > 65 (sandbagging opportunity)
+  For each: deal name, rep, region, stated probability, health score, gap, interpretation.
+  The gap is where forecast fiction lives.
 
-Q7 — WHAT COMMIT PIPELINE STATISTICALLY WON'T CLOSE?
-  This is the hardest question and the most important.
-  Look at every deal in Commit or late-stage forecast.
-  Apply the deal health scores, risk signals, and regional patterns from the full analysis.
-  Which of these deals are most likely to miss?
-  Show Pete the realistic forecast vs. the reported forecast.
-  Name the deals. Give him the number. Give him the truth.
+Q8 — WHAT IS THE FORECAST-WEIGHTED RISK EXPOSURE BY REGION?
+  For each region, calculate:
+  — Total active pipeline MRR (sum of deal values × probability)
+  — High-risk MRR (deals with riskSignals.level = high)
+  — Risk percentage (high-risk MRR / total pipeline MRR)
+  — Primary risk driver for that region
+  Rank regions by risk exposure. Where is the most forecast at risk? Why?
+
+Q9 — WHICH DEALS ARE STAGE-STALLED AT 2X OR MORE THE BENCHMARK?
+  Simpro benchmark: 2–3 days per stage in a 14-day total cycle.
+  A deal stalled at 2x benchmark (5+ days in one stage) is approaching late-stage risk.
+  For each stalled deal: name, rep, region, stage, days in stage, benchmark, MRR.
+  Is the bottleneck systemic (same stage across multiple reps) or concentrated (one rep)?
+  Quantify total MRR stuck at each bottleneck stage.
+
+Q10 — WHAT ARE THE TOP 5 DEALS NEEDING IMMEDIATE CRO INTERVENTION?
+  Rank by: deal health score × MRR × stage × urgency signals.
+  These are the 5 deals where CRO involvement in the next 48 hours changes the outcome.
+  For each: deal name, rep, region, MRR, health score, specific urgency signal,
+  and the exact action the CRO should take (not the rep, not the manager — the CRO).
+  Zero hedging. The CRO's time is finite. Give them the 5 that matter most.
 
 ═══════════════════════════════════════════════════════════
 RETURN FORMAT
 ═══════════════════════════════════════════════════════════
-Return ONLY valid JSON:
+Return ONLY valid JSON. Each question is a separate key. No markdown.
 {
   "generatedAt": "ISO timestamp",
   "question1": {
-    "label": "Deals Most Likely to Slip This Quarter",
-    "answer": "Direct 2–3 sentence answer with specific figures",
-    "deals": [
-      {
-        "name": "Deal name",
-        "rep": "Rep name",
-        "region": "UK|AU|NZ|NA",
-        "mrr": "$X",
-        "reason": "Specific slip reason — not a category, the actual cause"
-      }
-    ],
-    "totalMrrAtRisk": "$X"
+    "label": "Deals Gone Silent",
+    "answer": "Direct 2–3 sentence answer with total deal count and MRR at risk",
+    "silent7Days": [{"name": "Deal name", "rep": "Rep", "region": "UK|AU|NZ|North America", "mrr": "$X", "stage": "Stage", "daysSinceActivity": 0}],
+    "silent14Days": [{"name": "Deal name", "rep": "Rep", "region": "Region", "mrr": "$X", "stage": "Stage", "daysSinceActivity": 0}],
+    "silent30Days": [{"name": "Deal name", "rep": "Rep", "region": "Region", "mrr": "$X", "stage": "Stage", "daysSinceActivity": 0}]
   },
   "question2": {
-    "label": "Ghost Pipeline",
-    "answer": "Direct 2–3 sentence answer with MRR delta",
-    "reportedPipeline": "$X",
-    "ghostStrippedPipeline": "$X",
-    "delta": "$X",
-    "inactiveDeals": ["Deal name — rep — region — last activity X days ago — MRR $X"]
+    "label": "Close Date Slippage",
+    "answer": "Direct 2–3 sentence answer naming the pattern and total MRR impact",
+    "deals": [{"name": "Deal name", "rep": "Rep", "region": "Region", "mrr": "$X", "currentCloseDate": "YYYY-MM-DD", "slippageSignal": "Specific evidence of slip", "likelyCause": "Why this slipped"}]
   },
   "question3": {
-    "label": "Rep Pipeline Quality by Buyer Engagement",
-    "answer": "Direct 2–3 sentence answer naming the pattern",
-    "topReps": [
-      {
-        "name": "Rep name",
-        "region": "Region",
-        "reason": "Specific evidence of pipeline quality"
-      }
-    ],
-    "bottomReps": [
-      {
-        "name": "Rep name",
-        "region": "Region",
-        "reason": "Specific gap — not vague, the actual weakness"
-      }
-    ]
+    "label": "Pipeline Coverage Below 3x",
+    "answer": "Direct 2–3 sentence answer naming the coverage gaps",
+    "regions": [{"region": "Region name", "activePipelineMrr": "$X", "coverageRatio": 0.0, "gap": "$X to reach 3x", "fastestPath": "What would need to close"}]
   },
   "question4": {
-    "label": "Velocity: Perception vs. Reality",
-    "answer": "Direct 2–3 sentence answer naming the perception gap",
-    "accelerating": [
-      {
-        "segment": "Region or deal type",
-        "evidence": "Specific evidence of genuine acceleration"
-      }
-    ],
-    "decelerating": [
-      {
-        "segment": "Region or deal type that appears healthy but is slowing",
-        "evidence": "Stage duration data that contradicts the appearance"
-      }
-    ]
+    "label": "Reps with Highest At-Risk Concentration",
+    "answer": "Direct 2–3 sentence answer naming the coaching priorities",
+    "reps": [{"name": "Rep name", "region": "Region", "totalDeals": 0, "highRiskDeals": 0, "highRiskMrr": "$X", "primaryPattern": "The specific risk pattern defining this rep's pipeline"}]
   },
   "question5": {
-    "label": "Deals with Velocity Below Benchmark",
-    "answer": "Direct 2–3 sentence answer with total MRR at risk",
+    "label": "Late-Stage Deals Without Economic Buyer",
+    "answer": "Direct 2–3 sentence answer with total MRR at structural risk",
+    "deals": [{"name": "Deal name", "rep": "Rep", "region": "Region", "stage": "Stage", "mrr": "$X", "daysInStage": 0, "recommendedAction": "Specific action to address"}]
+  },
+  "question6": {
+    "label": "Competitive Pressure Intensifying",
+    "answer": "Direct 2–3 sentence answer naming the most active competitor threat",
+    "threats": [{"competitor": "Competitor name", "region": "Region", "affectedDeals": 0, "mrrAtRisk": "$X", "displacementPattern": "What the competitive threat looks like in these deals"}]
+  },
+  "question7": {
+    "label": "Probability vs Health Score Gap (Forecast Fiction Detector)",
+    "answer": "Direct 2–3 sentence answer quantifying the optimism bias in the pipeline",
+    "optimismBias": [{"name": "Deal name", "rep": "Rep", "region": "Region", "statedProbability": 0, "dealHealthScore": 0, "gap": 0, "interpretation": "What this gap means"}],
+    "sandbagging": [{"name": "Deal name", "rep": "Rep", "region": "Region", "statedProbability": 0, "dealHealthScore": 0, "gap": 0, "interpretation": "Upside opportunity"}]
+  },
+  "question8": {
+    "label": "Forecast-Weighted Risk Exposure by Region",
+    "answer": "Direct 2–3 sentence answer naming the highest-risk region and primary cause",
+    "regions": [{"region": "Region name", "totalActiveMrr": "$X", "highRiskMrr": "$X", "riskPercentage": 0, "primaryRiskDriver": "The dominant risk pattern in this region"}]
+  },
+  "question9": {
+    "label": "Stage-Stalled Deals (2x+ Benchmark)",
+    "answer": "Direct 2–3 sentence answer naming the bottleneck stage and total MRR stuck",
+    "bottleneckStage": "Stage with most stuck MRR",
+    "isSystemic": true,
+    "totalMrrStuck": "$X",
+    "deals": [{"name": "Deal name", "rep": "Rep", "region": "Region", "stage": "Stage", "daysInStage": 0, "benchmark": "2–3 days", "overBy": "X days", "mrr": "$X", "primaryBlocker": "What is stopping this deal"}]
+  },
+  "question10": {
+    "label": "Top 5 Deals Needing Immediate CRO Intervention",
+    "answer": "Direct 2–3 sentence framing of why these 5 deals need the CRO now",
     "deals": [
       {
         "name": "Deal name",
         "rep": "Rep name",
         "region": "Region",
-        "stage": "Current stage",
-        "daysInStage": 0,
-        "benchmark": "2–3 days",
-        "overBy": "X days over benchmark",
-        "implication": "What this velocity pattern predicts for this deal"
-      }
-    ]
-  },
-  "question6": {
-    "label": "Stage Accumulation Bottleneck",
-    "answer": "Direct 2–3 sentence answer naming the logjam",
-    "bottleneckStage": "Stage name",
-    "isSystemic": true,
-    "dealsStuck": 0,
-    "mrrStuck": "$X",
-    "details": [
-      {
-        "deal": "Deal name",
-        "rep": "Rep name",
-        "region": "Region",
-        "daysInStage": 0,
-        "primaryBlocker": "What is actually stopping this deal from advancing"
-      }
-    ]
-  },
-  "question7": {
-    "label": "Commit Pipeline That Won't Close",
-    "answer": "Direct 2–3 sentence answer giving Pete the real number",
-    "reportedForecast": "$X MRR",
-    "realisticForecast": "$X MRR",
-    "forecastFictionDelta": "$X MRR",
-    "atRiskDeals": [
-      {
-        "name": "Deal name",
-        "rep": "Rep name",
-        "region": "Region",
-        "forecastedMrr": "$X",
+        "mrr": "$X",
         "healthScore": 0,
-        "primaryReason": "The specific reason this deal won't close as forecasted",
-        "mostLikelyOutcome": "Slips/Loses to [competitor]/Goes dark"
+        "urgencySignal": "The specific thing that makes this a CRO-level intervention",
+        "croAction": "Exactly what the CRO should do — not generic, the specific action",
+        "deadline": "Today|48 hours"
       }
     ]
   }

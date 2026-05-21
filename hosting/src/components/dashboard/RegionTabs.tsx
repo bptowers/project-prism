@@ -3,12 +3,11 @@ import { motion } from 'framer-motion';
 import { itemVariants } from '@/theme/animations';
 import type { Region } from '@/lib/types';
 
-// Sample/fallback tab metadata (counts/revenue shown when no live data)
-const TAB_CONFIG: { region: Region; label: string; sampleCount: string; sampleRevenue: string }[] = [
-  { region: 'all',  label: 'All Regions',   sampleCount: '347', sampleRevenue: '$47.2M' },
-  { region: 'na',   label: 'North America', sampleCount: '187', sampleRevenue: '$26.1M' },
-  { region: 'uk',   label: 'UK',            sampleCount: '94',  sampleRevenue: '$13.4M' },
-  { region: 'au',   label: 'AU / NZ',       sampleCount: '66',  sampleRevenue: '$7.7M'  },
+const TAB_CONFIG: { region: Region; label: string }[] = [
+  { region: 'all', label: 'All Regions' },
+  { region: 'na',  label: 'North America' },
+  { region: 'uk',  label: 'UK' },
+  { region: 'au',  label: 'AU / NZ' },
 ];
 
 interface Props {
@@ -25,15 +24,12 @@ export const RegionTabs: React.FC<Props> = ({ region, onSelect, regionCounts, is
     borderBottom: '1px solid var(--border)',
   }}>
     {TAB_CONFIG.map(tab => {
-      const liveCount = isLive && regionCounts?.[tab.region];
-      const displayCount = liveCount != null ? `${liveCount}` : tab.sampleCount;
-      // For "all" tab live count, sum all known region counts
       const allLiveCount = isLive && regionCounts
         ? Object.values(regionCounts).reduce((s, v) => s + v, 0)
         : null;
-      const countDisplay = tab.region === 'all' && allLiveCount != null
-        ? `${allLiveCount}`
-        : displayCount;
+      const liveCount = tab.region === 'all'
+        ? allLiveCount
+        : (isLive && regionCounts ? regionCounts[tab.region] : undefined);
 
       return (
         <button key={tab.region} onClick={() => onSelect(tab.region)} style={{
@@ -47,12 +43,9 @@ export const RegionTabs: React.FC<Props> = ({ region, onSelect, regionCounts, is
           }),
         }}>
           {tab.label}
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
-            ({countDisplay})
-          </span>
-          {!isLive && (
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent)', marginLeft: '0.25rem' }}>
-              {tab.sampleRevenue}
+          {liveCount != null && (
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+              ({liveCount})
             </span>
           )}
         </button>

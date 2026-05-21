@@ -31,14 +31,17 @@ export const PipelineFunnel: React.FC<Props> = ({ stages }) => {
                   </div>
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent)' }}>{stage.revenue}</div>
                 </div>
-                {idx < stages.length - 1 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0, padding: '0 0.25rem' }}>
-                    <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>→</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--success)', fontWeight: 500 }}>
-                      {stage.count > 0 ? `${Math.round((stages[idx + 1].count / stage.count) * 100)}%` : '—'}
-                    </span>
-                  </div>
-                )}
+                {idx < stages.length - 1 && (() => {
+                  const nextCount = stages[idx + 1].count;
+                  if (stage.count === 0) return null;
+                  const rate = Math.round((nextCount / stage.count) * 100);
+                  const rateColor = rate >= 70 ? 'var(--success)' : rate >= 40 ? 'var(--warning)' : 'var(--error)';
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flexShrink: 0, padding: '0 0.25rem' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: rateColor, fontWeight: 500, lineHeight: 1 }}>↓ {rate}%</span>
+                    </div>
+                  );
+                })()}
               </React.Fragment>
             );
           })}

@@ -15,7 +15,9 @@ export interface BigQueryConfig {
   table: string;
   location?: string;
   sinceDate?: string; // ISO date string for incremental pulls (e.g. "2026-02-18")
-  limit?: number; // Max records to fetch (default 500)
+  limit?: number; // Max records to fetch (default 300)
+  createdMonths?: number; // exclude deals created more than this many months ago (default 18)
+  closeDaysPast?: number; // exclude deals whose close date is more than this many days past (default 90)
 }
 
 /**
@@ -181,26 +183,39 @@ export class BigQuerySource {
   private buildQuery(): { query: string; params: Record<string, unknown> } {
     const fullTable = `\`${this.config.projectId}.${this.config.dataset}.${this.config.table}\``;
 
-    // Fivetran renames columns to lowercase snake_case, so we use the first
-    // candidate from the field map (which is now the Fivetran name).
     const orderCandidates = this.fieldMap["createdDate"] || ["created_date"];
     const orderCol = orderCandidates[0];
-    const limit = this.config.limit || 500;
+    const closeDateCandidates = this.fieldMap["closedDate"] || ["close_date"];
+    const closeDateCol = closeDateCandidates[0];
+    const limit = this.config.limit ?? 300;
 
-    // Relevance filter: all open pipeline + closed deals since 2024.
-    // Prevents stale ancient closed deals from consuming LLM capacity.
-    const relevanceFilter = `(is_closed = FALSE OR close_date >= '2024-01-01')`;
+    const filters: string[] = ["is_closed = FALSE", "LOWER(COALESCE(type, '')) = 'new business'"];
+    const params: Record<string, unknown> = {};
 
     if (this.config.sinceDate) {
-      return {
-        query: `SELECT * FROM ${fullTable} WHERE ${relevanceFilter} AND ${orderCol} >= @sinceDate ORDER BY ${orderCol} DESC LIMIT ${limit}`,
-        params: { sinceDate: this.config.sinceDate },
-      };
+      filters.push(`${orderCol} >= @sinceDate`);
+      params.sinceDate = this.config.sinceDate;
     }
 
+    // Exclude zombie deals created too long ago (LastActivityDate not available in this table)
+    const createdMonths = this.config.createdMonths ?? 18;
+    const createdSince = new Date(Date.now() - createdMonths * 30.44 * 86_400_000).toISOString().slice(0, 10);
+    filters.push(`${orderCol} >= @createdSince`);
+    params.createdSince = createdSince;
+
+    // Exclude deals with close dates far in the past (allow NULL — open-ended deals)
+    const closeDaysPast = this.config.closeDaysPast ?? 90;
+    const closeSince = new Date(Date.now() - closeDaysPast * 86_400_000).toISOString().slice(0, 10);
+    filters.push(`(${closeDateCol} >= @closeSince OR ${closeDateCol} IS NULL)`);
+    params.closeSince = closeSince;
+
+    // Exclude deals with no pipeline value — these are test records, admin placeholders,
+    // or entries where MRR was never entered, all of which produce meaningless LLM output.
+    filters.push("amount IS NOT NULL AND SAFE_CAST(amount AS FLOAT64) > 0");
+
     return {
-      query: `SELECT * FROM ${fullTable} WHERE ${relevanceFilter} ORDER BY ${orderCol} DESC LIMIT ${limit}`,
-      params: {},
+      query: `SELECT * FROM ${fullTable} WHERE ${filters.join(" AND ")} ORDER BY ${closeDateCol} ASC LIMIT ${limit}`,
+      params,
     };
   }
 
@@ -461,6 +476,8 @@ export function getBigQueryConfig(): BigQueryConfig {
     dataset,
     table,
     location: process.env.BQ_LOCATION || "US",
-    limit: process.env.BQ_LIMIT ? parseInt(process.env.BQ_LIMIT, 10) : 500,
+    limit: process.env.BQ_LIMIT ? parseInt(process.env.BQ_LIMIT, 10) : 300,
+    createdMonths: process.env.BQ_CREATED_MONTHS ? parseInt(process.env.BQ_CREATED_MONTHS, 10) : 18,
+    closeDaysPast: process.env.BQ_CLOSE_DAYS_PAST ? parseInt(process.env.BQ_CLOSE_DAYS_PAST, 10) : 90,
   };
 }

@@ -92,22 +92,28 @@ function getLLMConfig(providerOverride?: string): LLMConfig {
   // then the hardcoded default.
   const defaultModels: Record<string, string> = {
     openai: process.env.OPENAI_MODEL || "gpt-4o",
-    gemini: process.env.GEMINI_MODEL || "gemini-3.1-pro-preview",
+    gemini: process.env.GEMINI_MODEL || "gemini-2.5-flash",
     claude: process.env.CLAUDE_MODEL || "claude-sonnet-4-6",
   };
 
   // Only use the generic LLM_MODEL if no provider override was requested
   // (i.e., it's the default provider from env, not a per-upload selection)
   const model = providerOverride
-    ? defaultModels[provider] || "gemini-3.1-pro-preview"
+    ? defaultModels[provider] || "gemini-2.5-flash"
     : process.env.LLM_MODEL || defaultModels[provider] || "claude-sonnet-4-6";
+
+  const configuredMaxTokens = parseInt(process.env.LLM_MAX_TOKENS || "2000", 10);
+  const maxTokens =
+    provider === "gemini" && configuredMaxTokens < 8192
+      ? 8192
+      : configuredMaxTokens;
 
   return {
     provider: provider as "claude" | "gemini" | "openai",
     model,
     apiKey,
     temperature: parseFloat(process.env.LLM_TEMPERATURE || "0.3"),
-    maxTokens: parseInt(process.env.LLM_MAX_TOKENS || "2000", 10),
+    maxTokens,
     topP: parseFloat(process.env.LLM_TOP_P || "0.9"),
   };
 }
@@ -197,12 +203,15 @@ export const onCSVUpload = onObjectFinalized(
       // is preserved while Phase 2 enrichment runs (prevents "flash to sample" on dashboard).
       const reportDate = new Date().toISOString().split("T")[0];
       const reportRef = db.collection("reports").doc(reportDate);
-      await reportRef.set({
+      const trimmedTransformed = trimTransformedForStorage(transformed as unknown as Record<string, unknown>);
+      const docPayloadInitial = {
         ...trimReportForStorage(report),
-        transformed,
+        transformed: trimmedTransformed,
         reportDate: report.reportDate,
         createdAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
+      };
+      logDocSize(context.executionId, "initial", docPayloadInitial);
+      await reportRef.set(docPayloadInitial, { merge: true });
 
       console.log(
         `[${context.executionId}] Report stored: ${report.reportId}`
@@ -221,11 +230,14 @@ export const onCSVUpload = onObjectFinalized(
 
         enrichedReport.funnelStages = funnelStages;
         const enrichedTransformed = ReportTransformer.transform(enrichedReport);
-        await reportRef.update({
+        const trimmedEnrichedTransformed = trimTransformedForStorage(enrichedTransformed as unknown as Record<string, unknown>);
+        const docPayloadEnriched = {
           ...trimReportForStorage(enrichedReport),
-          transformed: enrichedTransformed,
+          transformed: trimmedEnrichedTransformed,
           enrichedAt: FieldValue.serverTimestamp(),
-        });
+        };
+        logDocSize(context.executionId, "enriched", docPayloadEnriched);
+        await reportRef.update(docPayloadEnriched);
         console.log(
           `[${context.executionId}] All enrichment phases complete`
         );
@@ -302,13 +314,16 @@ export const runWeeklyAnalysis = onSchedule(
       const transformed = ReportTransformer.transform(report);
       const reportDate = new Date().toISOString().split("T")[0];
       const reportRef = db.collection("reports").doc(reportDate);
-      await reportRef.set({
+      const trimmedTransformed = trimTransformedForStorage(transformed as unknown as Record<string, unknown>);
+      const docPayloadInitial = {
         ...trimReportForStorage(report),
-        transformed,
+        transformed: trimmedTransformed,
         reportDate: report.reportDate,
         createdAt: FieldValue.serverTimestamp(),
         dataSource: "bigquery",
-      }, { merge: true });
+      };
+      logDocSize(context.executionId, "initial", docPayloadInitial);
+      await reportRef.set(docPayloadInitial, { merge: true });
 
       console.log(
         `[${context.executionId}] Report stored: ${report.reportId}`
@@ -330,11 +345,14 @@ export const runWeeklyAnalysis = onSchedule(
 
         enrichedReport.funnelStages = funnelStages;
         const enrichedTransformed = ReportTransformer.transform(enrichedReport);
-        await reportRef.update({
+        const trimmedEnrichedTransformed = trimTransformedForStorage(enrichedTransformed as unknown as Record<string, unknown>);
+        const docPayloadEnriched = {
           ...trimReportForStorage(enrichedReport),
-          transformed: enrichedTransformed,
+          transformed: trimmedEnrichedTransformed,
           enrichedAt: FieldValue.serverTimestamp(),
-        });
+        };
+        logDocSize(context.executionId, "enriched", docPayloadEnriched);
+        await reportRef.update(docPayloadEnriched);
         console.log(
           `[${context.executionId}] All enrichment phases complete`
         );
@@ -618,20 +636,45 @@ export const fetchFromBigQuery = onRequest(
 );
 
 /**
+ * Recursively caps array lengths and over-long strings inside a freeform JSON
+ * payload. Used for the LLM enrichment objects (twentyQuestions,
+ * competitiveDisplacement, deltaIntelligence) which are stored as
+ * Record<string, unknown> and can balloon unpredictably.
+ */
+function capJsonSize<T>(value: T, maxArrayLen: number, maxStrLen: number): T {
+  if (Array.isArray(value)) {
+    return value
+      .slice(0, maxArrayLen)
+      .map((v) => capJsonSize(v, maxArrayLen, maxStrLen)) as unknown as T;
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = capJsonSize(v, maxArrayLen, maxStrLen);
+    }
+    return out as unknown as T;
+  }
+  if (typeof value === "string" && value.length > maxStrLen) {
+    return (value.slice(0, maxStrLen) + "…") as unknown as T;
+  }
+  return value;
+}
+
+/**
  * Trims unbounded arrays before writing to Firestore.
- * Firestore has a hard 1 MiB document limit. At 2,000+ records, examples[] and
- * contexts[] arrays grow without bound. This caps them at safe limits while
- * preserving all summary data the dashboard needs.
+ * Firestore has a hard 1 MiB document limit. At 500+ records the LLM enrichment
+ * payloads (twentyQuestions / competitiveDisplacement / deltaIntelligence) and
+ * the per-region deal arrays can push the doc past 1 MiB. This caps them and
+ * logs the resulting size so future runs are observable.
  */
 function trimReportForStorage(report: AggregatedReport): AggregatedReport {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const r = JSON.parse(JSON.stringify(report)) as AggregatedReport;
 
   const trimThemes = (themes: AggregatedReport["global"]["topWinThemes"]) =>
-    themes.map(t => ({ ...t, examples: (t.examples || []).slice(0, 5) }));
+    themes.map((t) => ({ ...t, examples: (t.examples || []).slice(0, 5) }));
 
   const trimCompetitors = (competitors: AggregatedReport["global"]["topCompetitors"]) =>
-    competitors.map(c => ({ ...c, contexts: (c.contexts || []).slice(0, 5) }));
+    competitors.map((c) => ({ ...c, contexts: (c.contexts || []).slice(0, 5) }));
 
   r.global.topWinThemes = trimThemes(r.global.topWinThemes);
   r.global.topLossThemes = trimThemes(r.global.topLossThemes);
@@ -644,11 +687,81 @@ function trimReportForStorage(report: AggregatedReport): AggregatedReport {
     region.competitorActivity = trimCompetitors(region.competitorActivity);
     region.marketSignals = (region.marketSignals || []).slice(0, 20);
     region.atRiskDeals = (region.atRiskDeals || [])
+      .slice(0, 40)
+      .map((d) => ({ ...d, signals: (d.signals || []).slice(0, 6) }));
+    region.allActiveDeals = (region.allActiveDeals || [])
       .slice(0, 50)
-      .map(d => ({ ...d, signals: (d.signals || []).slice(0, 10) }));
+      .map((d) => ({ ...d, signals: (d.signals || []).slice(0, 3) }));
   }
 
+  // Cap LLM enrichment payloads — these are unstructured Record<string,unknown>
+  // and the LLM occasionally emits long deal lists / verbose narratives.
+  if (r.twentyQuestions) {
+    r.twentyQuestions = capJsonSize(r.twentyQuestions, 12, 600);
+  }
+  if (r.competitiveDisplacement) {
+    r.competitiveDisplacement = capJsonSize(r.competitiveDisplacement, 12, 600);
+  }
+  if (r.deltaIntelligence) {
+    r.deltaIntelligence = capJsonSize(r.deltaIntelligence, 12, 600);
+  }
+
+  // Observability: emit the serialized size so we can diagnose future blowouts.
+  const size = Buffer.byteLength(JSON.stringify(r), "utf8");
+  console.log(
+    `[trimReportForStorage] report size=${size} bytes (${(size / 1024).toFixed(1)} KiB) — Firestore limit is 1,048,576`
+  );
+
   return r;
+}
+
+/**
+ * The frontend `transformed` payload (Record<region, RegionData>) duplicates
+ * deal data across the four region slices (all/na/uk/au), so it can easily add
+ * 600+ KB to the Firestore doc. Cap each region's risks list and chop long
+ * strings before writing. The bubble chart only shows top 40 by $ anyway, and
+ * the cards cap at 12; 50 deals per region is plenty.
+ */
+function trimTransformedForStorage(
+  transformed: Record<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [regionKey, regionData] of Object.entries(transformed)) {
+    if (!regionData || typeof regionData !== "object") {
+      out[regionKey] = regionData;
+      continue;
+    }
+    // capJsonSize with conservative caps on the whole RegionData blob.
+    // - max 50 array items (covers risks, competitors, themes, signals, etc.)
+    // - max 400 char strings (deal summaries / actions are the longest)
+    out[regionKey] = capJsonSize(regionData, 50, 400);
+  }
+  return out;
+}
+
+/**
+ * Logs the size of the full Firestore payload (report + transformed + extras)
+ * before write so blowouts are immediately diagnosable. Note: Firestore's
+ * actual document size can be 2-3x the JSON byte count due to per-field
+ * overhead in the underlying storage format, so we flag any payload over
+ * ~350 KB JSON as a candidate for further trimming.
+ */
+function logDocSize(
+  executionId: string,
+  phase: "initial" | "enriched",
+  payload: Record<string, unknown>
+): void {
+  // Strip server timestamp sentinels from the size measurement (they aren't
+  // serializable but also contribute negligibly to actual stored size).
+  const measurable: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(payload)) {
+    if (v && typeof v === "object" && "_methodName" in v) continue;
+    measurable[k] = v;
+  }
+  const jsonBytes = Buffer.byteLength(JSON.stringify(measurable), "utf8");
+  console.log(
+    `[docSize:${phase}] [${executionId}] json=${jsonBytes} bytes (${(jsonBytes / 1024).toFixed(1)} KiB) — Firestore actual size is typically 2-3× this; doc limit is 1,048,576 bytes`
+  );
 }
 
 /**
@@ -748,6 +861,12 @@ async function runAnalysisPipeline(
   console.log(
     `[${context.executionId}] Analysis complete: ${analyses.length} successful analyses`
   );
+
+  if (validationReport.validRecords > 0 && analyses.length === 0) {
+    throw new Error(
+      `LLM analysis produced 0 successful analyses from ${validationReport.validRecords} valid records. Check LLM_PROVIDER/LLM_MODEL and provider API access.`
+    );
+  }
 
   // Step 3: Store individual analyses in chunks (Firestore hard limit: 500 ops/batch)
   const FIRESTORE_BATCH_SIZE = 400; // safe buffer below the 500 limit

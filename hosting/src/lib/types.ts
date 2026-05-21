@@ -1,5 +1,5 @@
 export type Region = 'all' | 'na' | 'uk' | 'au';
-export type RiskLevel = 'HIGH' | 'MEDIUM';
+export type RiskLevel = 'HIGH' | 'MEDIUM' | 'LOW';
 export type ThreatLevel = 'high' | 'medium' | 'low';
 export type Priority = 'P1' | 'P2' | 'P3';
 
@@ -12,11 +12,13 @@ export interface StatData {
 
 export interface Stats {
   pipeline: StatData;
-  winRate: StatData;
+  winRate?: StatData;         // deprecated — legacy; may still exist in older Firestore reports
   atRisk: StatData;
   velocity: StatData;
   forecast: StatData;
-  threats: StatData;
+  threats?: StatData;         // deprecated — replaced by dealsAtRisk
+  avgHealthScore?: StatData;  // average deal health score (0-100)
+  dealsAtRisk?: StatData;     // % of deals rated HIGH or MEDIUM risk
 }
 
 export interface FunnelStage {
@@ -34,9 +36,16 @@ export interface ThemeItem {
 
 export interface RiskDeal {
   id: number;
+  opportunityId?: string;
+  accountName?: string;
+  stage?: string;
+  rep?: string;
+  segment?: string;
   region: string;
   level: RiskLevel;
   value: string;
+  pipelineValue?: number;
+  healthScore?: number;
   confidence: number;
   summary: string;
   action: string;
@@ -147,6 +156,9 @@ export interface TwentyQuestionsData {
   question5?: TQQuestion;
   question6?: TQQuestion;
   question7?: TQQuestion;
+  question8?: TQQuestion;
+  question9?: TQQuestion;
+  question10?: TQQuestion;
 }
 
 // Phase 4: Competitive Displacement

@@ -3,7 +3,7 @@
  * Implementation of Google's Gemini API via Google AI Studio for revenue intelligence analysis
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/generative-ai";
 import { ILLMProvider, LLMAnalysisOutput, LLMProviderError, LLMRateLimitError } from "./provider.js";
 import { LLMConfig, OpportunityAnalysis, OpportunityRecord } from "../types.js";
 import { formatOpportunityForPrompt, injectOpportunityData, SYSTEM_PROMPT } from "./prompts.js";
@@ -17,6 +17,134 @@ export class GeminiProvider implements ILLMProvider {
   private config: LLMConfig;
   private requestCount = 0;
   private lastRequestTime = 0;
+
+  private static readonly OPPORTUNITY_ANALYSIS_SCHEMA: ResponseSchema = {
+    type: SchemaType.OBJECT,
+    properties: {
+      dealHealthScore: { type: SchemaType.NUMBER },
+      velocityAssessment: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: ["accelerating", "on-track", "slowing", "stalled"],
+      },
+      activityHealth: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: ["active", "cooling", "dormant", "dark"],
+      },
+      stakeholderCoverage: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: ["multi-threaded", "single-threaded", "unknown"],
+      },
+      competitorThreat: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: ["none", "present", "active-displacement"],
+      },
+      riskSignals: {
+        type: SchemaType.OBJECT,
+        properties: {
+          level: {
+            type: SchemaType.STRING,
+            format: "enum",
+            enum: ["high", "medium", "low", "none"],
+          },
+          signals: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+          },
+          summary: { type: SchemaType.STRING },
+        },
+        required: ["level", "signals", "summary"],
+      },
+      narrativeGap: {
+        type: SchemaType.OBJECT,
+        properties: {
+          detected: { type: SchemaType.BOOLEAN },
+          description: { type: SchemaType.STRING },
+        },
+        required: ["detected", "description"],
+      },
+      regionalIntelligence: {
+        type: SchemaType.OBJECT,
+        properties: {
+          matchesRegionalPattern: { type: SchemaType.BOOLEAN },
+          deviation: { type: SchemaType.STRING },
+        },
+        required: ["matchesRegionalPattern", "deviation"],
+      },
+      competitors: {
+        type: SchemaType.OBJECT,
+        properties: {
+          mentioned: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+          },
+          context: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+          },
+        },
+        required: ["mentioned", "context"],
+      },
+      marketSignals: {
+        type: SchemaType.ARRAY,
+        items: { type: SchemaType.STRING },
+      },
+      sentiment: {
+        type: SchemaType.OBJECT,
+        properties: {
+          score: { type: SchemaType.NUMBER },
+          label: {
+            type: SchemaType.STRING,
+            format: "enum",
+            enum: ["positive", "neutral", "negative"],
+          },
+          basis: { type: SchemaType.STRING },
+        },
+        required: ["score", "label"],
+      },
+      recommendedAction: {
+        type: SchemaType.OBJECT,
+        properties: {
+          priority: {
+            type: SchemaType.STRING,
+            format: "enum",
+            enum: ["P1", "P2", "P3"],
+          },
+          action: { type: SchemaType.STRING },
+          owner: {
+            type: SchemaType.STRING,
+            format: "enum",
+            enum: ["AE", "Manager", "Executive", "CSM"],
+          },
+          deadline: {
+            type: SchemaType.STRING,
+            format: "enum",
+            enum: ["Today", "48 hours", "This week"],
+          },
+        },
+        required: ["priority", "action", "owner", "deadline"],
+      },
+      confidence: { type: SchemaType.NUMBER },
+    },
+    required: [
+      "dealHealthScore",
+      "velocityAssessment",
+      "activityHealth",
+      "stakeholderCoverage",
+      "competitorThreat",
+      "riskSignals",
+      "narrativeGap",
+      "regionalIntelligence",
+      "competitors",
+      "marketSignals",
+      "sentiment",
+      "recommendedAction",
+      "confidence",
+    ],
+  };
 
   /**
    * Initialize Gemini provider with configuration
@@ -73,7 +201,19 @@ export class GeminiProvider implements ILLMProvider {
         // Inject data into prompt
         const fullPrompt = injectOpportunityData(prompt, opportunityData);
 
-        // Get the generative model
+        // Portfolio-level calls (twenty-questions, competitive-displacement, etc.) use
+        // a completely different output schema than individual deal analysis. Applying
+        // OPPORTUNITY_ANALYSIS_SCHEMA to them causes Gemini to return an empty response
+        // because the two schemas are incompatible. Skip structured output for these calls
+        // and rely on the caller's regex-based JSON extraction instead.
+        const isPortfolioCall = [
+          "twenty-questions",
+          "competitive-displacement",
+          "delta-intelligence",
+          "executive-briefing",
+        ].includes(opportunity.opportunityId);
+
+        // Get the generative model — model name read from LLM_MODEL env var
         const model = this.genAI.getGenerativeModel({
           model: this.config.model,
           systemInstruction: SYSTEM_PROMPT,
@@ -81,7 +221,12 @@ export class GeminiProvider implements ILLMProvider {
             maxOutputTokens: this.config.maxTokens,
             temperature: this.config.temperature,
             topP: this.config.topP || 0.9,
+            // Portfolio calls: JSON mode without schema (free-form structure).
+            // Individual deal calls: JSON mode with strict schema.
             responseMimeType: "application/json",
+            ...(isPortfolioCall ? {} : {
+              responseSchema: GeminiProvider.OPPORTUNITY_ANALYSIS_SCHEMA,
+            }),
           },
         });
 
@@ -94,10 +239,49 @@ export class GeminiProvider implements ILLMProvider {
         const responseText = response.response.text();
 
         // Parse JSON response
-        const analysis = this.parseAnalysisResponse(
-          responseText,
-          opportunity.opportunityId
-        );
+        let analysis: Partial<OpportunityAnalysis>;
+        try {
+          analysis = this.parseAnalysisResponse(
+            responseText,
+            opportunity.opportunityId
+          );
+        } catch (parseError) {
+          const candidates = response.response.candidates || [];
+          const finishReasons = candidates
+            .map((candidate) => candidate.finishReason || "unknown")
+            .join(",");
+          const finishMessages = candidates
+            .map((candidate) => candidate.finishMessage || "")
+            .filter(Boolean)
+            .join(" | ");
+          // Empty response = Gemini safety block. Return a neutral fallback rather than
+          // throwing and retrying — the retry would hit the same block and waste quota.
+          const isEmptyResponse = responseText.length === 0;
+          console.warn(
+            `${isEmptyResponse ? "Empty (safety-blocked)" : "Unparseable"} Gemini response for ` +
+            `${opportunity.opportunityId}: ${String(parseError)} ` +
+            `responseLength=${responseText.length} finishReasons=${finishReasons || "none"} ` +
+            `finishMessages=${finishMessages || "none"}`
+          );
+          if (isEmptyResponse) {
+            if (isPortfolioCall) {
+              // Portfolio calls have their own non-fatal error handling upstream — just throw
+              // so the enrichment phase skips gracefully without a misleading fallback.
+              throw parseError;
+            }
+            // Individual deal: use a neutral fallback so the deal still appears in the report
+            results.push({
+              analysis: this.buildFallbackAnalysis(opportunity.opportunityId),
+              rawResponse: "",
+              processingTimeMs: Date.now() - startTime,
+              success: true,
+              tokensUsed: { input: 0, output: 0 },
+            });
+            this.requestCount++;
+            continue;
+          }
+          throw parseError;
+        }
 
         results.push({
           analysis,
@@ -167,6 +351,38 @@ export class GeminiProvider implements ILLMProvider {
   }
 
   /**
+   * Returns a neutral fallback analysis used when Gemini's response is blocked or empty.
+   * The deal stays in the report at a moderate risk level rather than being silently dropped.
+   */
+  private buildFallbackAnalysis(opportunityId: string): Partial<OpportunityAnalysis> {
+    return {
+      opportunityId,
+      dealHealthScore: 50,
+      velocityAssessment: "slowing",
+      activityHealth: "cooling",
+      stakeholderCoverage: "unknown",
+      competitorThreat: "none",
+      riskSignals: {
+        level: "medium",
+        signals: ["Analysis unavailable — content blocked by safety filter"],
+        summary: "This deal could not be automatically analysed. Manual review recommended.",
+      },
+      narrativeGap: { detected: false, description: "Analysis unavailable." },
+      regionalIntelligence: { matchesRegionalPattern: true, deviation: "None detected." },
+      competitors: { mentioned: [], context: [] },
+      marketSignals: [],
+      sentiment: { score: 0, label: "neutral", basis: "Analysis unavailable." },
+      recommendedAction: {
+        priority: "P3",
+        action: "Manual review required — automated analysis could not be completed.",
+        owner: "Manager",
+        deadline: "This week",
+      },
+      confidence: 0.3,
+    };
+  }
+
+  /**
    * Extracts the first complete JSON object from a string using balanced bracket counting.
    * Handles brackets inside strings correctly. Used as fallback when direct parse fails.
    */
@@ -215,19 +431,25 @@ export class GeminiProvider implements ILLMProvider {
 
       return {
         opportunityId,
-        themes: {
-          win: Array.isArray(parsed.themes?.win) ? parsed.themes.win : [],
-          loss: Array.isArray(parsed.themes?.loss) ? parsed.themes.loss : [],
-          neutral: Array.isArray(parsed.themes?.neutral)
-            ? parsed.themes.neutral
-            : [],
-        },
+        dealHealthScore: typeof parsed.dealHealthScore === "number" ? Math.max(0, Math.min(100, parsed.dealHealthScore)) : 50,
+        velocityAssessment: parsed.velocityAssessment || "slowing",
+        activityHealth: parsed.activityHealth || "cooling",
+        stakeholderCoverage: parsed.stakeholderCoverage || "unknown",
+        competitorThreat: parsed.competitorThreat || "none",
         riskSignals: {
           level: parsed.riskSignals?.level || "none",
           signals: Array.isArray(parsed.riskSignals?.signals)
             ? parsed.riskSignals.signals
             : [],
           summary: parsed.riskSignals?.summary || "",
+        },
+        narrativeGap: {
+          detected: parsed.narrativeGap?.detected === true,
+          description: parsed.narrativeGap?.description || "Narrative aligns with deal signals.",
+        },
+        regionalIntelligence: {
+          matchesRegionalPattern: parsed.regionalIntelligence?.matchesRegionalPattern !== false,
+          deviation: parsed.regionalIntelligence?.deviation || "None detected.",
         },
         competitors: {
           mentioned: Array.isArray(parsed.competitors?.mentioned)
@@ -245,6 +467,13 @@ export class GeminiProvider implements ILLMProvider {
             ? Math.max(-1, Math.min(1, parsed.sentiment.score))
             : 0,
           label: parsed.sentiment?.label || "neutral",
+          basis: parsed.sentiment?.basis || "",
+        },
+        recommendedAction: {
+          priority: parsed.recommendedAction?.priority || "P3",
+          action: parsed.recommendedAction?.action || "Review deal status with rep",
+          owner: parsed.recommendedAction?.owner || "Manager",
+          deadline: parsed.recommendedAction?.deadline || "This week",
         },
         confidence: typeof parsed.confidence === "number"
           ? Math.max(0, Math.min(1, parsed.confidence))
