@@ -627,7 +627,6 @@ function LateStageDealsStrip({ risks }: { risks: RiskDeal[] }) {
 }
 
 export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, deltaIntelligence }) => {
-  const deterioratedCount = deltaIntelligence?.significantDealChanges?.deteriorated?.length ?? 0;
   const [selectedDeal, setSelectedDeal] = useState<RiskDeal | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [lateOnly, setLateOnly] = useState(false);
@@ -640,6 +639,19 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
   });
 
   const { reviewed, isReviewed, toggleReview } = useDealReviews();
+
+  // Filter-aware deteriorated count: cross-references the AI delta data against
+  // the active region and rep filters so the badge reflects the current view.
+  const deterioratedCount = useMemo(() => {
+    const deteriorated = deltaIntelligence?.significantDealChanges?.deteriorated ?? [];
+    if (!deteriorated.length) return 0;
+    if (filters.regions.length === 0 && filters.reps.length === 0) return deteriorated.length;
+    return deteriorated.filter(d => {
+      if (filters.regions.length > 0 && !filters.regions.includes(regionLabel(d.region))) return false;
+      if (filters.reps.length > 0 && !filters.reps.includes(d.rep)) return false;
+      return true;
+    }).length;
+  }, [deltaIntelligence, filters.regions, filters.reps]);
 
   const options = useMemo(() => {
     const stageSet = new Set<string>();

@@ -395,7 +395,7 @@ export const runWeeklyAnalysis = onSchedule(
  * HTTP function: Returns the latest aggregated report
  * GET /getReport
  */
-export const getReport = onRequest({ secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] }, async (req, res) => {
+export const getReport = onRequest({ invoker: "public", secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] }, async (req, res) => {
   if (!await requireAuth(req, res)) return;
   try {
     // Get today's date
@@ -436,7 +436,7 @@ export const getReport = onRequest({ secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_
  * HTTP function: Returns report history (last 10 reports)
  * GET /getReportHistory
  */
-export const getReportHistory = onRequest({ secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] }, async (req, res) => {
+export const getReportHistory = onRequest({ invoker: "public", secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] }, async (req, res) => {
   if (!await requireAuth(req, res)) return;
   try {
     const snapshot = await db
@@ -465,7 +465,7 @@ export const getReportHistory = onRequest({ secrets: ["ANTHROPIC_API_KEY", "GEMI
  * HTTP function: Accepts CSV file upload via multipart form
  * POST /uploadCSV
  */
-export const uploadCSV = onRequest({ secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] }, async (req, res) => {
+export const uploadCSV = onRequest({ invoker: "public", secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] }, async (req, res) => {
   if (!await requireAuth(req, res)) return;
   try {
     if (req.method !== "POST") {
@@ -527,7 +527,7 @@ export const uploadCSV = onRequest({ secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_
  * Optional body: { sinceDate: "2026-02-18" } for incremental pulls
  */
 export const fetchFromBigQuery = onRequest(
-  { timeoutSeconds: 3600, memory: "1GiB", secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] },
+  { invoker: "public", timeoutSeconds: 3600, memory: "1GiB", secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] },
   async (req, res) => {
     if (!await requireAuth(req, res)) return;
     try {
