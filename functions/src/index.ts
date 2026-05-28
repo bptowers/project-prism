@@ -203,6 +203,11 @@ export const onCSVUpload = onObjectFinalized(
       // is preserved while Phase 2 enrichment runs (prevents "flash to sample" on dashboard).
       const reportDate = new Date().toISOString().split("T")[0];
       const reportRef = db.collection("reports").doc(reportDate);
+
+      // Write all deals to subcollection BEFORE trimming (full uncapped set)
+      const allDealsForSubcollection = ((transformed as unknown as Record<string, { risks?: Record<string, unknown>[] }>)['all']?.risks || []);
+      await writeDealsSubcollection(reportDate, allDealsForSubcollection);
+
       const trimmedTransformed = trimTransformedForStorage(transformed as unknown as Record<string, unknown>);
       const docPayloadInitial = {
         ...trimReportForStorage(report),
@@ -314,6 +319,11 @@ export const runWeeklyAnalysis = onSchedule(
       const transformed = ReportTransformer.transform(report);
       const reportDate = new Date().toISOString().split("T")[0];
       const reportRef = db.collection("reports").doc(reportDate);
+
+      // Write all deals to subcollection BEFORE trimming (full uncapped set)
+      const allDealsForSubcollection = ((transformed as unknown as Record<string, { risks?: Record<string, unknown>[] }>)['all']?.risks || []);
+      await writeDealsSubcollection(reportDate, allDealsForSubcollection);
+
       const trimmedTransformed = trimTransformedForStorage(transformed as unknown as Record<string, unknown>);
       const docPayloadInitial = {
         ...trimReportForStorage(report),
@@ -573,9 +583,15 @@ export const fetchFromBigQuery = onRequest(
       const transformed = ReportTransformer.transform(report);
       const reportDate = new Date().toISOString().split("T")[0];
       const reportRef = db.collection("reports").doc(reportDate);
+
+      // Write all deals to subcollection BEFORE trimming (full uncapped set)
+      const allDealsForSubcollection = ((transformed as unknown as Record<string, { risks?: Record<string, unknown>[] }>)['all']?.risks || []);
+      await writeDealsSubcollection(reportDate, allDealsForSubcollection);
+
+      const trimmedTransformed = trimTransformedForStorage(transformed as unknown as Record<string, unknown>);
       await reportRef.set({
         ...trimReportForStorage(report),
-        transformed,
+        transformed: trimmedTransformed,
         reportDate: report.reportDate,
         createdAt: FieldValue.serverTimestamp(),
         dataSource: "bigquery",
@@ -601,9 +617,10 @@ export const fetchFromBigQuery = onRequest(
 
         enrichedReport.funnelStages = funnelStages;
         const enrichedTransformed = ReportTransformer.transform(enrichedReport);
+        const trimmedEnrichedTransformed = trimTransformedForStorage(enrichedTransformed as unknown as Record<string, unknown>);
         await reportRef.update({
           ...trimReportForStorage(enrichedReport),
-          transformed: enrichedTransformed,
+          transformed: trimmedEnrichedTransformed,
           enrichedAt: FieldValue.serverTimestamp(),
         });
         console.log(
@@ -661,6 +678,33 @@ function capJsonSize<T>(value: T, maxArrayLen: number, maxStrLen: number): T {
 }
 
 /**
+ * Writes all active deals to the Firestore deals subcollection at
+ * /reports/{date}/deals/{opportunityId}. This removes the 50-deals-per-region
+ * cap that was needed to keep the main document under 1 MiB.
+ * Uses batched writes (max 500 ops per batch).
+ */
+async function writeDealsSubcollection(
+  reportDate: string,
+  deals: Array<Record<string, unknown>>
+): Promise<void> {
+  if (!deals.length) return;
+  const BATCH_SIZE = 500;
+  let written = 0;
+  for (let i = 0; i < deals.length; i += BATCH_SIZE) {
+    const batch = db.batch();
+    const chunk = deals.slice(i, i + BATCH_SIZE);
+    for (const deal of chunk) {
+      const dealId = String(deal.opportunityId || `deal-${deal.id ?? i + chunk.indexOf(deal)}`);
+      const docRef = db.collection("reports").doc(reportDate).collection("deals").doc(dealId);
+      batch.set(docRef, deal);
+    }
+    await batch.commit();
+    written += chunk.length;
+  }
+  console.log(`[writeDealsSubcollection] wrote ${written} deals to /reports/${reportDate}/deals`);
+}
+
+/**
  * Trims unbounded arrays before writing to Firestore.
  * Firestore has a hard 1 MiB document limit. At 500+ records the LLM enrichment
  * payloads (twentyQuestions / competitiveDisplacement / deltaIntelligence) and
@@ -689,9 +733,9 @@ function trimReportForStorage(report: AggregatedReport): AggregatedReport {
     region.atRiskDeals = (region.atRiskDeals || [])
       .slice(0, 40)
       .map((d) => ({ ...d, signals: (d.signals || []).slice(0, 6) }));
-    region.allActiveDeals = (region.allActiveDeals || [])
-      .slice(0, 50)
-      .map((d) => ({ ...d, signals: (d.signals || []).slice(0, 3) }));
+    // Deals are written to the /reports/{date}/deals subcollection instead of
+    // being embedded here. Clearing this avoids blowing the 1 MiB document limit.
+    region.allActiveDeals = [];
   }
 
   // Cap LLM enrichment payloads — these are unstructured Record<string,unknown>
@@ -718,9 +762,8 @@ function trimReportForStorage(report: AggregatedReport): AggregatedReport {
 /**
  * The frontend `transformed` payload (Record<region, RegionData>) duplicates
  * deal data across the four region slices (all/na/uk/au), so it can easily add
- * 600+ KB to the Firestore doc. Cap each region's risks list and chop long
- * strings before writing. The bubble chart only shows top 40 by $ anyway, and
- * the cards cap at 12; 50 deals per region is plenty.
+ * 600+ KB to the Firestore doc. Strip the risks array entirely (deals are now
+ * served from the /reports/{date}/deals subcollection) and cap other arrays.
  */
 function trimTransformedForStorage(
   transformed: Record<string, unknown>
@@ -731,10 +774,10 @@ function trimTransformedForStorage(
       out[regionKey] = regionData;
       continue;
     }
-    // capJsonSize with conservative caps on the whole RegionData blob.
-    // - max 50 array items (covers risks, competitors, themes, signals, etc.)
-    // - max 400 char strings (deal summaries / actions are the longest)
-    out[regionKey] = capJsonSize(regionData, 50, 400);
+    // Strip risks — they are served from the deals subcollection at read time.
+    // Cap all other arrays at 50 items and strings at 400 chars.
+    const { risks: _risks, ...regionWithoutRisks } = regionData as Record<string, unknown>;
+    out[regionKey] = { ...capJsonSize(regionWithoutRisks, 50, 400), risks: [] };
   }
   return out;
 }

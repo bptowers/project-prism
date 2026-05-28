@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { ReportDocument } from '@/lib/types';
+import type { ReportDocument, RiskDeal } from '@/lib/types';
 
 export function useLatestReport() {
   const [report, setReport] = useState<ReportDocument | null>(null);
@@ -16,9 +16,46 @@ export function useLatestReport() {
       (snapshot) => {
         if (!snapshot.empty) {
           const docData = snapshot.docs[0];
-          setReport({ id: docData.id, ...docData.data() } as ReportDocument);
+          const baseReport = { id: docData.id, ...docData.data() } as ReportDocument;
+
+          // Fetch all deals from the subcollection and inject into transformed.risks.
+          // This removes the 150-deal cap that was imposed by the 1 MiB document limit.
+          // Falls back gracefully to whatever risks are in the document for old reports.
+          getDocs(collection(db, 'reports', docData.id, 'deals'))
+            .then((dealsSnap) => {
+              if (!dealsSnap.empty && baseReport.transformed) {
+                const allDeals = dealsSnap.docs.map(d => d.data() as RiskDeal);
+
+                // Inject full deal list into the 'all' region
+                if (baseReport.transformed['all']) {
+                  baseReport.transformed['all'].risks = allDeals;
+                }
+
+                // Inject per-region deals into each regional slice
+                const byRegion: Record<string, RiskDeal[]> = {};
+                for (const deal of allDeals) {
+                  const r = deal.region || 'unknown';
+                  if (!byRegion[r]) byRegion[r] = [];
+                  byRegion[r].push(deal);
+                }
+                for (const [region, deals] of Object.entries(byRegion)) {
+                  if (baseReport.transformed[region]) {
+                    baseReport.transformed[region].risks = deals;
+                  }
+                }
+              }
+              setReport(baseReport);
+            })
+            .catch((err) => {
+              console.warn('[useLatestReport] Deals subcollection fetch failed, using embedded risks:', err);
+              setReport(baseReport);
+            })
+            .finally(() => {
+              setLoading(false);
+            });
+        } else {
+          setLoading(false);
         }
-        setLoading(false);
       },
       (err) => {
         console.error('Firestore query error:', err);

@@ -6,6 +6,11 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow write: if false; // Only Cloud Functions write
     }
+    // Deals subcollection — individual deal records served separately to bypass 1 MiB doc limit
+    match /reports/{reportId}/deals/{dealId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
     // Analyses — requires sign-in
     match /analyses/{analysisId}/{document=**} {
       allow read: if request.auth != null;
