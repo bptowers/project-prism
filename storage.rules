@@ -2,8 +2,10 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     match /uploads/{fileName} {
-      allow read: if true;
-      allow write: if request.resource.size < 50 * 1024 * 1024
+      // Uploaded CSVs contain pipeline/deal data — require sign-in to read or write.
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 50 * 1024 * 1024
         && request.resource.contentType.matches('text/csv');
     }
     match /reports/{fileName} {

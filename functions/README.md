@@ -57,12 +57,14 @@ Automatically processes any CSV uploaded to the uploads/ bucket:
 ```
 
 ### 2. runWeeklyAnalysis (Scheduled)
-**Trigger**: Cloud Scheduler (Monday 6:00 AM UTC)
+**Trigger**: Cloud Scheduler (every 3 days at 6:00 AM UTC)
 
-Runs automated weekly analysis on latest CSV:
+Runs automated analysis on the latest BigQuery data. The schedule is defined in
+code via the `onSchedule` config in `src/index.ts` (`0 6 */3 * *`); the gcloud
+command below is illustrative only:
 ```bash
 gcloud scheduler jobs create pubsub run-weekly-analysis \
-  --schedule="0 6 * * 1" \
+  --schedule="0 6 */3 * *" \
   --time-zone="UTC" \
   --topic="projects/YOUR_PROJECT/topics/projects/YOUR_PROJECT/topics/firebase-schedule-runWeeklyAnalysis"
 ```

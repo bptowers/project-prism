@@ -113,7 +113,7 @@ export class DataValidator {
       validation.qualityScore -= piiDetected.found.length * 5;
 
       if (this.enablePiiScrubbing) {
-        this.scrubbRecord(record);
+        this.scrubRecord(record);
         validation.hasScrubbedContent = true;
       }
     }
@@ -173,7 +173,7 @@ export class DataValidator {
   /**
    * Scrubs PII from a record
    */
-  private scrubbRecord(record: OpportunityRecord): void {
+  private scrubRecord(record: OpportunityRecord): void {
     if (record.notes) record.notes = this.scrubText(record.notes);
     if (record.dealReviewNotes) record.dealReviewNotes = this.scrubText(record.dealReviewNotes);
     if (record.winLossReason) record.winLossReason = this.scrubText(record.winLossReason);

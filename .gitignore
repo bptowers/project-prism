@@ -49,3 +49,17 @@ February2026 Data Export.csv
 *-firebase-adminsdk-*.json
 serviceAccountKey.json
 gcp-credentials.json
+
+# Claude Code agent worktrees + MCP tooling scratch output
+.claude/worktrees/
+.playwright-mcp/
+.fuse_hidden*
+
+# Local presentation / status artifacts generated at the repo root.
+# Root-anchored so committed docs under docs/ (and hosting/index.html) are untouched.
+# Keepers belong in docs/ — see docs/ for the handover + reference guides.
+/*.html
+/*.zip
+/*.docx
+/*.pptx
+/*.png
