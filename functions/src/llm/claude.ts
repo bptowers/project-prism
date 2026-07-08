@@ -91,7 +91,16 @@ export class ClaudeProvider implements ILLMProvider {
           model: this.config.model,
           max_tokens: this.config.maxTokens,
           temperature: this.config.temperature,
-          system: SYSTEM_PROMPT,
+          // cache_control: the ~8k-token system prompt (regional intelligence +
+          // stage reference) is identical across every call in a run — caching
+          // it cuts input cost on that portion by ~90% across a 500-deal run.
+          system: [
+            {
+              type: "text" as const,
+              text: SYSTEM_PROMPT,
+              cache_control: { type: "ephemeral" as const },
+            },
+          ],
           ...(portfolioCall
             ? {}
             : {
@@ -100,7 +109,7 @@ export class ClaudeProvider implements ILLMProvider {
                     name: "record_analysis",
                     description:
                       "Record the structured revenue-intelligence analysis for this opportunity.",
-                    input_schema: OPPORTUNITY_ANALYSIS_JSON_SCHEMA as Anthropic.Tool["input_schema"],
+                    input_schema: OPPORTUNITY_ANALYSIS_JSON_SCHEMA as unknown as Anthropic.Tool["input_schema"],
                   },
                 ],
                 tool_choice: { type: "tool" as const, name: "record_analysis" },
