@@ -503,6 +503,25 @@ Now analyse this opportunity:
 ---`;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DATA GROUNDING RULES — shared by all portfolio-level enrichment prompts.
+// These phases receive a per-deal data table; every specific they cite must
+// come from it. Fabricated deal names or MRR figures are worse than no answer.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const DATA_GROUNDING_RULES = `
+DATA GROUNDING RULES — these override every other instruction in this prompt:
+1. Only cite deal names, account names, rep names, regions, and MRR figures that
+   appear VERBATIM in the PER-DEAL DATA or report summary provided below.
+2. Never invent, estimate, or extrapolate a name or figure. If a question needs
+   data that is not present (e.g. quarterly targets, prior close dates), answer
+   exactly: "Not available in source data." That is a correct answer, not a failure.
+3. Aggregate figures (totals, percentages, MRR sums) must be arithmetic over the
+   provided per-deal rows. State the deal count behind each aggregate.
+4. Be specific and unhedged ONLY where the data supports it. Confidence without
+   data is fabrication — the one behaviour this system must never exhibit.
+`;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PORTFOLIO AGGREGATION PROMPT
 // Global intelligence — the patterns no individual deal reveals
 // ─────────────────────────────────────────────────────────────────────────────
@@ -531,6 +550,7 @@ cover both Australia and New Zealand — they are separate markets).
 THIS IS NOT A SUMMARY. IT IS A PROVOCATION.
 The CRO has 4 minutes before a board meeting. Every sentence must change
 how they think about the pipeline — or it doesn't deserve to be here.
+${DATA_GROUNDING_RULES}
 
 ═══════════════════════════════════════════════════════════
 ANALYSIS FRAMEWORK
@@ -542,7 +562,8 @@ ANALYSIS FRAMEWORK
    (2) where risk is concentrating — region, rep, or stage, (3) what requires
    immediate CRO attention before end of quarter.
 
-   Every sentence must contain a number (deal count, MRR figure, or percentage).
+   Every sentence must contain a number (deal count, MRR figure, or percentage)
+   computed from the per-deal data provided — never an estimated one.
    Do not use: "it appears", "seems to", "generally", "some deals", "various".
    State what the data shows. Name the region. Name the stage.
 
@@ -708,6 +729,7 @@ Every answer must reference actual deal names, account names, regions, and MRR f
 from the data where available. Generalisations are a failure mode.
 If a data field identifies the account manager or sales rep, include it.
 This is a business pipeline analysis tool operating on anonymised CRM data.
+${DATA_GROUNDING_RULES}
 
 THE TEN QUESTIONS:
 
@@ -729,10 +751,12 @@ Q2 — WHICH DEALS HAVE HAD THEIR CLOSE DATE PUSHED?
   Close date slippage is often a trailing indicator. The real slip happened weeks ago.
 
 Q3 — WHERE IS PIPELINE COVERAGE BELOW 3X FOR THIS QUARTER?
-  For each region, calculate: active pipeline MRR vs. quarter revenue target.
   Coverage = (active pipeline MRR) / (quarterly target MRR).
-  Flag any region or team where coverage is below 3.0x.
-  Identify the fastest path to coverage — what would need to close to get to 3x?
+  Quarterly revenue targets are NOT currently included in the source data.
+  If targets are absent, set the answer to "Quarterly targets not available in
+  source data — coverage ratios cannot be computed" and return an empty regions
+  array. You may still report total active pipeline MRR per region (from the
+  per-deal data) as raw context. Do NOT invent or assume a target figure.
 
 Q4 — WHICH REPS HAVE THE HIGHEST CONCENTRATION OF HIGH-RISK DEALS?
   Not deal count. Not total pipeline value. Risk concentration.
@@ -884,6 +908,10 @@ WHY IN ONE REGION BUT NOT ANOTHER?
 
 These are causal questions. Not descriptive ones.
 You are not reporting win rates. You are finding the mechanism of winning and losing.
+${DATA_GROUNDING_RULES}
+NOTE: This data covers the ACTIVE pipeline. Where a question asks about closed
+deal history that is not present in the data, answer "Not available in source
+data" for that element rather than inferring win/loss mechanisms.
 
 ═══════════════════════════════════════════════════════════
 ANALYSIS FRAMEWORK
@@ -1046,6 +1074,7 @@ You have two snapshots of the same pipeline — the current analysis and the pre
 Your job is to find what changed and what that change MEANS.
 
 This is the layer that transforms a reporting tool into a monitoring system.
+${DATA_GROUNDING_RULES}
 A single snapshot tells you where things are. Two snapshots tell you where things are GOING.
 
 THIS IS NOT A DIFF REPORT. IT IS A TRAJECTORY ANALYSIS.
@@ -1207,7 +1236,8 @@ Return ONLY valid JSON:
   ]
 }
 
-Be ruthlessly specific. Name deals, name reps, name regions, quantify MRR.
+Be ruthlessly specific with the data provided. Name deals, reps, regions, and MRR
+figures only as they appear in the two analyses — never inferred or invented.
 The CRO needs to know what changed and what to do about it. Return only JSON.
 
 CURRENT ANALYSIS:
