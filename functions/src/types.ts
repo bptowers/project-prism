@@ -85,6 +85,8 @@ export interface RiskDeal {
   dealHealthScore: number;
   activityHealth: "active" | "cooling" | "dormant" | "dark";
   velocityAssessment: "accelerating" | "on-track" | "slowing" | "stalled";
+  /** Real days since last activity (falls back to last-modified); null when no date evidence exists */
+  daysSinceLastActivity?: number | null;
   riskLevel: "high" | "medium" | "low";
   signals: string[];
   summary: string;
@@ -122,6 +124,10 @@ export interface OpportunityAnalysis {
   dealHealthScore: number;
   velocityAssessment: "accelerating" | "on-track" | "slowing" | "stalled";
   activityHealth: "active" | "cooling" | "dormant" | "dark";
+  /** Computed in code (dealMetrics.ts), not by the LLM */
+  daysSinceLastActivity?: number | null;
+  /** Days since Last Modified — stage-age proxy, computed in code */
+  daysSinceLastModified?: number | null;
   stakeholderCoverage: "multi-threaded" | "single-threaded" | "unknown";
   competitorThreat: "none" | "present" | "active-displacement";
   riskSignals: {

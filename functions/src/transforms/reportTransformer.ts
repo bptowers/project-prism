@@ -3,7 +3,21 @@
  * Converts backend AggregatedReport into frontend RegionData shape
  */
 
-import { AggregatedReport, RegionReport } from "../types.js";
+import { AggregatedReport, RegionReport, RiskDeal } from "../types.js";
+
+/**
+ * Days-stalled shown on the dashboard. Uses the real computed
+ * daysSinceLastActivity; falls back to the legacy activityHealth bucket
+ * midpoints only for reports written before the field existed.
+ */
+function realDaysStalled(deal: RiskDeal): number {
+  if (typeof deal.daysSinceLastActivity === "number") {
+    return deal.daysSinceLastActivity;
+  }
+  return deal.activityHealth === "dark" ? 45
+    : deal.activityHealth === "dormant" ? 22
+    : deal.activityHealth === "cooling" ? 10 : 2;
+}
 
 interface StatData {
   value: string;
@@ -225,7 +239,7 @@ export class ReportTransformer {
           confidence: deal.probability ?? 50,
           summary: deal.summary,
           action: deal.recommendedAction || (deal.signals.length > 0 ? deal.signals[0] : "Review deal"),
-          daysStalled: deal.activityHealth === 'dark' ? 45 : deal.activityHealth === 'dormant' ? 22 : deal.activityHealth === 'cooling' ? 10 : 2,
+          daysStalled: realDaysStalled(deal),
         });
       }
     }
@@ -364,7 +378,7 @@ export class ReportTransformer {
       confidence: d.probability ?? 50,
       summary: d.summary,
       action: d.recommendedAction || (d.signals.length > 0 ? d.signals[0] : "Review deal"),
-      daysStalled: d.activityHealth === 'dark' ? 45 : d.activityHealth === 'dormant' ? 22 : d.activityHealth === 'cooling' ? 10 : 2,
+      daysStalled: realDaysStalled(d),
     }));
 
     const signals: MarketSignal[] = region.marketSignals.map((s) => ({

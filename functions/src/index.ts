@@ -102,11 +102,10 @@ function getLLMConfig(providerOverride?: string): LLMConfig {
     ? defaultModels[provider] || "gemini-2.5-flash"
     : process.env.LLM_MODEL || defaultModels[provider] || "claude-sonnet-4-6";
 
-  const configuredMaxTokens = parseInt(process.env.LLM_MAX_TOKENS || "2000", 10);
-  const maxTokens =
-    provider === "gemini" && configuredMaxTokens < 8192
-      ? 8192
-      : configuredMaxTokens;
+  // 8192 default for all providers: the enrichment-phase JSON outputs
+  // (Twenty Questions especially) routinely exceed 2000 output tokens and
+  // truncated JSON silently fails the phase.
+  const maxTokens = parseInt(process.env.LLM_MAX_TOKENS || "8192", 10);
 
   return {
     provider: provider as "claude" | "gemini" | "openai",

@@ -11,6 +11,8 @@
  * UK | AU | NZ | North America
  */
 
+import { computeDealMetrics } from "../analysis/dealMetrics.js";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // REGIONAL MARKET INTELLIGENCE
 // The four markets Simpro operates in have fundamentally different buying
@@ -288,25 +290,14 @@ That means surfacing contradictions, naming risks the rep hasn't named,
 and telling the leadership team what this deal really looks like —
 not what the CRM record claims it looks like.
 
-CLASSIFY THESE FIRST (before analysis):
-  velocityAssessment — accelerating | on-track | slowing | stalled
-    accelerating: Stage progression < 2 days/stage, next step defined, activity in 3 days
-    on-track:     Stage progression 2–4 days, next step defined
-    slowing:      Stage 4–8 days, activity thinning or next step missing
-    stalled:      Stage >8 days OR (last activity date present AND >14 days ago) OR no next step
-    NOTE: If Last Activity date is unavailable, do not use its absence to push toward "stalled".
-    Assess velocity based on stage duration and Last Modified date instead.
+PRECOMPUTED CLASSIFICATIONS — do not derive these yourself:
+  velocityAssessment and activityHealth are computed deterministically from the
+  deal's dates and provided in the data as "COMPUTED Activity Health" and
+  "COMPUTED Velocity". Return those exact values in your JSON unchanged.
+  Use them (plus "Days Since Last Activity" and the stage-age proxy) as inputs
+  to your risk and narrative analysis — do not recalculate or contradict them.
 
-  activityHealth — active | cooling | dormant | dark
-    active:   Last activity within 7 days
-    cooling:  Last activity 8–14 days ago
-    dormant:  Last activity 15–30 days ago
-    dark:     Last activity >30 days ago
-    NOTE: If Last Activity is unavailable (shown as —), do NOT default to "dark".
-    Instead, use Last Modified date as a proxy. If Last Modified is within 14 days,
-    classify as "cooling" at worst. Only classify as "dark" when there is positive
-    evidence of >30 days silence, not merely because the activity date field is empty.
-
+CLASSIFY THESE (require interpretation of the notes):
   stakeholderCoverage — multi-threaded | single-threaded | unknown
     multi-threaded: Evidence of 2+ named contacts OR economic buyer identified
     single-threaded: Only one named contact, no economic buyer
@@ -1337,6 +1328,11 @@ export function formatOpportunityForPrompt(data: {
   const prob = data.probability != null ? `${data.probability}%` : na;
   const forecast = data.forecastCategory || na;
 
+  // Deterministic classifications computed in code \u2014 presented to the LLM as
+  // stated facts rather than asking it to derive them from raw dates.
+  const metrics = computeDealMetrics(data);
+  const days = (d: number | null) => (d === null ? na : `${d}`);
+
   return `
 Opportunity ID: ${data.opportunityId}
 Account: ${data.accountName}
@@ -1349,6 +1345,8 @@ Owner/Rep: ${data.salesRep || na} | Lead Source: ${data.leadSource || na}
 Deal Type: ${data.dealType || na} | Product Line: ${data.productLine || na}
 Economic Buyer: ${data.economicBuyer || na}
 Last Activity: ${data.lastActivityDate || na} | Last Modified: ${data.updatedDate || na}
+Days Since Last Activity: ${days(metrics.daysSinceLastActivity)} | Days Since Last Modified (stage-age proxy): ${days(metrics.daysSinceLastModified)}
+COMPUTED Activity Health: ${metrics.activityHealth} | COMPUTED Velocity: ${metrics.velocityAssessment} | Stalled: ${metrics.isStalled ? "YES" : "no"}
 Next Step: ${data.nextStep || na}
 Win/Loss Reason: ${data.winLossReason || na}
 ---

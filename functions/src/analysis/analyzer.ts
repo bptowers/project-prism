@@ -16,6 +16,7 @@ import {
   LLMRateLimitError,
 } from "../llm/provider.js";
 import { COMPREHENSIVE_ANALYSIS_PROMPT } from "../llm/prompts.js";
+import { computeDealMetrics } from "./dealMetrics.js";
 
 /**
  * Represents a batch of opportunities to be processed
@@ -272,6 +273,9 @@ export class Analyzer {
     analysis: Partial<OpportunityAnalysis>,
     record: OpportunityRecord
   ): OpportunityAnalysis {
+    // Deterministic date-derived classifications are computed in code and
+    // override whatever the LLM returned — reproducible run-to-run.
+    const metrics = computeDealMetrics(record);
     return {
       opportunityId: analysis.opportunityId || record.opportunityId,
       accountName: record.accountName,
@@ -286,8 +290,10 @@ export class Analyzer {
       winLossStatus: record.winLossStatus,
       analysisDate: new Date().toISOString(),
       dealHealthScore: analysis.dealHealthScore ?? 50,
-      velocityAssessment: analysis.velocityAssessment || "slowing",
-      activityHealth: analysis.activityHealth || "cooling",
+      velocityAssessment: metrics.velocityAssessment,
+      activityHealth: metrics.activityHealth,
+      daysSinceLastActivity: metrics.daysSinceLastActivity ?? metrics.daysSinceLastModified,
+      daysSinceLastModified: metrics.daysSinceLastModified,
       stakeholderCoverage: analysis.stakeholderCoverage || "unknown",
       competitorThreat: analysis.competitorThreat || "none",
       riskSignals: analysis.riskSignals || {
