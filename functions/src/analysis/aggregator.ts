@@ -635,7 +635,7 @@ export class Aggregator {
    * contains CRM-sourced text.
    */
   private static buildGroundedSummary(report: AggregatedReport): string {
-    const summary = this.buildGroundedSummary(report);
+    const summary = this.buildReportSummary(report);
     const dealTable = this.buildDealTable(report);
     if (!dealTable) return summary;
     return `${summary}
