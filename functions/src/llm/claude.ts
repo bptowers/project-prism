@@ -7,6 +7,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { ILLMProvider, LLMAnalysisOutput, LLMProviderError, LLMRateLimitError } from "./provider.js";
 import { LLMConfig, OpportunityAnalysis, OpportunityRecord } from "../types.js";
 import { formatOpportunityForPrompt, injectOpportunityData, SYSTEM_PROMPT } from "./prompts.js";
+import {
+  isPortfolioCall,
+  OPPORTUNITY_ANALYSIS_JSON_SCHEMA,
+  parseStrictAnalysis,
+} from "./analysisSchema.js";
 
 /**
  * Claude LLM Provider implementation
@@ -75,12 +80,31 @@ export class ClaudeProvider implements ILLMProvider {
         // Inject data into prompt
         const fullPrompt = injectOpportunityData(prompt, opportunityData);
 
-        // Call Claude API
+        // Portfolio-level calls (Phases 2-5) have their own output shapes and
+        // are parsed by the caller from rawResponse — no forced schema.
+        const portfolioCall = isPortfolioCall(opportunity.opportunityId);
+
+        // Call Claude API. Per-deal calls force a tool call whose input schema
+        // mirrors OpportunityAnalysis — no markdown fences, no truncated JSON,
+        // schema-invalid output is rejected by the API rather than parsed leniently.
         const response = await this.client.messages.create({
           model: this.config.model,
           max_tokens: this.config.maxTokens,
           temperature: this.config.temperature,
           system: SYSTEM_PROMPT,
+          ...(portfolioCall
+            ? {}
+            : {
+                tools: [
+                  {
+                    name: "record_analysis",
+                    description:
+                      "Record the structured revenue-intelligence analysis for this opportunity.",
+                    input_schema: OPPORTUNITY_ANALYSIS_JSON_SCHEMA as Anthropic.Tool["input_schema"],
+                  },
+                ],
+                tool_choice: { type: "tool" as const, name: "record_analysis" },
+              }),
           messages: [
             {
               role: "user",
@@ -91,19 +115,32 @@ export class ClaudeProvider implements ILLMProvider {
 
         const processingTime = Date.now() - startTime;
 
-        // Extract response text
-        const responseText =
-          response.content[0].type === "text" ? response.content[0].text : "";
-
-        // Parse JSON response
-        const analysis = this.parseAnalysisResponse(
-          responseText,
-          opportunity.opportunityId
-        );
+        let analysis: Partial<OpportunityAnalysis>;
+        let rawResponse: string;
+        if (portfolioCall) {
+          const textBlock = response.content.find((b) => b.type === "text");
+          rawResponse = textBlock && textBlock.type === "text" ? textBlock.text : "";
+          // Caller extracts its own JSON from rawResponse
+          analysis = { opportunityId: opportunity.opportunityId };
+        } else {
+          const toolBlock = response.content.find((b) => b.type === "tool_use");
+          if (!toolBlock || toolBlock.type !== "tool_use") {
+            throw new LLMProviderError(
+              "Claude",
+              `No tool_use block in response for ${opportunity.opportunityId} (stop_reason: ${response.stop_reason})`
+            );
+          }
+          rawResponse = JSON.stringify(toolBlock.input);
+          analysis = parseStrictAnalysis(
+            toolBlock.input,
+            opportunity.opportunityId,
+            "Claude"
+          );
+        }
 
         results.push({
           analysis,
-          rawResponse: responseText,
+          rawResponse,
           processingTimeMs: processingTime,
           success: true,
           tokensUsed: {
@@ -114,6 +151,11 @@ export class ClaudeProvider implements ILLMProvider {
 
         this.requestCount++;
       } catch (error) {
+        // Preserve typed provider errors (incl. validation failures) as-is
+        if (error instanceof LLMProviderError) {
+          throw error;
+        }
+
         if (error instanceof Anthropic.RateLimitError) {
           throw new LLMRateLimitError("Claude", 60, error);
         }
@@ -174,84 +216,6 @@ export class ClaudeProvider implements ILLMProvider {
       model: this.config.model,
       version: "1.0.0",
     };
-  }
-
-  /**
-   * Parses Claude's JSON response into OpportunityAnalysis structure
-   */
-  private parseAnalysisResponse(
-    responseText: string,
-    opportunityId: string
-  ): Partial<OpportunityAnalysis> {
-    try {
-      // Extract JSON from response (handle potential markdown formatting)
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error("No JSON found in response");
-      }
-
-      const parsed = JSON.parse(jsonMatch[0]);
-
-      return {
-        opportunityId,
-        dealHealthScore: typeof parsed.dealHealthScore === "number" ? Math.max(0, Math.min(100, parsed.dealHealthScore)) : 50,
-        velocityAssessment: parsed.velocityAssessment || "slowing",
-        activityHealth: parsed.activityHealth || "cooling",
-        stakeholderCoverage: parsed.stakeholderCoverage || "unknown",
-        competitorThreat: parsed.competitorThreat || "none",
-        riskSignals: {
-          level: parsed.riskSignals?.level || "none",
-          signals: Array.isArray(parsed.riskSignals?.signals)
-            ? parsed.riskSignals.signals
-            : [],
-          summary: parsed.riskSignals?.summary || "",
-        },
-        narrativeGap: {
-          detected: parsed.narrativeGap?.detected === true,
-          description: parsed.narrativeGap?.description || "Narrative aligns with deal signals.",
-        },
-        regionalIntelligence: {
-          matchesRegionalPattern: parsed.regionalIntelligence?.matchesRegionalPattern !== false,
-          deviation: parsed.regionalIntelligence?.deviation || "None detected.",
-        },
-        competitors: {
-          mentioned: Array.isArray(parsed.competitors?.mentioned)
-            ? parsed.competitors.mentioned
-            : [],
-          context: Array.isArray(parsed.competitors?.context)
-            ? parsed.competitors.context
-            : [],
-        },
-        marketSignals: Array.isArray(parsed.marketSignals)
-          ? parsed.marketSignals
-          : [],
-        sentiment: {
-          score: typeof parsed.sentiment?.score === "number"
-            ? Math.max(-1, Math.min(1, parsed.sentiment.score))
-            : 0,
-          label: parsed.sentiment?.label || "neutral",
-          basis: parsed.sentiment?.basis || "",
-        },
-        recommendedAction: {
-          priority: parsed.recommendedAction?.priority || "P3",
-          action: parsed.recommendedAction?.action || "Review deal status with rep",
-          owner: parsed.recommendedAction?.owner || "Manager",
-          deadline: parsed.recommendedAction?.deadline || "This week",
-        },
-        confidence: typeof parsed.confidence === "number"
-          ? Math.max(0, Math.min(1, parsed.confidence))
-          : 0.5,
-      };
-    } catch (error) {
-      console.error(
-        `Failed to parse Claude response for ${opportunityId}:`,
-        error
-      );
-      throw new LLMProviderError(
-        "Claude",
-        `Failed to parse response: ${String(error)}`
-      );
-    }
   }
 
   /**

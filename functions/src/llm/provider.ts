@@ -198,3 +198,14 @@ export class LLMValidationError extends LLMProviderError {
     this.name = "LLMValidationError";
   }
 }
+
+/**
+ * Error for failures that retrying cannot fix (e.g. Gemini safety blocks).
+ * The analyzer fails the record immediately instead of burning retries.
+ */
+export class LLMNonRetryableError extends LLMProviderError {
+  constructor(provider: string, message: string, originalError?: unknown) {
+    super(provider, message, originalError);
+    this.name = "LLMNonRetryableError";
+  }
+}

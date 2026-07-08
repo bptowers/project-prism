@@ -12,6 +12,7 @@ import {
 import { DataValidator } from "../pipeline/validator.js";
 import {
   ILLMProvider,
+  LLMNonRetryableError,
   LLMProviderFactory,
   LLMRateLimitError,
 } from "../llm/provider.js";
@@ -208,6 +209,11 @@ export class Analyzer {
           lastError = analysisResults[0]?.error || "Unknown error";
         }
       } catch (error) {
+        if (error instanceof LLMNonRetryableError) {
+          // e.g. Gemini safety block — retrying hits the same wall
+          lastError = String(error);
+          break;
+        }
         if (error instanceof LLMRateLimitError) {
           const waitTime = error.retryAfterSeconds * 1000;
           console.warn(
@@ -273,6 +279,21 @@ export class Analyzer {
     analysis: Partial<OpportunityAnalysis>,
     record: OpportunityRecord
   ): OpportunityAnalysis {
+    // Providers enforce a strict schema, so a successful result must carry the
+    // required interpretive fields. Missing ones mean the analysis is unusable —
+    // fail the record rather than shipping a defaulted score that looks real.
+    if (
+      analysis.dealHealthScore === undefined ||
+      analysis.stakeholderCoverage === undefined ||
+      analysis.competitorThreat === undefined ||
+      analysis.riskSignals === undefined ||
+      analysis.recommendedAction === undefined
+    ) {
+      throw new Error(
+        `Incomplete analysis for ${record.opportunityId}: required fields missing from provider result`
+      );
+    }
+
     // Deterministic date-derived classifications are computed in code and
     // override whatever the LLM returned — reproducible run-to-run.
     const metrics = computeDealMetrics(record);
@@ -289,18 +310,16 @@ export class Analyzer {
       dealType: record.dealType,
       winLossStatus: record.winLossStatus,
       analysisDate: new Date().toISOString(),
-      dealHealthScore: analysis.dealHealthScore ?? 50,
+      dealHealthScore: analysis.dealHealthScore,
       velocityAssessment: metrics.velocityAssessment,
       activityHealth: metrics.activityHealth,
       daysSinceLastActivity: metrics.daysSinceLastActivity ?? metrics.daysSinceLastModified,
       daysSinceLastModified: metrics.daysSinceLastModified,
-      stakeholderCoverage: analysis.stakeholderCoverage || "unknown",
-      competitorThreat: analysis.competitorThreat || "none",
-      riskSignals: analysis.riskSignals || {
-        level: "none",
-        signals: [],
-        summary: "",
-      },
+      stakeholderCoverage: analysis.stakeholderCoverage,
+      competitorThreat: analysis.competitorThreat,
+      riskSignals: analysis.riskSignals,
+      recommendedAction: analysis.recommendedAction,
+      // Cosmetic/narrative fields may default without masquerading as analysis
       narrativeGap: analysis.narrativeGap || {
         detected: false,
         description: "Narrative aligns with deal signals.",
@@ -315,16 +334,10 @@ export class Analyzer {
       },
       marketSignals: analysis.marketSignals || [],
       sentiment: analysis.sentiment || {
-        score: 0.5,
+        score: 0,
         label: "neutral",
       },
-      recommendedAction: analysis.recommendedAction || {
-        priority: "P3",
-        action: "Review deal status with rep",
-        owner: "Manager",
-        deadline: "This week",
-      },
-      confidence: analysis.confidence || 0.5,
+      confidence: analysis.confidence ?? 0.5,
       processingTimeMs: analysis.processingTimeMs || 0,
     };
   }

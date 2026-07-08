@@ -7,6 +7,11 @@ import OpenAI from "openai";
 import { ILLMProvider, LLMAnalysisOutput, LLMProviderError, LLMRateLimitError } from "./provider.js";
 import { LLMConfig, OpportunityAnalysis, OpportunityRecord } from "../types.js";
 import { formatOpportunityForPrompt, injectOpportunityData, SYSTEM_PROMPT } from "./prompts.js";
+import {
+  isPortfolioCall,
+  OPPORTUNITY_ANALYSIS_JSON_SCHEMA,
+  parseStrictAnalysis,
+} from "./analysisSchema.js";
 
 /**
  * OpenAI LLM Provider implementation
@@ -75,6 +80,11 @@ export class OpenAIProvider implements ILLMProvider {
         // Inject data into prompt
         const fullPrompt = injectOpportunityData(prompt, opportunityData);
 
+        // Portfolio-level calls (Phases 2-5) have their own output shapes and
+        // are parsed by the caller from rawResponse; per-deal calls enforce
+        // the shared schema so truncated or malformed JSON cannot slip through.
+        const portfolioCall = isPortfolioCall(opportunity.opportunityId);
+
         // Call OpenAI API
         const response = await this.client.chat.completions.create({
           model: this.config.model,
@@ -83,6 +93,16 @@ export class OpenAIProvider implements ILLMProvider {
           top_p: this.config.topP || 0.9,
           frequency_penalty: this.config.frequencyPenalty || 0,
           presence_penalty: this.config.presencePenalty || 0,
+          response_format: portfolioCall
+            ? { type: "json_object" }
+            : {
+                type: "json_schema",
+                json_schema: {
+                  name: "opportunity_analysis",
+                  strict: true,
+                  schema: OPPORTUNITY_ANALYSIS_JSON_SCHEMA as unknown as Record<string, unknown>,
+                },
+              },
           messages: [
             {
               role: "system",
@@ -99,12 +119,20 @@ export class OpenAIProvider implements ILLMProvider {
 
         // Extract response text
         const responseText = response.choices[0].message.content || "";
+        if (response.choices[0].finish_reason === "length") {
+          throw new LLMProviderError(
+            "OpenAI",
+            `Response truncated at ${this.config.maxTokens} tokens for ${opportunity.opportunityId}`
+          );
+        }
 
-        // Parse JSON response
-        const analysis = this.parseAnalysisResponse(
-          responseText,
-          opportunity.opportunityId
-        );
+        const analysis: Partial<OpportunityAnalysis> = portfolioCall
+          ? { opportunityId: opportunity.opportunityId }
+          : parseStrictAnalysis(
+              JSON.parse(responseText),
+              opportunity.opportunityId,
+              "OpenAI"
+            );
 
         results.push({
           analysis,
@@ -119,6 +147,11 @@ export class OpenAIProvider implements ILLMProvider {
 
         this.requestCount++;
       } catch (error) {
+        // Preserve typed provider errors (incl. validation failures) as-is
+        if (error instanceof LLMProviderError) {
+          throw error;
+        }
+
         if (error instanceof OpenAI.RateLimitError) {
           throw new LLMRateLimitError("OpenAI", 60, error);
         }
@@ -179,84 +212,6 @@ export class OpenAIProvider implements ILLMProvider {
       model: this.config.model,
       version: "1.0.0",
     };
-  }
-
-  /**
-   * Parses OpenAI's JSON response into OpportunityAnalysis structure
-   */
-  private parseAnalysisResponse(
-    responseText: string,
-    opportunityId: string
-  ): Partial<OpportunityAnalysis> {
-    try {
-      // Extract JSON from response (handle potential markdown formatting)
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error("No JSON found in response");
-      }
-
-      const parsed = JSON.parse(jsonMatch[0]);
-
-      return {
-        opportunityId,
-        dealHealthScore: typeof parsed.dealHealthScore === "number" ? Math.max(0, Math.min(100, parsed.dealHealthScore)) : 50,
-        velocityAssessment: parsed.velocityAssessment || "slowing",
-        activityHealth: parsed.activityHealth || "cooling",
-        stakeholderCoverage: parsed.stakeholderCoverage || "unknown",
-        competitorThreat: parsed.competitorThreat || "none",
-        riskSignals: {
-          level: parsed.riskSignals?.level || "none",
-          signals: Array.isArray(parsed.riskSignals?.signals)
-            ? parsed.riskSignals.signals
-            : [],
-          summary: parsed.riskSignals?.summary || "",
-        },
-        narrativeGap: {
-          detected: parsed.narrativeGap?.detected === true,
-          description: parsed.narrativeGap?.description || "Narrative aligns with deal signals.",
-        },
-        regionalIntelligence: {
-          matchesRegionalPattern: parsed.regionalIntelligence?.matchesRegionalPattern !== false,
-          deviation: parsed.regionalIntelligence?.deviation || "None detected.",
-        },
-        competitors: {
-          mentioned: Array.isArray(parsed.competitors?.mentioned)
-            ? parsed.competitors.mentioned
-            : [],
-          context: Array.isArray(parsed.competitors?.context)
-            ? parsed.competitors.context
-            : [],
-        },
-        marketSignals: Array.isArray(parsed.marketSignals)
-          ? parsed.marketSignals
-          : [],
-        sentiment: {
-          score: typeof parsed.sentiment?.score === "number"
-            ? Math.max(-1, Math.min(1, parsed.sentiment.score))
-            : 0,
-          label: parsed.sentiment?.label || "neutral",
-          basis: parsed.sentiment?.basis || "",
-        },
-        recommendedAction: {
-          priority: parsed.recommendedAction?.priority || "P3",
-          action: parsed.recommendedAction?.action || "Review deal status with rep",
-          owner: parsed.recommendedAction?.owner || "Manager",
-          deadline: parsed.recommendedAction?.deadline || "This week",
-        },
-        confidence: typeof parsed.confidence === "number"
-          ? Math.max(0, Math.min(1, parsed.confidence))
-          : 0.5,
-      };
-    } catch (error) {
-      console.error(
-        `Failed to parse OpenAI response for ${opportunityId}:`,
-        error
-      );
-      throw new LLMProviderError(
-        "OpenAI",
-        `Failed to parse response: ${String(error)}`
-      );
-    }
   }
 
   /**

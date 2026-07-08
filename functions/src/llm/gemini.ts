@@ -4,9 +4,16 @@
  */
 
 import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/generative-ai";
-import { ILLMProvider, LLMAnalysisOutput, LLMProviderError, LLMRateLimitError } from "./provider.js";
+import {
+  ILLMProvider,
+  LLMAnalysisOutput,
+  LLMNonRetryableError,
+  LLMProviderError,
+  LLMRateLimitError,
+} from "./provider.js";
 import { LLMConfig, OpportunityAnalysis, OpportunityRecord } from "../types.js";
 import { formatOpportunityForPrompt, injectOpportunityData, SYSTEM_PROMPT } from "./prompts.js";
+import { isPortfolioCall, parseStrictAnalysis } from "./analysisSchema.js";
 
 /**
  * Gemini LLM Provider implementation
@@ -201,17 +208,12 @@ export class GeminiProvider implements ILLMProvider {
         // Inject data into prompt
         const fullPrompt = injectOpportunityData(prompt, opportunityData);
 
-        // Portfolio-level calls (twenty-questions, competitive-displacement, etc.) use
-        // a completely different output schema than individual deal analysis. Applying
-        // OPPORTUNITY_ANALYSIS_SCHEMA to them causes Gemini to return an empty response
-        // because the two schemas are incompatible. Skip structured output for these calls
-        // and rely on the caller's regex-based JSON extraction instead.
-        const isPortfolioCall = [
-          "twenty-questions",
-          "competitive-displacement",
-          "delta-intelligence",
-          "executive-briefing",
-        ].includes(opportunity.opportunityId);
+        // Portfolio-level calls (Phases 2-5) use completely different output
+        // schemas than individual deal analysis. Applying OPPORTUNITY_ANALYSIS_SCHEMA
+        // to them causes Gemini to return an empty response. Detection is shared
+        // across providers in analysisSchema.ts (and includes "portfolio-analysis",
+        // which the old inline list here missed — Phase 2 was getting the wrong schema).
+        const portfolioCall = isPortfolioCall(opportunity.opportunityId);
 
         // Get the generative model — model name read from LLM_MODEL env var
         const model = this.genAI.getGenerativeModel({
@@ -224,7 +226,7 @@ export class GeminiProvider implements ILLMProvider {
             // Portfolio calls: JSON mode without schema (free-form structure).
             // Individual deal calls: JSON mode with strict schema.
             responseMimeType: "application/json",
-            ...(isPortfolioCall ? {} : {
+            ...(portfolioCall ? {} : {
               responseSchema: GeminiProvider.OPPORTUNITY_ANALYSIS_SCHEMA,
             }),
           },
@@ -238,49 +240,39 @@ export class GeminiProvider implements ILLMProvider {
         // Extract response text
         const responseText = response.response.text();
 
-        // Parse JSON response
-        let analysis: Partial<OpportunityAnalysis>;
-        try {
-          analysis = this.parseAnalysisResponse(
-            responseText,
-            opportunity.opportunityId
-          );
-        } catch (parseError) {
+        // Empty response = Gemini safety block. Fail the record explicitly and
+        // non-retryably (a retry hits the same block and wastes quota). A fake
+        // "neutral" analysis is worse than a visible failure.
+        if (responseText.length === 0) {
           const candidates = response.response.candidates || [];
           const finishReasons = candidates
             .map((candidate) => candidate.finishReason || "unknown")
             .join(",");
-          const finishMessages = candidates
-            .map((candidate) => candidate.finishMessage || "")
-            .filter(Boolean)
-            .join(" | ");
-          // Empty response = Gemini safety block. Return a neutral fallback rather than
-          // throwing and retrying — the retry would hit the same block and waste quota.
-          const isEmptyResponse = responseText.length === 0;
-          console.warn(
-            `${isEmptyResponse ? "Empty (safety-blocked)" : "Unparseable"} Gemini response for ` +
-            `${opportunity.opportunityId}: ${String(parseError)} ` +
-            `responseLength=${responseText.length} finishReasons=${finishReasons || "none"} ` +
-            `finishMessages=${finishMessages || "none"}`
+          throw new LLMNonRetryableError(
+            "Gemini",
+            `Empty response for ${opportunity.opportunityId} (likely safety block; finishReasons=${finishReasons || "none"})`
           );
-          if (isEmptyResponse) {
-            if (isPortfolioCall) {
-              // Portfolio calls have their own non-fatal error handling upstream — just throw
-              // so the enrichment phase skips gracefully without a misleading fallback.
-              throw parseError;
+        }
+
+        let analysis: Partial<OpportunityAnalysis>;
+        if (portfolioCall) {
+          // Caller extracts its own JSON from rawResponse
+          analysis = { opportunityId: opportunity.opportunityId };
+        } else {
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(responseText);
+          } catch {
+            const extracted = this.extractFirstJsonObject(responseText);
+            if (!extracted) {
+              throw new LLMProviderError(
+                "Gemini",
+                `No JSON found in response for ${opportunity.opportunityId}`
+              );
             }
-            // Individual deal: use a neutral fallback so the deal still appears in the report
-            results.push({
-              analysis: this.buildFallbackAnalysis(opportunity.opportunityId),
-              rawResponse: "",
-              processingTimeMs: Date.now() - startTime,
-              success: true,
-              tokensUsed: { input: 0, output: 0 },
-            });
-            this.requestCount++;
-            continue;
+            parsed = JSON.parse(extracted);
           }
-          throw parseError;
+          analysis = parseStrictAnalysis(parsed, opportunity.opportunityId, "Gemini");
         }
 
         results.push({
@@ -296,6 +288,11 @@ export class GeminiProvider implements ILLMProvider {
 
         this.requestCount++;
       } catch (error) {
+        // Preserve typed provider errors (incl. LLMNonRetryableError) as-is
+        if (error instanceof LLMProviderError) {
+          throw error;
+        }
+
         // Check for rate limit errors
         if (error instanceof Error && error.message.includes("429")) {
           throw new LLMRateLimitError("Gemini", 60, error);
@@ -351,38 +348,6 @@ export class GeminiProvider implements ILLMProvider {
   }
 
   /**
-   * Returns a neutral fallback analysis used when Gemini's response is blocked or empty.
-   * The deal stays in the report at a moderate risk level rather than being silently dropped.
-   */
-  private buildFallbackAnalysis(opportunityId: string): Partial<OpportunityAnalysis> {
-    return {
-      opportunityId,
-      dealHealthScore: 50,
-      velocityAssessment: "slowing",
-      activityHealth: "cooling",
-      stakeholderCoverage: "unknown",
-      competitorThreat: "none",
-      riskSignals: {
-        level: "medium",
-        signals: ["Analysis unavailable — content blocked by safety filter"],
-        summary: "This deal could not be automatically analysed. Manual review recommended.",
-      },
-      narrativeGap: { detected: false, description: "Analysis unavailable." },
-      regionalIntelligence: { matchesRegionalPattern: true, deviation: "None detected." },
-      competitors: { mentioned: [], context: [] },
-      marketSignals: [],
-      sentiment: { score: 0, label: "neutral", basis: "Analysis unavailable." },
-      recommendedAction: {
-        priority: "P3",
-        action: "Manual review required — automated analysis could not be completed.",
-        owner: "Manager",
-        deadline: "This week",
-      },
-      confidence: 0.3,
-    };
-  }
-
-  /**
    * Extracts the first complete JSON object from a string using balanced bracket counting.
    * Handles brackets inside strings correctly. Used as fallback when direct parse fails.
    */
@@ -407,88 +372,6 @@ export class GeminiProvider implements ILLMProvider {
       }
     }
     return null;
-  }
-
-  /**
-   * Parses Gemini's JSON response into OpportunityAnalysis structure
-   */
-  private parseAnalysisResponse(
-    responseText: string,
-    opportunityId: string
-  ): Partial<OpportunityAnalysis> {
-    try {
-      // Try direct parse first (clean path when responseMimeType: "application/json" is set)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let parsed: any;
-      try {
-        parsed = JSON.parse(responseText);
-      } catch {
-        // Fallback: extract the first complete JSON object from the response text
-        const extracted = this.extractFirstJsonObject(responseText);
-        if (!extracted) throw new Error("No JSON found in response");
-        parsed = JSON.parse(extracted);
-      }
-
-      return {
-        opportunityId,
-        dealHealthScore: typeof parsed.dealHealthScore === "number" ? Math.max(0, Math.min(100, parsed.dealHealthScore)) : 50,
-        velocityAssessment: parsed.velocityAssessment || "slowing",
-        activityHealth: parsed.activityHealth || "cooling",
-        stakeholderCoverage: parsed.stakeholderCoverage || "unknown",
-        competitorThreat: parsed.competitorThreat || "none",
-        riskSignals: {
-          level: parsed.riskSignals?.level || "none",
-          signals: Array.isArray(parsed.riskSignals?.signals)
-            ? parsed.riskSignals.signals
-            : [],
-          summary: parsed.riskSignals?.summary || "",
-        },
-        narrativeGap: {
-          detected: parsed.narrativeGap?.detected === true,
-          description: parsed.narrativeGap?.description || "Narrative aligns with deal signals.",
-        },
-        regionalIntelligence: {
-          matchesRegionalPattern: parsed.regionalIntelligence?.matchesRegionalPattern !== false,
-          deviation: parsed.regionalIntelligence?.deviation || "None detected.",
-        },
-        competitors: {
-          mentioned: Array.isArray(parsed.competitors?.mentioned)
-            ? parsed.competitors.mentioned
-            : [],
-          context: Array.isArray(parsed.competitors?.context)
-            ? parsed.competitors.context
-            : [],
-        },
-        marketSignals: Array.isArray(parsed.marketSignals)
-          ? parsed.marketSignals
-          : [],
-        sentiment: {
-          score: typeof parsed.sentiment?.score === "number"
-            ? Math.max(-1, Math.min(1, parsed.sentiment.score))
-            : 0,
-          label: parsed.sentiment?.label || "neutral",
-          basis: parsed.sentiment?.basis || "",
-        },
-        recommendedAction: {
-          priority: parsed.recommendedAction?.priority || "P3",
-          action: parsed.recommendedAction?.action || "Review deal status with rep",
-          owner: parsed.recommendedAction?.owner || "Manager",
-          deadline: parsed.recommendedAction?.deadline || "This week",
-        },
-        confidence: typeof parsed.confidence === "number"
-          ? Math.max(0, Math.min(1, parsed.confidence))
-          : 0.5,
-      };
-    } catch (error) {
-      console.error(
-        `Failed to parse Gemini response for ${opportunityId}:`,
-        error
-      );
-      throw new LLMProviderError(
-        "Gemini",
-        `Failed to parse response: ${String(error)}`
-      );
-    }
   }
 
   /**
