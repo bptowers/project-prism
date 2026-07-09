@@ -80,27 +80,32 @@ export function computeDealMetrics(
 
   // ── velocityAssessment ─────────────────────────────────────────────────
   // Stage age proxies from Last Modified (2–3 day/stage benchmark, 14-day cycle):
-  //   stalled:      >8 days in stage, OR confirmed activity silence >14 days,
-  //                 OR no documented next step (a deal with no next step is drifting)
+  //   stalled:      >8 days in stage, OR confirmed activity silence >14 days
   //   accelerating: <2 days in stage, next step defined, activity within 3 days
   //   on-track:     ≤4 days in stage with a next step
-  //   slowing:      everything else
+  //   slowing:      everything else, INCLUDING a missing next step on its own —
+  //                 a missing field is a data-quality gap the LLM should weigh
+  //                 (it's already a Tier 3 risk signal), not proof of staleness.
+  //                 A deal touched today with no next step is not "stalled";
+  //                 treating a single missing field as a hard stalled fact
+  //                 previously caused every deal lacking Next Step to read as
+  //                 a "ghost deal" regardless of how fresh everything else was.
   const stageAgeDays = daysSinceLastModified;
   const freshestSignal = daysSinceLastActivity ?? daysSinceLastModified;
 
   let velocityAssessment: VelocityAssessment;
   if (
     (stageAgeDays !== null && stageAgeDays > 8) ||
-    (daysSinceLastActivity !== null && daysSinceLastActivity > 14) ||
-    !hasNextStep
+    (daysSinceLastActivity !== null && daysSinceLastActivity > 14)
   ) {
     velocityAssessment = "stalled";
   } else if (
+    hasNextStep &&
     stageAgeDays !== null && stageAgeDays < 2 &&
     freshestSignal !== null && freshestSignal <= 3
   ) {
     velocityAssessment = "accelerating";
-  } else if (stageAgeDays !== null && stageAgeDays <= 4) {
+  } else if (hasNextStep && stageAgeDays !== null && stageAgeDays <= 4) {
     velocityAssessment = "on-track";
   } else {
     velocityAssessment = "slowing";

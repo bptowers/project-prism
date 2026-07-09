@@ -297,6 +297,17 @@ PRECOMPUTED CLASSIFICATIONS — do not derive these yourself:
   Use them (plus "Days Since Last Activity" and the stage-age proxy) as inputs
   to your risk and narrative analysis — do not recalculate or contradict them.
 
+  IMPORTANT: these labels are computed from date arithmetic alone — they do NOT
+  by themselves establish "confirmed negative" evidence for the scoring floors
+  below. "COMPUTED Velocity: stalled" driven by a single missing field (e.g. no
+  Next Step logged) is a data-quality gap, not proof the deal is a ghost or
+  zombie. Apply the DATA-UNAVAILABLE FLOORS and CALIBRATION CHECK exactly as
+  written regardless of what the computed label says — do not let a "stalled"
+  or "dark" label alone push a score below its category floor, or justify
+  "Ghost Deal" / "zombie" / "forecast fiction" framing, without additional
+  confirmed evidence (e.g. an explicit stated close-date slip, a rep note
+  admitting disengagement, or genuinely long elapsed time with zero updates).
+
 CLASSIFY THESE (require interpretation of the notes):
   stakeholderCoverage — multi-threaded | single-threaded | unknown
     multi-threaded: Evidence of 2+ named contacts OR economic buyer identified
@@ -349,7 +360,11 @@ ANALYSIS FRAMEWORK
      confirmed deal risk (competitor arriving late, champion going dark, no signed intent documented).
    - A Discovery deal with a named rep, any activity, and a real company should score 40-55.
    - A deal with NO data at all (no notes, no champion, no dates) should score ~50 (floor on all categories).
-   - If your score is below 20, list the specific confirmed evidence that justifies it.
+   - A deal modified within the last few days (Days Since Last Modified is low) is NOT a ghost deal,
+     regardless of its computed velocity label — recent modification is itself evidence against
+     "no activity for months" framing. Score it on what is actually missing, at the floors above.
+   - If your score is below 20, list the specific confirmed evidence that justifies it — a missing
+     field (no next step, no economic buyer, no competitor logged) is NOT sufficient evidence on its own.
    Watch for THE DEAD CAT SIGNAL: A deal that went quiet, briefly re-engaged, then went quiet again.
    Brief re-engagement after silence is not momentum — it is often a final courtesy before a quiet loss.
 

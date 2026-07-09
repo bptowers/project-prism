@@ -14,6 +14,7 @@ import {
 import { LLMConfig, OpportunityAnalysis, OpportunityRecord } from "../types.js";
 import { formatOpportunityForPrompt, injectOpportunityData, SYSTEM_PROMPT } from "./prompts.js";
 import { isPortfolioCall, parseStrictAnalysis } from "./analysisSchema.js";
+import { extractAndParseJson } from "./jsonRepair.js";
 
 /**
  * Gemini LLM Provider implementation
@@ -263,14 +264,14 @@ export class GeminiProvider implements ILLMProvider {
           try {
             parsed = JSON.parse(responseText);
           } catch {
-            const extracted = this.extractFirstJsonObject(responseText);
-            if (!extracted) {
+            try {
+              parsed = extractAndParseJson(responseText);
+            } catch {
               throw new LLMProviderError(
                 "Gemini",
                 `No JSON found in response for ${opportunity.opportunityId}`
               );
             }
-            parsed = JSON.parse(extracted);
           }
           analysis = parseStrictAnalysis(parsed, opportunity.opportunityId, "Gemini");
         }
@@ -345,33 +346,6 @@ export class GeminiProvider implements ILLMProvider {
       model: this.config.model,
       version: "1.0.0",
     };
-  }
-
-  /**
-   * Extracts the first complete JSON object from a string using balanced bracket counting.
-   * Handles brackets inside strings correctly. Used as fallback when direct parse fails.
-   */
-  private extractFirstJsonObject(text: string): string | null {
-    const start = text.indexOf("{");
-    if (start === -1) return null;
-
-    let depth = 0;
-    let inString = false;
-    let escape = false;
-
-    for (let i = start; i < text.length; i++) {
-      const ch = text[i];
-      if (escape) { escape = false; continue; }
-      if (ch === "\\" && inString) { escape = true; continue; }
-      if (ch === '"') { inString = !inString; continue; }
-      if (inString) continue;
-      if (ch === "{") depth++;
-      else if (ch === "}") {
-        depth--;
-        if (depth === 0) return text.slice(start, i + 1);
-      }
-    }
-    return null;
   }
 
   /**

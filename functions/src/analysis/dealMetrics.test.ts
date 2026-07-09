@@ -91,12 +91,22 @@ describe("velocityAssessment", () => {
     expect(m.isStalled).toBe(true);
   });
 
-  it("stalled: no documented next step", () => {
+  it("slowing (not stalled): fresh deal with no documented next step", () => {
+    // Regression: a single missing field must not read as a confirmed stall.
+    // A deal touched today with no next step is a data-quality gap, not a
+    // "ghost deal" — that miscalibration previously made every deal lacking
+    // Next Step score in the high-teens/low-20s regardless of real freshness.
     const m = computeDealMetrics(
       record({ updatedDate: "2026-07-07", lastActivityDate: "2026-07-07" }),
       NOW
     );
-    expect(m.velocityAssessment).toBe("stalled");
+    expect(m.velocityAssessment).toBe("slowing");
+    expect(m.isStalled).toBe(false);
+  });
+
+  it("does not accelerate or go on-track without a next step, even when fresh", () => {
+    const fresh = record({ updatedDate: "2026-07-08", lastActivityDate: "2026-07-08" });
+    expect(computeDealMetrics(fresh, NOW).velocityAssessment).toBe("slowing");
   });
 
   it("stalled: last activity more than 14 days ago regardless of stage age", () => {

@@ -20,6 +20,7 @@ import {
   COMPETITIVE_DISPLACEMENT_PROMPT,
   DELTA_INTELLIGENCE_PROMPT,
 } from "../llm/prompts.js";
+import { extractAndParseJson } from "../llm/jsonRepair.js";
 
 /**
  * Aggregation engine for building comprehensive reports
@@ -444,15 +445,12 @@ export class Aggregator {
       const results = await provider.analyze([dummyRecord], prompt);
 
       if (results.length > 0 && results[0].success) {
-        const rawResponse = results[0].rawResponse;
-        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          report.executiveBriefing = parsed.executiveBriefing;
-          report.recommendations = parsed.recommendations;
-          report.forecastConfidence = parsed.forecastConfidence;
-          report.portfolioRisk = parsed.portfolioRisk;
-        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const parsed = extractAndParseJson<any>(results[0].rawResponse);
+        report.executiveBriefing = parsed.executiveBriefing;
+        report.recommendations = parsed.recommendations;
+        report.forecastConfidence = parsed.forecastConfidence;
+        report.portfolioRisk = parsed.portfolioRisk;
       }
     } catch (error) {
       console.error("Failed to enrich report with LLM:", error);
@@ -487,12 +485,8 @@ export class Aggregator {
       const results = await provider.analyze([dummyRecord], prompt);
 
       if (results.length > 0 && results[0].success) {
-        const rawResponse = results[0].rawResponse;
-        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          report.twentyQuestions = JSON.parse(jsonMatch[0]);
-          console.log("Twenty Questions enrichment complete");
-        }
+        report.twentyQuestions = extractAndParseJson(results[0].rawResponse);
+        console.log("Twenty Questions enrichment complete");
       }
     } catch (error) {
       console.error("Failed to enrich with Twenty Questions:", error);
@@ -525,12 +519,8 @@ export class Aggregator {
       const results = await provider.analyze([dummyRecord], prompt);
 
       if (results.length > 0 && results[0].success) {
-        const rawResponse = results[0].rawResponse;
-        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          report.competitiveDisplacement = JSON.parse(jsonMatch[0]);
-          console.log("Competitive Displacement enrichment complete");
-        }
+        report.competitiveDisplacement = extractAndParseJson(results[0].rawResponse);
+        console.log("Competitive Displacement enrichment complete");
       }
     } catch (error) {
       console.error("Failed to enrich with Competitive Displacement:", error);
@@ -574,12 +564,8 @@ export class Aggregator {
       const results = await provider.analyze([dummyRecord], prompt);
 
       if (results.length > 0 && results[0].success) {
-        const rawResponse = results[0].rawResponse;
-        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          report.deltaIntelligence = JSON.parse(jsonMatch[0]);
-          console.log("Delta Intelligence enrichment complete");
-        }
+        report.deltaIntelligence = extractAndParseJson(results[0].rawResponse);
+        console.log("Delta Intelligence enrichment complete");
       }
     } catch (error) {
       console.error("Failed to enrich with Delta Intelligence:", error);
