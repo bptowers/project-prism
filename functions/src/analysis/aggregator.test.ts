@@ -1,5 +1,6 @@
-import { Aggregator } from "./aggregator.js";
-import { AggregatedReport, RiskDeal } from "../types.js";
+import { Aggregator, getEnrichmentJson } from "./aggregator.js";
+import { AggregatedReport, OpportunityRecord, RiskDeal } from "../types.js";
+import { ILLMProvider, LLMAnalysisOutput } from "../llm/provider.js";
 
 function riskDeal(overrides: Partial<RiskDeal> = {}): RiskDeal {
   return {
@@ -99,5 +100,74 @@ describe("Aggregator.buildGroundedSummary", () => {
     const out = grounded(report);
     expect(out).toContain('"reportDate"');
     expect(out).not.toContain("[BEGIN_USER_DATA");
+  });
+});
+
+const dummyRecord: OpportunityRecord = {
+  opportunityId: "portfolio-analysis",
+  accountName: "Portfolio",
+  opportunityName: "Portfolio Aggregation",
+  stage: "N/A",
+  winLossStatus: "active",
+  notes: "prompt",
+  region: "Global",
+};
+
+function fakeProvider(responses: Array<Partial<LLMAnalysisOutput>>): ILLMProvider {
+  let call = 0;
+  return {
+    analyze: jest.fn(async () => {
+      const r = responses[Math.min(call, responses.length - 1)];
+      call++;
+      return [
+        {
+          analysis: {},
+          rawResponse: r.rawResponse ?? "",
+          processingTimeMs: 0,
+          success: r.success ?? true,
+          error: r.error,
+        },
+      ];
+    }),
+    validateConnection: jest.fn(),
+    getProviderInfo: jest.fn(() => ({ name: "fake", model: "fake", version: "1.0.0" })),
+  };
+}
+
+describe("getEnrichmentJson", () => {
+  it("returns parsed JSON on first success, without retrying", async () => {
+    const provider = fakeProvider([{ rawResponse: '{"ok":true}' }]);
+    const result = await getEnrichmentJson<{ ok: boolean }>(provider, dummyRecord, "prompt", "Test Phase");
+    expect(result.ok).toBe(true);
+    expect(provider.analyze).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries once after a non-JSON response, then succeeds", async () => {
+    // Regression: production saw Phase 2/3 return zero JSON braces at all
+    // on the first attempt, twice in a row across separate runs.
+    const provider = fakeProvider([
+      { rawResponse: "I'm sorry, I cannot provide that analysis." },
+      { rawResponse: '{"ok":true}' },
+    ]);
+    const result = await getEnrichmentJson<{ ok: boolean }>(provider, dummyRecord, "prompt", "Test Phase");
+    expect(result.ok).toBe(true);
+    expect(provider.analyze).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws after exhausting all attempts", async () => {
+    const provider = fakeProvider([{ rawResponse: "no json here" }]);
+    await expect(
+      getEnrichmentJson(provider, dummyRecord, "prompt", "Test Phase")
+    ).rejects.toThrow(/No JSON object found/);
+    expect(provider.analyze).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries on an unsuccessful provider result, not just parse failures", async () => {
+    const provider = fakeProvider([
+      { success: false, error: "rate limited" },
+      { rawResponse: '{"ok":true}' },
+    ]);
+    const result = await getEnrichmentJson<{ ok: boolean }>(provider, dummyRecord, "prompt", "Test Phase");
+    expect(result.ok).toBe(true);
   });
 });

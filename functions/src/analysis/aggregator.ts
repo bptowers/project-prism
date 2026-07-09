@@ -9,11 +9,12 @@ import {
   GlobalSummary,
   LLMConfig,
   OpportunityAnalysis,
+  OpportunityRecord,
   RegionReport,
   RiskDeal,
   ThemeCount,
 } from "../types.js";
-import { LLMProviderFactory } from "../llm/provider.js";
+import { ILLMProvider, LLMProviderFactory } from "../llm/provider.js";
 import {
   PORTFOLIO_AGGREGATION_PROMPT,
   TWENTY_QUESTIONS_PROMPT,
@@ -21,6 +22,41 @@ import {
   DELTA_INTELLIGENCE_PROMPT,
 } from "../llm/prompts.js";
 import { extractAndParseJson } from "../llm/jsonRepair.js";
+
+/**
+ * Portfolio-level enrichment (Phases 2-5) receives free-form JSON with no
+ * fixed response schema, so a bad generation occasionally comes back
+ * empty or non-JSON (observed in production on Phase 2/3 — the largest,
+ * most complex outputs — on two consecutive runs). One retry recovers most
+ * of these transient failures; if both attempts fail, the phase is still
+ * skipped non-fatally by the caller's own try/catch.
+ */
+export async function getEnrichmentJson<T>(
+  provider: ILLMProvider,
+  dummyRecord: OpportunityRecord,
+  prompt: string,
+  phaseLabel: string,
+  maxAttempts: number = 2
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const results = await provider.analyze([dummyRecord], prompt);
+      if (results.length === 0 || !results[0].success) {
+        throw new Error(results[0]?.error || "LLM call did not return a successful result");
+      }
+      return extractAndParseJson<T>(results[0].rawResponse);
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        console.warn(
+          `[${phaseLabel}] attempt ${attempt}/${maxAttempts} failed, retrying: ${String(error)}`
+        );
+      }
+    }
+  }
+  throw lastError;
+}
 
 /**
  * Aggregation engine for building comprehensive reports
@@ -442,16 +478,12 @@ export class Aggregator {
         region: "Global",
       };
 
-      const results = await provider.analyze([dummyRecord], prompt);
-
-      if (results.length > 0 && results[0].success) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const parsed = extractAndParseJson<any>(results[0].rawResponse);
-        report.executiveBriefing = parsed.executiveBriefing;
-        report.recommendations = parsed.recommendations;
-        report.forecastConfidence = parsed.forecastConfidence;
-        report.portfolioRisk = parsed.portfolioRisk;
-      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parsed = await getEnrichmentJson<any>(provider, dummyRecord, prompt, "Portfolio Analysis");
+      report.executiveBriefing = parsed.executiveBriefing;
+      report.recommendations = parsed.recommendations;
+      report.forecastConfidence = parsed.forecastConfidence;
+      report.portfolioRisk = parsed.portfolioRisk;
     } catch (error) {
       console.error("Failed to enrich report with LLM:", error);
       // Non-fatal: report still usable without enrichment
@@ -482,12 +514,8 @@ export class Aggregator {
         region: "Global",
       };
 
-      const results = await provider.analyze([dummyRecord], prompt);
-
-      if (results.length > 0 && results[0].success) {
-        report.twentyQuestions = extractAndParseJson(results[0].rawResponse);
-        console.log("Twenty Questions enrichment complete");
-      }
+      report.twentyQuestions = await getEnrichmentJson(provider, dummyRecord, prompt, "Twenty Questions");
+      console.log("Twenty Questions enrichment complete");
     } catch (error) {
       console.error("Failed to enrich with Twenty Questions:", error);
     }
@@ -516,12 +544,8 @@ export class Aggregator {
         region: "Global",
       };
 
-      const results = await provider.analyze([dummyRecord], prompt);
-
-      if (results.length > 0 && results[0].success) {
-        report.competitiveDisplacement = extractAndParseJson(results[0].rawResponse);
-        console.log("Competitive Displacement enrichment complete");
-      }
+      report.competitiveDisplacement = await getEnrichmentJson(provider, dummyRecord, prompt, "Competitive Displacement");
+      console.log("Competitive Displacement enrichment complete");
     } catch (error) {
       console.error("Failed to enrich with Competitive Displacement:", error);
     }
@@ -561,12 +585,8 @@ export class Aggregator {
         region: "Global",
       };
 
-      const results = await provider.analyze([dummyRecord], prompt);
-
-      if (results.length > 0 && results[0].success) {
-        report.deltaIntelligence = extractAndParseJson(results[0].rawResponse);
-        console.log("Delta Intelligence enrichment complete");
-      }
+      report.deltaIntelligence = await getEnrichmentJson(provider, dummyRecord, prompt, "Delta Intelligence");
+      console.log("Delta Intelligence enrichment complete");
     } catch (error) {
       console.error("Failed to enrich with Delta Intelligence:", error);
     }
