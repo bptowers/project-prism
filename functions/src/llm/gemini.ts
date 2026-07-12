@@ -14,7 +14,7 @@ import {
 import { LLMConfig, OpportunityAnalysis, OpportunityRecord } from "../types.js";
 import { formatOpportunityForPrompt, injectOpportunityData, SYSTEM_PROMPT } from "./prompts.js";
 import { isPortfolioCall, parseStrictAnalysis } from "./analysisSchema.js";
-import { extractAndParseJson } from "./jsonRepair.js";
+import { extractAndParseJson, extractJsonObject } from "./jsonRepair.js";
 
 /**
  * Gemini LLM Provider implementation
@@ -257,20 +257,21 @@ export class GeminiProvider implements ILLMProvider {
 
         // Diagnostics for the "No JSON object found" failure mode seen in
         // production on Phase 2/3 (Portfolio, Twenty Questions) — these are
-        // the largest, most complex free-form outputs, and a non-empty
-        // response with zero '{' characters is consistent with the model
-        // exhausting maxOutputTokens on internal reasoning before it ever
-        // writes the JSON body. The empty-response check above only fires on
-        // a fully empty string; this covers the "some text, no braces" case
-        // that check misses, so the next failure's logs show the real cause
-        // (finishReason=MAX_TOKENS + candidatesTokenCount near the cap would
-        // confirm truncation; anything else points elsewhere).
-        if (portfolioCall && !responseText.includes("{")) {
+        // the largest, most complex free-form outputs. The first version of
+        // this check only fired when the response had ZERO '{' characters,
+        // but the actual failures had at least one opening brace with no
+        // matching close (truncated mid-object) — extractJsonObject (the
+        // same balanced-bracket scanner the caller uses) is the correct test
+        // for "will this fail downstream", not a naive substring check.
+        // finishReason=MAX_TOKENS + candidatesTokenCount near the cap would
+        // confirm the model exhausted its output budget on reasoning before
+        // finishing the JSON body; anything else points elsewhere.
+        if (portfolioCall && extractJsonObject(responseText) === null) {
           const candidates = response.response.candidates || [];
           const finishReasons = candidates.map((c) => c.finishReason || "unknown").join(",");
           const outputTokens = response.response.usageMetadata?.candidatesTokenCount ?? "unknown";
           console.warn(
-            `[Gemini portfolio diagnostic] ${opportunity.opportunityId}: no '{' in response. ` +
+            `[Gemini portfolio diagnostic] ${opportunity.opportunityId}: no complete JSON object in response. ` +
             `finishReasons=${finishReasons} outputTokens=${outputTokens}/${this.config.maxTokens} ` +
             `responseLength=${responseText.length} snippet=${JSON.stringify(responseText.slice(0, 300))}`
           );
