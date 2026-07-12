@@ -227,7 +227,20 @@ export class GeminiProvider implements ILLMProvider {
             // Portfolio calls: JSON mode without schema (free-form structure).
             // Individual deal calls: JSON mode with strict schema.
             responseMimeType: "application/json",
-            ...(portfolioCall ? {} : {
+            ...(portfolioCall ? {
+              // gemini-2.5-flash spends "thinking" tokens from the SAME
+              // maxOutputTokens budget as the visible response, and this SDK
+              // version's types don't expose thinkingConfig or report thinking
+              // token usage at all — confirmed in production: Phase 2/3 hit
+              // finishReason=MAX_TOKENS after only ~1,300 visible tokens
+              // against a 32,768 cap, meaning ~30K+ tokens were consumed by
+              // invisible reasoning on these two large, complex prompts.
+              // Bounding the thinking budget guarantees room for the actual
+              // JSON body. The field isn't in this SDK's TS types but the
+              // underlying API accepts it — cast around the type gap rather
+              // than upgrading the SDK, which is a bigger, riskier change.
+              thinkingConfig: { thinkingBudget: 4096 },
+            } as unknown as Record<string, never> : {
               responseSchema: GeminiProvider.OPPORTUNITY_ANALYSIS_SCHEMA,
             }),
           },
