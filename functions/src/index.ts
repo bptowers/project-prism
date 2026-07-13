@@ -773,6 +773,13 @@ async function processAndStoreReport(
     transformed: trimmedTransformed,
     reportDate: report.reportDate,
     createdAt: FieldValue.serverTimestamp(),
+    // Collision guard: claim ownership of today's doc. Two runs on the same
+    // day share the reports/{date} key with merge:true; without this, a slow
+    // run's enrichment can land on top of a newer run's base write, producing
+    // a chimera (base stats from one run, enrichment from another). The base
+    // write that lands last becomes the owner; only the owner writes enrichment.
+    activeExecutionId: context.executionId,
+    pipelineStatus: "running",
     ...(opts?.dataSource ? { dataSource: opts.dataSource } : {}),
   };
   logDocSize(context.executionId, "initial", docPayloadInitial);
@@ -782,22 +789,42 @@ async function processAndStoreReport(
 
   // Enrichment (non-fatal): Phase 2 portfolio analysis, then Phases 3–5.
   try {
-    let enrichedReport = await Aggregator.enrichWithLLM(report, llmConfig);
-    console.log(`[${context.executionId}] Phase 2 enrichment complete: Portfolio Analysis`);
+    // If a newer run already claimed the doc while our analysis was running,
+    // skip enrichment entirely — the LLM cost is unavoidable up to here, but
+    // there's no point spending ~3 more minutes producing enrichment we're
+    // no longer allowed to write.
+    if (!(await stillOwnsReport(reportRef, context.executionId))) {
+      console.warn(
+        `[${context.executionId}] Superseded by a newer run before enrichment — skipping.`
+      );
+    } else {
+      let enrichedReport = await Aggregator.enrichWithLLM(report, llmConfig);
+      console.log(`[${context.executionId}] Phase 2 enrichment complete: Portfolio Analysis`);
 
-    enrichedReport = await runAdvancedEnrichment(enrichedReport, llmConfig, context.executionId);
+      enrichedReport = await runAdvancedEnrichment(enrichedReport, llmConfig, context.executionId);
 
-    enrichedReport.funnelStages = funnelStages;
-    const enrichedTransformed = ReportTransformer.transform(enrichedReport);
-    const trimmedEnrichedTransformed = trimTransformedForStorage(enrichedTransformed as unknown as Record<string, unknown>);
-    const docPayloadEnriched = {
-      ...trimReportForStorage(enrichedReport),
-      transformed: trimmedEnrichedTransformed,
-      enrichedAt: FieldValue.serverTimestamp(),
-    };
-    logDocSize(context.executionId, "enriched", docPayloadEnriched);
-    await reportRef.update(docPayloadEnriched);
-    console.log(`[${context.executionId}] All enrichment phases complete`);
+      enrichedReport.funnelStages = funnelStages;
+      const enrichedTransformed = ReportTransformer.transform(enrichedReport);
+      const trimmedEnrichedTransformed = trimTransformedForStorage(enrichedTransformed as unknown as Record<string, unknown>);
+      const docPayloadEnriched = {
+        ...trimReportForStorage(enrichedReport),
+        transformed: trimmedEnrichedTransformed,
+        enrichedAt: FieldValue.serverTimestamp(),
+        pipelineStatus: "complete",
+      };
+
+      // Re-check ownership immediately before the write — a newer run may have
+      // claimed the doc during enrichment. This is the correctness guarantee.
+      if (await stillOwnsReport(reportRef, context.executionId)) {
+        logDocSize(context.executionId, "enriched", docPayloadEnriched);
+        await reportRef.update(docPayloadEnriched);
+        console.log(`[${context.executionId}] All enrichment phases complete`);
+      } else {
+        console.warn(
+          `[${context.executionId}] Superseded by a newer run during enrichment — enrichment write skipped.`
+        );
+      }
+    }
   } catch (enrichErr) {
     console.warn(`[${context.executionId}] LLM enrichment skipped: ${String(enrichErr)}`);
   }
@@ -806,4 +833,17 @@ async function processAndStoreReport(
   await db.collection("executions").doc(context.executionId).set(context);
 
   return { report, reportDate };
+}
+
+/**
+ * True if the report doc is still owned by this execution — i.e. no newer run
+ * has claimed today's reports/{date} doc since we wrote our base report. Used
+ * to prevent a slow run's enrichment from overwriting a newer run's output.
+ */
+async function stillOwnsReport(
+  reportRef: FirebaseFirestore.DocumentReference,
+  executionId: string
+): Promise<boolean> {
+  const snap = await reportRef.get();
+  return snap.data()?.activeExecutionId === executionId;
 }
