@@ -9,6 +9,14 @@ import { GeminiProvider } from "./gemini.js";
 import { OpenAIProvider } from "./openai.js";
 
 /**
+ * Token usage reported by a provider call.
+ */
+export interface LLMTokenUsage {
+  input: number;
+  output: number;
+}
+
+/**
  * Analysis result from an LLM provider
  */
 export interface LLMAnalysisOutput {
@@ -17,10 +25,15 @@ export interface LLMAnalysisOutput {
   processingTimeMs: number;
   success: boolean;
   error?: string;
-  tokensUsed?: {
-    input: number;
-    output: number;
-  };
+  tokensUsed?: LLMTokenUsage;
+}
+
+/**
+ * Result of a free-form completion call (portfolio-level enrichment prompts).
+ */
+export interface LLMCompletionOutput {
+  text: string;
+  tokensUsed?: LLMTokenUsage;
 }
 
 /**
@@ -38,6 +51,18 @@ export interface ILLMProvider {
     opportunities: OpportunityRecord[],
     prompt: string
   ): Promise<LLMAnalysisOutput[]>;
+
+  /**
+   * Runs a single free-form completion for portfolio-level enrichment prompts
+   * (Phases 2–5), which have per-phase output shapes rather than the fixed
+   * per-deal schema. Returns the raw text for the caller to extract JSON from.
+   * @param userPrompt The fully-composed prompt (summary + grounded deal table)
+   * @param opts Optional overrides (e.g. maxTokens)
+   */
+  complete(
+    userPrompt: string,
+    opts?: { maxTokens?: number }
+  ): Promise<LLMCompletionOutput>;
 
   /**
    * Tests connectivity and API key validity

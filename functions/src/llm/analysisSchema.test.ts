@@ -1,4 +1,4 @@
-import { isPortfolioCall, parseStrictAnalysis } from "./analysisSchema.js";
+import { parseStrictAnalysis } from "./analysisSchema.js";
 import { LLMValidationError } from "./provider.js";
 
 function validPayload() {
@@ -61,14 +61,5 @@ describe("parseStrictAnalysis", () => {
   it("collects multiple problems into one error message", () => {
     const p = { ...validPayload(), velocityAssessment: "warp-speed", activityHealth: "lukewarm" };
     expect(() => parseStrictAnalysis(p, "OPP-1", "Claude")).toThrow(/velocityAssessment.*activityHealth/s);
-  });
-});
-
-describe("isPortfolioCall", () => {
-  it("recognises all enrichment dummy-record ids, including portfolio-analysis", () => {
-    for (const id of ["portfolio-analysis", "twenty-questions", "competitive-displacement", "delta-intelligence"]) {
-      expect(isPortfolioCall(id)).toBe(true);
-    }
-    expect(isPortfolioCall("OPP-001")).toBe(false);
   });
 });

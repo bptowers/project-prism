@@ -4,11 +4,16 @@
  */
 
 import OpenAI from "openai";
-import { ILLMProvider, LLMAnalysisOutput, LLMProviderError, LLMRateLimitError } from "./provider.js";
+import {
+  ILLMProvider,
+  LLMAnalysisOutput,
+  LLMCompletionOutput,
+  LLMProviderError,
+  LLMRateLimitError,
+} from "./provider.js";
 import { LLMConfig, OpportunityAnalysis, OpportunityRecord } from "../types.js";
 import { formatOpportunityForPrompt, injectOpportunityData, SYSTEM_PROMPT } from "./prompts.js";
 import {
-  isPortfolioCall,
   OPPORTUNITY_ANALYSIS_JSON_SCHEMA,
   parseStrictAnalysis,
 } from "./analysisSchema.js";
@@ -80,12 +85,8 @@ export class OpenAIProvider implements ILLMProvider {
         // Inject data into prompt
         const fullPrompt = injectOpportunityData(prompt, opportunityData);
 
-        // Portfolio-level calls (Phases 2-5) have their own output shapes and
-        // are parsed by the caller from rawResponse; per-deal calls enforce
-        // the shared schema so truncated or malformed JSON cannot slip through.
-        const portfolioCall = isPortfolioCall(opportunity.opportunityId);
-
-        // Call OpenAI API
+        // Per-deal calls enforce the shared schema so truncated or malformed
+        // JSON cannot slip through. Portfolio-level prompts go through complete().
         const response = await this.client.chat.completions.create({
           model: this.config.model,
           max_tokens: this.config.maxTokens,
@@ -93,16 +94,14 @@ export class OpenAIProvider implements ILLMProvider {
           top_p: this.config.topP || 0.9,
           frequency_penalty: this.config.frequencyPenalty || 0,
           presence_penalty: this.config.presencePenalty || 0,
-          response_format: portfolioCall
-            ? { type: "json_object" }
-            : {
-                type: "json_schema",
-                json_schema: {
-                  name: "opportunity_analysis",
-                  strict: true,
-                  schema: OPPORTUNITY_ANALYSIS_JSON_SCHEMA as unknown as Record<string, unknown>,
-                },
-              },
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "opportunity_analysis",
+              strict: true,
+              schema: OPPORTUNITY_ANALYSIS_JSON_SCHEMA as unknown as Record<string, unknown>,
+            },
+          },
           messages: [
             {
               role: "system",
@@ -126,13 +125,11 @@ export class OpenAIProvider implements ILLMProvider {
           );
         }
 
-        const analysis: Partial<OpportunityAnalysis> = portfolioCall
-          ? { opportunityId: opportunity.opportunityId }
-          : parseStrictAnalysis(
-              JSON.parse(responseText),
-              opportunity.opportunityId,
-              "OpenAI"
-            );
+        const analysis: Partial<OpportunityAnalysis> = parseStrictAnalysis(
+          JSON.parse(responseText),
+          opportunity.opportunityId,
+          "OpenAI"
+        );
 
         results.push({
           analysis,
@@ -173,6 +170,44 @@ export class OpenAIProvider implements ILLMProvider {
     }
 
     return results;
+  }
+
+  /**
+   * Runs a free-form portfolio-level completion (enrichment Phases 2–5).
+   * JSON object mode without the per-deal schema; caller extracts JSON.
+   */
+  async complete(
+    userPrompt: string,
+    opts?: { maxTokens?: number }
+  ): Promise<LLMCompletionOutput> {
+    try {
+      await this.enforceRateLimit();
+
+      const response = await this.client.chat.completions.create({
+        model: this.config.model,
+        max_tokens: opts?.maxTokens ?? this.config.maxTokens,
+        temperature: this.config.temperature,
+        top_p: this.config.topP || 0.9,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+      });
+
+      return {
+        text: response.choices[0].message.content || "",
+        tokensUsed: {
+          input: response.usage?.prompt_tokens || 0,
+          output: response.usage?.completion_tokens || 0,
+        },
+      };
+    } catch (error) {
+      if (error instanceof OpenAI.RateLimitError) {
+        throw new LLMRateLimitError("OpenAI", 60, error);
+      }
+      throw new LLMProviderError("OpenAI", `Completion failed: ${String(error)}`, error);
+    }
   }
 
   /**

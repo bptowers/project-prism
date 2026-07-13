@@ -7,13 +7,14 @@ import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/gen
 import {
   ILLMProvider,
   LLMAnalysisOutput,
+  LLMCompletionOutput,
   LLMNonRetryableError,
   LLMProviderError,
   LLMRateLimitError,
 } from "./provider.js";
-import { LLMConfig, OpportunityAnalysis, OpportunityRecord } from "../types.js";
+import { LLMConfig, OpportunityRecord } from "../types.js";
 import { formatOpportunityForPrompt, injectOpportunityData, SYSTEM_PROMPT } from "./prompts.js";
-import { isPortfolioCall, parseStrictAnalysis } from "./analysisSchema.js";
+import { parseStrictAnalysis } from "./analysisSchema.js";
 import { extractAndParseJson, extractJsonObject } from "./jsonRepair.js";
 
 /**
@@ -209,14 +210,8 @@ export class GeminiProvider implements ILLMProvider {
         // Inject data into prompt
         const fullPrompt = injectOpportunityData(prompt, opportunityData);
 
-        // Portfolio-level calls (Phases 2-5) use completely different output
-        // schemas than individual deal analysis. Applying OPPORTUNITY_ANALYSIS_SCHEMA
-        // to them causes Gemini to return an empty response. Detection is shared
-        // across providers in analysisSchema.ts (and includes "portfolio-analysis",
-        // which the old inline list here missed — Phase 2 was getting the wrong schema).
-        const portfolioCall = isPortfolioCall(opportunity.opportunityId);
-
-        // Get the generative model — model name read from LLM_MODEL env var
+        // Per-deal calls use JSON mode with the strict OpportunityAnalysis
+        // schema. Portfolio-level prompts (Phases 2–5) go through complete().
         const model = this.genAI.getGenerativeModel({
           model: this.config.model,
           systemInstruction: SYSTEM_PROMPT,
@@ -224,25 +219,8 @@ export class GeminiProvider implements ILLMProvider {
             maxOutputTokens: this.config.maxTokens,
             temperature: this.config.temperature,
             topP: this.config.topP || 0.9,
-            // Portfolio calls: JSON mode without schema (free-form structure).
-            // Individual deal calls: JSON mode with strict schema.
             responseMimeType: "application/json",
-            ...(portfolioCall ? {
-              // gemini-2.5-flash spends "thinking" tokens from the SAME
-              // maxOutputTokens budget as the visible response, and this SDK
-              // version's types don't expose thinkingConfig or report thinking
-              // token usage at all — confirmed in production: Phase 2/3 hit
-              // finishReason=MAX_TOKENS after only ~1,300 visible tokens
-              // against a 32,768 cap, meaning ~30K+ tokens were consumed by
-              // invisible reasoning on these two large, complex prompts.
-              // Bounding the thinking budget guarantees room for the actual
-              // JSON body. The field isn't in this SDK's TS types but the
-              // underlying API accepts it — cast around the type gap rather
-              // than upgrading the SDK, which is a bigger, riskier change.
-              thinkingConfig: { thinkingBudget: 4096 },
-            } as unknown as Record<string, never> : {
-              responseSchema: GeminiProvider.OPPORTUNITY_ANALYSIS_SCHEMA,
-            }),
+            responseSchema: GeminiProvider.OPPORTUNITY_ANALYSIS_SCHEMA,
           },
         });
 
@@ -268,48 +246,20 @@ export class GeminiProvider implements ILLMProvider {
           );
         }
 
-        // Diagnostics for the "No JSON object found" failure mode seen in
-        // production on Phase 2/3 (Portfolio, Twenty Questions) — these are
-        // the largest, most complex free-form outputs. The first version of
-        // this check only fired when the response had ZERO '{' characters,
-        // but the actual failures had at least one opening brace with no
-        // matching close (truncated mid-object) — extractJsonObject (the
-        // same balanced-bracket scanner the caller uses) is the correct test
-        // for "will this fail downstream", not a naive substring check.
-        // finishReason=MAX_TOKENS + candidatesTokenCount near the cap would
-        // confirm the model exhausted its output budget on reasoning before
-        // finishing the JSON body; anything else points elsewhere.
-        if (portfolioCall && extractJsonObject(responseText) === null) {
-          const candidates = response.response.candidates || [];
-          const finishReasons = candidates.map((c) => c.finishReason || "unknown").join(",");
-          const outputTokens = response.response.usageMetadata?.candidatesTokenCount ?? "unknown";
-          console.warn(
-            `[Gemini portfolio diagnostic] ${opportunity.opportunityId}: no complete JSON object in response. ` +
-            `finishReasons=${finishReasons} outputTokens=${outputTokens}/${this.config.maxTokens} ` +
-            `responseLength=${responseText.length} snippet=${JSON.stringify(responseText.slice(0, 300))}`
-          );
-        }
-
-        let analysis: Partial<OpportunityAnalysis>;
-        if (portfolioCall) {
-          // Caller extracts its own JSON from rawResponse
-          analysis = { opportunityId: opportunity.opportunityId };
-        } else {
-          let parsed: unknown;
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(responseText);
+        } catch {
           try {
-            parsed = JSON.parse(responseText);
+            parsed = extractAndParseJson(responseText);
           } catch {
-            try {
-              parsed = extractAndParseJson(responseText);
-            } catch {
-              throw new LLMProviderError(
-                "Gemini",
-                `No JSON found in response for ${opportunity.opportunityId}`
-              );
-            }
+            throw new LLMProviderError(
+              "Gemini",
+              `No JSON found in response for ${opportunity.opportunityId}`
+            );
           }
-          analysis = parseStrictAnalysis(parsed, opportunity.opportunityId, "Gemini");
         }
+        const analysis = parseStrictAnalysis(parsed, opportunity.opportunityId, "Gemini");
 
         results.push({
           analysis,
@@ -343,6 +293,71 @@ export class GeminiProvider implements ILLMProvider {
     }
 
     return results;
+  }
+
+  /**
+   * Runs a free-form portfolio-level completion (enrichment Phases 2–5).
+   *
+   * gemini-2.5-flash spends "thinking" tokens from the SAME maxOutputTokens
+   * budget as the visible response, and this SDK version's types don't expose
+   * thinkingConfig or report thinking-token usage. In production, Phase 2/3
+   * (the largest prompts) hit finishReason=MAX_TOKENS after only ~1,300 visible
+   * tokens — ~30K+ consumed by invisible reasoning. Bounding thinkingBudget
+   * guarantees room for the JSON body. The field isn't in this SDK's TS types
+   * but the underlying API accepts it — cast around the gap rather than upgrade.
+   */
+  async complete(
+    userPrompt: string,
+    opts?: { maxTokens?: number }
+  ): Promise<LLMCompletionOutput> {
+    try {
+      await this.enforceRateLimit();
+
+      const maxTokens = opts?.maxTokens ?? this.config.maxTokens;
+      const model = this.genAI.getGenerativeModel({
+        model: this.config.model,
+        systemInstruction: SYSTEM_PROMPT,
+        generationConfig: {
+          maxOutputTokens: maxTokens,
+          temperature: this.config.temperature,
+          topP: this.config.topP || 0.9,
+          responseMimeType: "application/json",
+          thinkingConfig: { thinkingBudget: 4096 },
+        } as unknown as Record<string, never>,
+      });
+
+      const response = await model.generateContent(userPrompt);
+      const text = response.response.text();
+
+      // Diagnostic for the "no complete JSON object" failure mode: a non-empty
+      // response with no balanced top-level object usually means the model ran
+      // out of output budget mid-JSON. finishReason=MAX_TOKENS + outputTokens
+      // near the cap confirms truncation; anything else points elsewhere.
+      if (extractJsonObject(text) === null) {
+        const candidates = response.response.candidates || [];
+        const finishReasons = candidates.map((c) => c.finishReason || "unknown").join(",");
+        const outputTokens = response.response.usageMetadata?.candidatesTokenCount ?? "unknown";
+        console.warn(
+          `[Gemini portfolio diagnostic] no complete JSON object in response. ` +
+          `finishReasons=${finishReasons} outputTokens=${outputTokens}/${maxTokens} ` +
+          `responseLength=${text.length} snippet=${JSON.stringify(text.slice(0, 300))}`
+        );
+      }
+
+      return {
+        text,
+        tokensUsed: {
+          input: response.response.usageMetadata?.promptTokenCount || 0,
+          output: response.response.usageMetadata?.candidatesTokenCount || 0,
+        },
+      };
+    } catch (error) {
+      if (error instanceof LLMProviderError) throw error;
+      if (error instanceof Error && error.message.includes("429")) {
+        throw new LLMRateLimitError("Gemini", 60, error);
+      }
+      throw new LLMProviderError("Gemini", `Completion failed: ${String(error)}`, error);
+    }
   }
 
   /**

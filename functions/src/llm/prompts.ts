@@ -1412,13 +1412,3 @@ export function injectOpportunityData(
 ): string {
   return prompt.replace("{OPPORTUNITY_DATA}", opportunityData);
 }
-
-/**
- * Injects report summary data into a portfolio-level prompt template.
- */
-export function injectReportSummary(
-  prompt: string,
-  reportSummary: string
-): string {
-  return prompt.replace("{REPORT_SUMMARY}", reportSummary);
-}
