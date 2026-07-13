@@ -34,12 +34,19 @@ export async function getEnrichmentJson<T>(
   provider: ILLMProvider,
   prompt: string,
   phaseLabel: string,
+  usageSink?: { input: number; output: number },
   maxAttempts: number = 2
 ): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const { text } = await provider.complete(prompt);
+      const { text, tokensUsed } = await provider.complete(prompt);
+      // Count tokens as soon as the call returns, before parsing — a parse
+      // failure still cost the tokens, and the retry will cost more.
+      if (usageSink && tokensUsed) {
+        usageSink.input += tokensUsed.input;
+        usageSink.output += tokensUsed.output;
+      }
       return extractAndParseJson<T>(text);
     } catch (error) {
       lastError = error;
@@ -455,7 +462,8 @@ export class Aggregator {
    */
   static async enrichWithLLM(
     report: AggregatedReport,
-    llmConfig: LLMConfig
+    llmConfig: LLMConfig,
+    usageSink?: { input: number; output: number }
   ): Promise<AggregatedReport> {
     try {
       const provider = await LLMProviderFactory.create(llmConfig);
@@ -463,7 +471,7 @@ export class Aggregator {
       const prompt = PORTFOLIO_AGGREGATION_PROMPT.replace("{REPORT_SUMMARY}", summary);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsed = await getEnrichmentJson<any>(provider, prompt, "Portfolio Analysis");
+      const parsed = await getEnrichmentJson<any>(provider, prompt, "Portfolio Analysis", usageSink);
       report.executiveBriefing = parsed.executiveBriefing;
       report.recommendations = parsed.recommendations;
       report.forecastConfidence = parsed.forecastConfidence;
@@ -481,14 +489,15 @@ export class Aggregator {
    */
   static async enrichWithTwentyQuestions(
     report: AggregatedReport,
-    llmConfig: LLMConfig
+    llmConfig: LLMConfig,
+    usageSink?: { input: number; output: number }
   ): Promise<AggregatedReport> {
     try {
       const provider = await LLMProviderFactory.create(llmConfig);
       const summary = this.buildGroundedSummary(report);
       const prompt = TWENTY_QUESTIONS_PROMPT.replace("{REPORT_SUMMARY}", summary);
 
-      report.twentyQuestions = await getEnrichmentJson(provider, prompt, "Twenty Questions");
+      report.twentyQuestions = await getEnrichmentJson(provider, prompt, "Twenty Questions", usageSink);
       console.log("Twenty Questions enrichment complete");
     } catch (error) {
       console.error("Failed to enrich with Twenty Questions:", error);
@@ -501,14 +510,15 @@ export class Aggregator {
    */
   static async enrichWithCompetitiveDisplacement(
     report: AggregatedReport,
-    llmConfig: LLMConfig
+    llmConfig: LLMConfig,
+    usageSink?: { input: number; output: number }
   ): Promise<AggregatedReport> {
     try {
       const provider = await LLMProviderFactory.create(llmConfig);
       const summary = this.buildGroundedSummary(report);
       const prompt = COMPETITIVE_DISPLACEMENT_PROMPT.replace("{REPORT_SUMMARY}", summary);
 
-      report.competitiveDisplacement = await getEnrichmentJson(provider, prompt, "Competitive Displacement");
+      report.competitiveDisplacement = await getEnrichmentJson(provider, prompt, "Competitive Displacement", usageSink);
       console.log("Competitive Displacement enrichment complete");
     } catch (error) {
       console.error("Failed to enrich with Competitive Displacement:", error);
@@ -523,7 +533,8 @@ export class Aggregator {
   static async enrichWithDeltaIntelligence(
     report: AggregatedReport,
     previousReport: AggregatedReport | null,
-    llmConfig: LLMConfig
+    llmConfig: LLMConfig,
+    usageSink?: { input: number; output: number }
   ): Promise<AggregatedReport> {
     if (!previousReport) {
       console.log("No previous report available — skipping delta intelligence (first run)");
@@ -539,7 +550,7 @@ export class Aggregator {
         .replace("{CURRENT_REPORT}", currentSummary)
         .replace("{PREVIOUS_REPORT}", previousSummary);
 
-      report.deltaIntelligence = await getEnrichmentJson(provider, prompt, "Delta Intelligence");
+      report.deltaIntelligence = await getEnrichmentJson(provider, prompt, "Delta Intelligence", usageSink);
       console.log("Delta Intelligence enrichment complete");
     } catch (error) {
       console.error("Failed to enrich with Delta Intelligence:", error);

@@ -358,4 +358,8 @@ export interface ExecutionContext {
   recordsFailed: number;
   status: "running" | "completed" | "failed" | "partial";
   errors: string[];
+  /** Accumulated LLM token usage across per-deal analysis + enrichment phases. */
+  tokenUsage: { input: number; output: number };
+  /** Rough USD estimate from tokenUsage — approximate, for observability only. */
+  estimatedCostUsd?: number;
 }

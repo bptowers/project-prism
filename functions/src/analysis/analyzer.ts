@@ -181,6 +181,11 @@ export class Analyzer {
 
         if (analysisResults.length > 0 && analysisResults[0].success) {
           const enriched = this.enrichAnalysis(analysisResults[0].analysis, record);
+          const used = analysisResults[0].tokensUsed;
+          if (used) {
+            executionContext.tokenUsage.input += used.input;
+            executionContext.tokenUsage.output += used.output;
+          }
           executionContext.recordsSuccessful++;
           executionContext.recordsProcessed++;
           return { result: enriched };

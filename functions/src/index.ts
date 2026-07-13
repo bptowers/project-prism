@@ -22,6 +22,7 @@ import {
   LLMConfig,
   OpportunityRecord,
 } from "./types.js";
+import { estimateCostUsd } from "./util/cost.js";
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -131,6 +132,7 @@ function createExecutionContext(jobType: ExecutionContext["jobType"], sourceFile
     recordsFailed: 0,
     status: "running",
     errors: [],
+    tokenUsage: { input: 0, output: 0 },
   };
 }
 
@@ -624,11 +626,12 @@ async function fetchPreviousReport(): Promise<AggregatedReport | null> {
 async function runAdvancedEnrichment(
   report: AggregatedReport,
   llmConfig: LLMConfig,
-  executionId: string
+  executionId: string,
+  usageSink?: { input: number; output: number }
 ): Promise<AggregatedReport> {
   // Phase 3: Twenty Questions
   try {
-    report = await Aggregator.enrichWithTwentyQuestions(report, llmConfig);
+    report = await Aggregator.enrichWithTwentyQuestions(report, llmConfig, usageSink);
     console.log(`[${executionId}] Phase 3 enrichment complete: Twenty Questions`);
   } catch (err) {
     console.warn(`[${executionId}] Phase 3 skipped (Twenty Questions): ${String(err)}`);
@@ -636,7 +639,7 @@ async function runAdvancedEnrichment(
 
   // Phase 4: Competitive Displacement
   try {
-    report = await Aggregator.enrichWithCompetitiveDisplacement(report, llmConfig);
+    report = await Aggregator.enrichWithCompetitiveDisplacement(report, llmConfig, usageSink);
     console.log(`[${executionId}] Phase 4 enrichment complete: Competitive Displacement`);
   } catch (err) {
     console.warn(`[${executionId}] Phase 4 skipped (Competitive Displacement): ${String(err)}`);
@@ -645,7 +648,7 @@ async function runAdvancedEnrichment(
   // Phase 5: Delta Intelligence (requires previous report)
   try {
     const previousReport = await fetchPreviousReport();
-    report = await Aggregator.enrichWithDeltaIntelligence(report, previousReport, llmConfig);
+    report = await Aggregator.enrichWithDeltaIntelligence(report, previousReport, llmConfig, usageSink);
     console.log(`[${executionId}] Phase 5 enrichment complete: Delta Intelligence`);
   } catch (err) {
     console.warn(`[${executionId}] Phase 5 skipped (Delta Intelligence): ${String(err)}`);
@@ -798,10 +801,10 @@ async function processAndStoreReport(
         `[${context.executionId}] Superseded by a newer run before enrichment — skipping.`
       );
     } else {
-      let enrichedReport = await Aggregator.enrichWithLLM(report, llmConfig);
+      let enrichedReport = await Aggregator.enrichWithLLM(report, llmConfig, context.tokenUsage);
       console.log(`[${context.executionId}] Phase 2 enrichment complete: Portfolio Analysis`);
 
-      enrichedReport = await runAdvancedEnrichment(enrichedReport, llmConfig, context.executionId);
+      enrichedReport = await runAdvancedEnrichment(enrichedReport, llmConfig, context.executionId, context.tokenUsage);
 
       enrichedReport.funnelStages = funnelStages;
       const enrichedTransformed = ReportTransformer.transform(enrichedReport);
@@ -828,6 +831,16 @@ async function processAndStoreReport(
   } catch (enrichErr) {
     console.warn(`[${context.executionId}] LLM enrichment skipped: ${String(enrichErr)}`);
   }
+
+  // Cost observability: estimate USD from accumulated token usage (per-deal
+  // analysis + all enrichment phases). Approximate — for at-a-glance
+  // "what did this run cost" visibility, not billing.
+  context.estimatedCostUsd = estimateCostUsd(llmConfig.model, context.tokenUsage);
+  console.log(
+    `[${context.executionId}] Token usage — input: ${context.tokenUsage.input}, ` +
+    `output: ${context.tokenUsage.output}, est. cost: ~$${context.estimatedCostUsd.toFixed(4)} ` +
+    `(model: ${llmConfig.model}, approximate)`
+  );
 
   context.status = "completed";
   await db.collection("executions").doc(context.executionId).set(context);
