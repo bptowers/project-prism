@@ -95,56 +95,116 @@ export interface RegionData {
 }
 
 // Phase 3: Twenty Questions (CRO Intelligence)
-export interface TQDeal {
+// These interfaces mirror the exact shape the backend TWENTY_QUESTIONS_PROMPT
+// emits (see functions/src/llm/prompts.ts return format). They were previously
+// out of sync — the frontend expected an older schema (topReps, accelerating,
+// inactiveDeals) the backend no longer produces, so every expanded question
+// detail rendered empty. Keep these aligned with that prompt's return block.
+
+// Q1 — Deals Gone Silent (silent7Days / silent14Days / silent30Days)
+export interface TQSilentDeal {
   name: string;
   rep: string;
   region: string;
   mrr: string;
-  reason?: string;
-  stage?: string;
-  daysInStage?: number;
-  overBy?: string;
-  implication?: string;
-  forecastedMrr?: string;
-  healthScore?: number;
-  primaryReason?: string;
-  mostLikelyOutcome?: string;
-  primaryBlocker?: string;
+  stage: string;
+  daysSinceActivity: number;
 }
 
-export interface TQRep {
+// Deal rows across Q2, Q5, Q9, Q10 — the backend calls each array "deals" but
+// the per-question fields differ, so this is the union of those fields.
+export interface TQDealRow {
+  name: string;
+  rep: string;
+  region: string;
+  mrr: string;
+  stage?: string;
+  // Q2 — Close Date Slippage
+  currentCloseDate?: string;
+  slippageSignal?: string;
+  likelyCause?: string;
+  // Q5 — Late-Stage Deals Without Economic Buyer
+  daysInStage?: number;
+  recommendedAction?: string;
+  // Q9 — Stage-Stalled Deals
+  benchmark?: string;
+  overBy?: string;
+  primaryBlocker?: string;
+  // Q10 — Top 5 Deals Needing CRO Intervention
+  healthScore?: number;
+  urgencySignal?: string;
+  croAction?: string;
+  deadline?: string;
+}
+
+// Q3 (coverage) and Q8 (risk exposure) both return a "regions" array with
+// different fields — union of both.
+export interface TQRegionRow {
+  region: string;
+  // Q3 — Pipeline Coverage Below 3x
+  activePipelineMrr?: string;
+  coverageRatio?: number;
+  gap?: string;
+  fastestPath?: string;
+  // Q8 — Forecast-Weighted Risk Exposure by Region
+  totalActiveMrr?: string;
+  highRiskMrr?: string;
+  riskPercentage?: number;
+  primaryRiskDriver?: string;
+}
+
+// Q4 — Reps with Highest At-Risk Concentration
+export interface TQRepRow {
   name: string;
   region: string;
-  reason: string;
+  totalDeals: number;
+  highRiskDeals: number;
+  highRiskMrr: string;
+  primaryPattern: string;
 }
 
-export interface TQSegment {
-  segment: string;
-  evidence: string;
+// Q6 — Competitive Pressure Intensifying
+export interface TQThreatRow {
+  competitor: string;
+  region: string;
+  affectedDeals: number;
+  mrrAtRisk: string;
+  displacementPattern: string;
+}
+
+// Q7 — Probability vs Health Score Gap (optimismBias / sandbagging)
+export interface TQGapDeal {
+  name: string;
+  rep: string;
+  region: string;
+  statedProbability: number;
+  dealHealthScore: number;
+  gap: number;
+  interpretation: string;
 }
 
 export interface TQQuestion {
   label: string;
   answer: string;
-  deals?: TQDeal[];
-  totalMrrAtRisk?: string;
-  reportedPipeline?: string;
-  ghostStrippedPipeline?: string;
-  delta?: string;
-  inactiveDeals?: string[];
-  topReps?: TQRep[];
-  bottomReps?: TQRep[];
-  accelerating?: TQSegment[];
-  decelerating?: TQSegment[];
+  // Q1
+  silent7Days?: TQSilentDeal[];
+  silent14Days?: TQSilentDeal[];
+  silent30Days?: TQSilentDeal[];
+  // Q2, Q5, Q9, Q10
+  deals?: TQDealRow[];
+  // Q3, Q8
+  regions?: TQRegionRow[];
+  // Q4
+  reps?: TQRepRow[];
+  // Q6
+  threats?: TQThreatRow[];
+  // Q7
+  optimismBias?: TQGapDeal[];
+  sandbagging?: TQGapDeal[];
+  // Q9 header stats
   bottleneckStage?: string;
   isSystemic?: boolean;
-  dealsStuck?: number;
-  mrrStuck?: string;
-  details?: TQDeal[];
-  reportedForecast?: string;
-  realisticForecast?: string;
-  forecastFictionDelta?: string;
-  atRiskDeals?: TQDeal[];
+  totalMrrStuck?: string;
 }
 
 export interface TwentyQuestionsData {

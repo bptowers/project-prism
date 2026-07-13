@@ -2,44 +2,67 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { itemVariants } from '@/theme/animations';
 import { Badge } from '@/components/ui/Badge';
-import type { TwentyQuestionsData, TQQuestion } from '@/lib/types';
+import type {
+  TwentyQuestionsData,
+  TQQuestion,
+  TQSilentDeal,
+  TQDealRow,
+  TQRegionRow,
+  TQRepRow,
+  TQThreatRow,
+  TQGapDeal,
+} from '@/lib/types';
 
 interface Props { data?: TwentyQuestionsData; }
 
-const QUESTION_KEYS = ['question1', 'question2', 'question3', 'question4', 'question5', 'question6', 'question7'] as const;
+// All ten CRO questions the backend answers (see TWENTY_QUESTIONS_PROMPT).
+// Previously only question1–7 were listed here, so questions 8–10 never
+// rendered even when present in the data.
+const QUESTION_KEYS = [
+  'question1', 'question2', 'question3', 'question4', 'question5',
+  'question6', 'question7', 'question8', 'question9', 'question10',
+] as const;
 
-const QUESTION_ICONS: Record<string, string> = {
-  question1: 'Slip Risk',
-  question2: 'Ghost Pipeline',
-  question3: 'Rep Quality',
-  question4: 'Velocity Reality',
-  question5: 'Below Benchmark',
-  question6: 'Bottleneck',
+const QUESTION_BADGES: Record<string, string> = {
+  question1: 'Gone Silent',
+  question2: 'Slippage',
+  question3: 'Coverage',
+  question4: 'Rep Risk',
+  question5: 'No Econ Buyer',
+  question6: 'Competitive',
   question7: 'Forecast Fiction',
+  question8: 'Risk by Region',
+  question9: 'Stage Stalls',
+  question10: 'CRO Actions',
 };
 
-function DealTable({ deals }: { deals: { name: string; rep: string; region: string; mrr: string; reason?: string; primaryReason?: string; mostLikelyOutcome?: string }[] }) {
-  if (!deals?.length) return null;
+// ── Generic table ──────────────────────────────────────────────────────────
+interface Col<T> {
+  header: string;
+  align?: 'left' | 'right';
+  cell: (row: T) => React.ReactNode;
+}
+
+function DataTable<T>({ columns, rows }: { columns: Col<T>[]; rows?: T[] }) {
+  if (!rows?.length) return null;
   return (
     <div style={{ marginTop: '0.75rem', overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-            <th style={{ textAlign: 'left', padding: '4px 8px', fontWeight: 500 }}>Deal</th>
-            <th style={{ textAlign: 'left', padding: '4px 8px', fontWeight: 500 }}>Rep</th>
-            <th style={{ textAlign: 'left', padding: '4px 8px', fontWeight: 500 }}>Region</th>
-            <th style={{ textAlign: 'right', padding: '4px 8px', fontWeight: 500 }}>MRR</th>
-            <th style={{ textAlign: 'left', padding: '4px 8px', fontWeight: 500 }}>Reason</th>
+            {columns.map((c, i) => (
+              <th key={i} style={{ textAlign: c.align || 'left', padding: '4px 8px', fontWeight: 500 }}>{c.header}</th>
+            ))}
           </tr>
         </thead>
         <tbody>
-          {deals.map((d, i) => (
-            <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-              <td style={{ padding: '6px 8px', color: 'var(--text-primary)' }}>{d.name}</td>
-              <td style={{ padding: '6px 8px', color: 'var(--text-secondary)' }}>{d.rep}</td>
-              <td style={{ padding: '6px 8px' }}><Badge variant="info">{d.region}</Badge></td>
-              <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--accent)', fontWeight: 600 }}>{d.mrr}</td>
-              <td style={{ padding: '6px 8px', color: 'var(--text-secondary)', maxWidth: 300 }}>{d.reason || d.primaryReason || '—'}</td>
+          {rows.map((row, ri) => (
+            <tr key={ri} style={{ borderBottom: '1px solid var(--border)' }}>
+              {columns.map((c, ci) => (
+                <td key={ci} style={{ padding: '6px 8px', textAlign: c.align || 'left', color: 'var(--text-secondary)' }}>
+                  {c.cell(row)}
+                </td>
+              ))}
             </tr>
           ))}
         </tbody>
@@ -48,109 +71,197 @@ function DealTable({ deals }: { deals: { name: string; rep: string; region: stri
   );
 }
 
-function RepList({ label, reps, variant }: { label: string; reps: { name: string; region: string; reason: string }[]; variant: 'success' | 'high' }) {
-  if (!reps?.length) return null;
+const dealCell = (v: string) => <span style={{ color: 'var(--text-primary)' }}>{v}</span>;
+const mrrCell = (v?: string) => <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{v || '—'}</span>;
+const regionCell = (v: string) => <Badge variant="info">{v}</Badge>;
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ marginTop: '0.5rem' }}>
-      <div style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</div>
-      {reps.map((r, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-          <Badge variant={variant}>{r.region}</Badge>
-          <div>
-            <span style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-primary)' }}>{r.name}</span>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>{r.reason}</div>
-          </div>
-        </div>
-      ))}
+    <div style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', margin: '0.75rem 0 0.25rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+      {children}
     </div>
   );
 }
 
+// ── Per-question detail ─────────────────────────────────────────────────────
 function QuestionDetail({ qKey, question }: { qKey: string; question: TQQuestion }) {
+  const silentCols: Col<TQSilentDeal>[] = [
+    { header: 'Deal', cell: (d) => dealCell(d.name) },
+    { header: 'Rep', cell: (d) => d.rep },
+    { header: 'Region', cell: (d) => regionCell(d.region) },
+    { header: 'Stage', cell: (d) => d.stage },
+    { header: 'MRR', align: 'right', cell: (d) => mrrCell(d.mrr) },
+    { header: 'Days Silent', align: 'right', cell: (d) => d.daysSinceActivity },
+  ];
+
+  const gapCols: Col<TQGapDeal>[] = [
+    { header: 'Deal', cell: (d) => dealCell(d.name) },
+    { header: 'Rep', cell: (d) => d.rep },
+    { header: 'Region', cell: (d) => regionCell(d.region) },
+    { header: 'Prob %', align: 'right', cell: (d) => d.statedProbability },
+    { header: 'Health', align: 'right', cell: (d) => d.dealHealthScore },
+    { header: 'Gap', align: 'right', cell: (d) => <span style={{ color: 'var(--error)', fontWeight: 600 }}>{d.gap}</span> },
+    { header: 'Interpretation', cell: (d) => d.interpretation },
+  ];
+
+  const content = (() => {
+    switch (qKey) {
+      case 'question1':
+        return (
+          <>
+            {question.silent7Days?.length ? (<><SectionLabel>7-Day Silence · Early Warning</SectionLabel><DataTable columns={silentCols} rows={question.silent7Days} /></>) : null}
+            {question.silent14Days?.length ? (<><SectionLabel>14-Day Silence · Active Risk</SectionLabel><DataTable columns={silentCols} rows={question.silent14Days} /></>) : null}
+            {question.silent30Days?.length ? (<><SectionLabel>30-Day Silence · Ghost Deals</SectionLabel><DataTable columns={silentCols} rows={question.silent30Days} /></>) : null}
+          </>
+        );
+      case 'question2':
+        return (
+          <DataTable<TQDealRow>
+            columns={[
+              { header: 'Deal', cell: (d) => dealCell(d.name) },
+              { header: 'Rep', cell: (d) => d.rep },
+              { header: 'Region', cell: (d) => regionCell(d.region) },
+              { header: 'MRR', align: 'right', cell: (d) => mrrCell(d.mrr) },
+              { header: 'Close Date', cell: (d) => d.currentCloseDate || '—' },
+              { header: 'Signal', cell: (d) => d.slippageSignal || '—' },
+              { header: 'Likely Cause', cell: (d) => d.likelyCause || '—' },
+            ]}
+            rows={question.deals}
+          />
+        );
+      case 'question3':
+        return (
+          <DataTable<TQRegionRow>
+            columns={[
+              { header: 'Region', cell: (r) => dealCell(r.region) },
+              { header: 'Active Pipeline', align: 'right', cell: (r) => mrrCell(r.activePipelineMrr) },
+              { header: 'Coverage', align: 'right', cell: (r) => (r.coverageRatio != null ? `${r.coverageRatio}x` : '—') },
+              { header: 'Gap to 3x', align: 'right', cell: (r) => r.gap || '—' },
+              { header: 'Fastest Path', cell: (r) => r.fastestPath || '—' },
+            ]}
+            rows={question.regions}
+          />
+        );
+      case 'question4':
+        return (
+          <DataTable<TQRepRow>
+            columns={[
+              { header: 'Rep', cell: (r) => dealCell(r.name) },
+              { header: 'Region', cell: (r) => regionCell(r.region) },
+              { header: 'Total', align: 'right', cell: (r) => r.totalDeals },
+              { header: 'High-Risk', align: 'right', cell: (r) => r.highRiskDeals },
+              { header: 'At-Risk MRR', align: 'right', cell: (r) => mrrCell(r.highRiskMrr) },
+              { header: 'Primary Pattern', cell: (r) => r.primaryPattern },
+            ]}
+            rows={question.reps}
+          />
+        );
+      case 'question5':
+        return (
+          <DataTable<TQDealRow>
+            columns={[
+              { header: 'Deal', cell: (d) => dealCell(d.name) },
+              { header: 'Rep', cell: (d) => d.rep },
+              { header: 'Region', cell: (d) => regionCell(d.region) },
+              { header: 'Stage', cell: (d) => d.stage || '—' },
+              { header: 'MRR', align: 'right', cell: (d) => mrrCell(d.mrr) },
+              { header: 'Days in Stage', align: 'right', cell: (d) => d.daysInStage ?? '—' },
+              { header: 'Action', cell: (d) => d.recommendedAction || '—' },
+            ]}
+            rows={question.deals}
+          />
+        );
+      case 'question6':
+        return (
+          <DataTable<TQThreatRow>
+            columns={[
+              { header: 'Competitor', cell: (t) => dealCell(t.competitor) },
+              { header: 'Region', cell: (t) => regionCell(t.region) },
+              { header: 'Deals', align: 'right', cell: (t) => t.affectedDeals },
+              { header: 'MRR at Risk', align: 'right', cell: (t) => mrrCell(t.mrrAtRisk) },
+              { header: 'Displacement Pattern', cell: (t) => t.displacementPattern },
+            ]}
+            rows={question.threats}
+          />
+        );
+      case 'question7':
+        return (
+          <>
+            {question.optimismBias?.length ? (<><SectionLabel>Optimism Bias · Rep over-confident vs. health</SectionLabel><DataTable columns={gapCols} rows={question.optimismBias} /></>) : null}
+            {question.sandbagging?.length ? (<><SectionLabel>Sandbagging · Upside opportunity</SectionLabel><DataTable columns={gapCols} rows={question.sandbagging} /></>) : null}
+          </>
+        );
+      case 'question8':
+        return (
+          <DataTable<TQRegionRow>
+            columns={[
+              { header: 'Region', cell: (r) => dealCell(r.region) },
+              { header: 'Active MRR', align: 'right', cell: (r) => mrrCell(r.totalActiveMrr) },
+              { header: 'High-Risk MRR', align: 'right', cell: (r) => mrrCell(r.highRiskMrr) },
+              { header: 'Risk %', align: 'right', cell: (r) => (r.riskPercentage != null ? `${r.riskPercentage}%` : '—') },
+              { header: 'Primary Driver', cell: (r) => r.primaryRiskDriver || '—' },
+            ]}
+            rows={question.regions}
+          />
+        );
+      case 'question9':
+        return (
+          <>
+            <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', flexWrap: 'wrap' }}>
+              {question.bottleneckStage && <div>Bottleneck: <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{question.bottleneckStage}</span></div>}
+              {question.totalMrrStuck && <div>MRR stuck: <span style={{ color: 'var(--error)', fontWeight: 600 }}>{question.totalMrrStuck}</span></div>}
+              {question.isSystemic != null && <Badge variant={question.isSystemic ? 'high' : 'low'}>{question.isSystemic ? 'Systemic' : 'Isolated'}</Badge>}
+            </div>
+            <DataTable<TQDealRow>
+              columns={[
+                { header: 'Deal', cell: (d) => dealCell(d.name) },
+                { header: 'Rep', cell: (d) => d.rep },
+                { header: 'Region', cell: (d) => regionCell(d.region) },
+                { header: 'Stage', cell: (d) => d.stage || '—' },
+                { header: 'Days', align: 'right', cell: (d) => d.daysInStage ?? '—' },
+                { header: 'Over By', align: 'right', cell: (d) => d.overBy || '—' },
+                { header: 'MRR', align: 'right', cell: (d) => mrrCell(d.mrr) },
+                { header: 'Blocker', cell: (d) => d.primaryBlocker || '—' },
+              ]}
+              rows={question.deals}
+            />
+          </>
+        );
+      case 'question10':
+        return (
+          <DataTable<TQDealRow>
+            columns={[
+              { header: 'Deal', cell: (d) => dealCell(d.name) },
+              { header: 'Rep', cell: (d) => d.rep },
+              { header: 'Region', cell: (d) => regionCell(d.region) },
+              { header: 'MRR', align: 'right', cell: (d) => mrrCell(d.mrr) },
+              { header: 'Health', align: 'right', cell: (d) => d.healthScore ?? '—' },
+              { header: 'Urgency', cell: (d) => d.urgencySignal || '—' },
+              { header: 'CRO Action', cell: (d) => d.croAction || '—' },
+              { header: 'By', cell: (d) => (d.deadline ? <Badge variant="high">{d.deadline}</Badge> : '—') },
+            ]}
+            rows={question.deals}
+          />
+        );
+      default:
+        return null;
+    }
+  })();
+
+  if (!content) return null;
   return (
     <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
-      {/* Q1 & Q5 & Q7: deal tables */}
-      {(qKey === 'question1' || qKey === 'question5') && question.deals && (
-        <>
-          {question.totalMrrAtRisk && (
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--error)', fontWeight: 600, marginBottom: '0.5rem' }}>
-              Total MRR at risk: {question.totalMrrAtRisk}
-            </div>
-          )}
-          <DealTable deals={question.deals} />
-        </>
-      )}
-
-      {qKey === 'question7' && question.atRiskDeals && (
-        <>
-          <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.75rem', fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
-            {question.reportedForecast && <div>Reported: <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{question.reportedForecast}</span></div>}
-            {question.realisticForecast && <div>Realistic: <span style={{ color: 'var(--error)', fontWeight: 600 }}>{question.realisticForecast}</span></div>}
-            {question.forecastFictionDelta && <div>Gap: <span style={{ color: 'var(--error)', fontWeight: 600 }}>{question.forecastFictionDelta}</span></div>}
-          </div>
-          <DealTable deals={question.atRiskDeals} />
-        </>
-      )}
-
-      {/* Q2: ghost pipeline */}
-      {qKey === 'question2' && (
-        <>
-          <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
-            {question.reportedPipeline && <div>Reported: <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{question.reportedPipeline}</span></div>}
-            {question.ghostStrippedPipeline && <div>Ghost-stripped: <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{question.ghostStrippedPipeline}</span></div>}
-            {question.delta && <div>Delta: <span style={{ color: 'var(--error)', fontWeight: 600 }}>{question.delta}</span></div>}
-          </div>
-          {question.inactiveDeals?.map((d, i) => (
-            <div key={i} style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', padding: '3px 0', borderBottom: '1px solid var(--border)' }}>{d}</div>
-          ))}
-        </>
-      )}
-
-      {/* Q3: rep rankings */}
-      {qKey === 'question3' && (
-        <>
-          <RepList label="Top Reps" reps={question.topReps || []} variant="success" />
-          <RepList label="Bottom Reps" reps={question.bottomReps || []} variant="high" />
-        </>
-      )}
-
-      {/* Q4: velocity segments */}
-      {qKey === 'question4' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-          <div>
-            <div style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--success)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Accelerating</div>
-            {question.accelerating?.map((s, i) => (
-              <div key={i} style={{ fontSize: '0.75rem', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{s.segment}</div>
-                <div style={{ color: 'var(--text-secondary)', marginTop: 2 }}>{s.evidence}</div>
-              </div>
-            ))}
-          </div>
-          <div>
-            <div style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--error)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Decelerating</div>
-            {question.decelerating?.map((s, i) => (
-              <div key={i} style={{ fontSize: '0.75rem', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{s.segment}</div>
-                <div style={{ color: 'var(--text-secondary)', marginTop: 2 }}>{s.evidence}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Q6: bottleneck */}
-      {qKey === 'question6' && (
-        <>
-          <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
-            {question.bottleneckStage && <div>Stage: <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{question.bottleneckStage}</span></div>}
-            {question.mrrStuck && <div>MRR stuck: <span style={{ color: 'var(--error)', fontWeight: 600 }}>{question.mrrStuck}</span></div>}
-            {question.dealsStuck != null && <div>Deals: <span style={{ fontWeight: 600 }}>{question.dealsStuck}</span></div>}
-            {question.isSystemic != null && <Badge variant={question.isSystemic ? 'high' : 'low'}>{question.isSystemic ? 'Systemic' : 'Isolated'}</Badge>}
-          </div>
-          {question.details && <DealTable deals={question.details.map(d => ({ name: d.name || '', rep: d.rep, region: d.region, mrr: d.mrr || '—', reason: d.primaryBlocker }))} />}
-        </>
-      )}
+      {content}
     </div>
+  );
+}
+
+// Detail is only meaningful for questions that carry structured rows.
+function hasDetail(q: TQQuestion): boolean {
+  return Boolean(
+    q.silent7Days?.length || q.silent14Days?.length || q.silent30Days?.length ||
+    q.deals?.length || q.regions?.length || q.reps?.length || q.threats?.length ||
+    q.optimismBias?.length || q.sandbagging?.length
   );
 }
 
@@ -174,41 +285,46 @@ export const TwentyQuestions: React.FC<Props> = ({ data }) => {
           CRO Intelligence
         </h3>
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-          {questions.length} questions
+          {questions.length} of 10 questions
         </span>
       </div>
-      {questions.map(({ key, question }) => (
-        <div
-          key={key}
-          onClick={() => setExpanded(expanded === key ? null : key)}
-          style={{
-            padding: '1rem',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            marginBottom: '0.75rem',
-            background: 'var(--bg-elevated)',
-            cursor: 'pointer',
-            borderLeft: '3px solid var(--prism-blue)',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Badge variant="info">{QUESTION_ICONS[key] || key}</Badge>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                {question.label}
-              </span>
+      {questions.map(({ key, question }) => {
+        const expandable = hasDetail(question);
+        return (
+          <div
+            key={key}
+            onClick={() => expandable && setExpanded(expanded === key ? null : key)}
+            style={{
+              padding: '1rem',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              marginBottom: '0.75rem',
+              background: 'var(--bg-elevated)',
+              cursor: expandable ? 'pointer' : 'default',
+              borderLeft: '3px solid var(--prism-blue)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Badge variant="info">{QUESTION_BADGES[key] || key}</Badge>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  {question.label}
+                </span>
+              </div>
+              {expandable && (
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                  {expanded === key ? '▼' : '▶'}
+                </span>
+              )}
             </div>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-              {expanded === key ? '▼' : '▶'}
-            </span>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              {question.answer}
+            </div>
+            {expanded === key && <QuestionDetail qKey={key} question={question} />}
           </div>
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            {question.answer}
-          </div>
-          {expanded === key && <QuestionDetail qKey={key} question={question} />}
-        </div>
-      ))}
+        );
+      })}
     </motion.div>
   );
 };
