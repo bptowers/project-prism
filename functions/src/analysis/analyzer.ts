@@ -20,8 +20,16 @@ import { COMPREHENSIVE_ANALYSIS_PROMPT } from "../llm/prompts.js";
 import { computeDealMetrics } from "./dealMetrics.js";
 import { mapWithConcurrency } from "../util/concurrency.js";
 
-/** Global cap on in-flight LLM analysis calls. Env-overridable. */
-const DEFAULT_CONCURRENCY = 10;
+/**
+ * Global cap on in-flight LLM analysis calls (env-overridable via
+ * LLM_CONCURRENCY). Fallback of 25 chosen so a full ~260-deal run finishes
+ * comfortably under onCSVUpload's 540s timeout even if the env var is unset:
+ * a 258-deal run measured ~731s at concurrency 10, and wall-clock scales
+ * roughly inversely with the cap, so 25 → ~290s. Prod sets LLM_CONCURRENCY=40.
+ * The pre-refactor scheme ran ~55 concurrent with zero rate-limit failures,
+ * so values in this range are known-safe against Gemini's limits.
+ */
+const DEFAULT_CONCURRENCY = 25;
 
 /**
  * Main analysis orchestrator
