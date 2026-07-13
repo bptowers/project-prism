@@ -676,7 +676,8 @@ async function runAnalysisPipeline(
 
   // Step 2: Create analyzer and run analysis
   console.log(`[${context.executionId}] Initializing analyzer...`);
-  const analyzer = await Analyzer.create(llmConfig, 25, 3, 1000);
+  // concurrency omitted → Analyzer reads LLM_CONCURRENCY (default 10)
+  const analyzer = await Analyzer.create(llmConfig, undefined, 3, 1000);
 
   console.log(`[${context.executionId}] Running LLM analysis...`);
   const analyses = await analyzer.analyze(records, context);

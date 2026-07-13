@@ -36,8 +36,6 @@ const CACHED_SYSTEM = [
 export class ClaudeProvider implements ILLMProvider {
   private client: Anthropic;
   private config: LLMConfig;
-  private requestCount = 0;
-  private lastRequestTime = 0;
 
   /**
    * Initialize Claude provider with configuration
@@ -62,9 +60,6 @@ export class ClaudeProvider implements ILLMProvider {
     for (const opportunity of opportunities) {
       try {
         const startTime = Date.now();
-
-        // Apply rate limiting (100 requests per minute = ~600ms per request)
-        await this.enforceRateLimit();
 
         // Format opportunity data with all available fields
         const opportunityData = formatOpportunityForPrompt({
@@ -148,8 +143,6 @@ export class ClaudeProvider implements ILLMProvider {
             output: response.usage.output_tokens,
           },
         });
-
-        this.requestCount++;
       } catch (error) {
         // Preserve typed provider errors (incl. validation failures) as-is
         if (error instanceof LLMProviderError) {
@@ -188,8 +181,6 @@ export class ClaudeProvider implements ILLMProvider {
     opts?: { maxTokens?: number }
   ): Promise<LLMCompletionOutput> {
     try {
-      await this.enforceRateLimit();
-
       const response = await this.client.messages.create({
         model: this.config.model,
         max_tokens: opts?.maxTokens ?? this.config.maxTokens,
@@ -253,21 +244,5 @@ export class ClaudeProvider implements ILLMProvider {
       model: this.config.model,
       version: "1.0.0",
     };
-  }
-
-  /**
-   * Enforces rate limiting (100 requests per minute)
-   */
-  private async enforceRateLimit(): Promise<void> {
-    const now = Date.now();
-    const timeSinceLastRequest = now - this.lastRequestTime;
-    const minTimeBetweenRequests = 600; // 100 req/min = 600ms per request
-
-    if (timeSinceLastRequest < minTimeBetweenRequests) {
-      const delayMs = minTimeBetweenRequests - timeSinceLastRequest;
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-
-    this.lastRequestTime = Date.now();
   }
 }

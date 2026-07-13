@@ -24,8 +24,6 @@ import { extractAndParseJson, extractJsonObject } from "./jsonRepair.js";
 export class GeminiProvider implements ILLMProvider {
   private genAI: GoogleGenerativeAI;
   private config: LLMConfig;
-  private requestCount = 0;
-  private lastRequestTime = 0;
 
   private static readonly OPPORTUNITY_ANALYSIS_SCHEMA: ResponseSchema = {
     type: SchemaType.OBJECT,
@@ -177,9 +175,6 @@ export class GeminiProvider implements ILLMProvider {
       try {
         const startTime = Date.now();
 
-        // Apply rate limiting (100 requests per minute = ~600ms per request)
-        await this.enforceRateLimit();
-
         // Format opportunity data with all available fields
         const opportunityData = formatOpportunityForPrompt({
           opportunityId: opportunity.opportunityId,
@@ -271,8 +266,6 @@ export class GeminiProvider implements ILLMProvider {
             output: response.response.usageMetadata?.candidatesTokenCount || 0,
           },
         });
-
-        this.requestCount++;
       } catch (error) {
         // Preserve typed provider errors (incl. LLMNonRetryableError) as-is
         if (error instanceof LLMProviderError) {
@@ -311,8 +304,6 @@ export class GeminiProvider implements ILLMProvider {
     opts?: { maxTokens?: number }
   ): Promise<LLMCompletionOutput> {
     try {
-      await this.enforceRateLimit();
-
       const maxTokens = opts?.maxTokens ?? this.config.maxTokens;
       const model = this.genAI.getGenerativeModel({
         model: this.config.model,
@@ -396,21 +387,5 @@ export class GeminiProvider implements ILLMProvider {
       model: this.config.model,
       version: "1.0.0",
     };
-  }
-
-  /**
-   * Enforces rate limiting (100 requests per minute)
-   */
-  private async enforceRateLimit(): Promise<void> {
-    const now = Date.now();
-    const timeSinceLastRequest = now - this.lastRequestTime;
-    const minTimeBetweenRequests = 600; // 100 req/min = 600ms per request
-
-    if (timeSinceLastRequest < minTimeBetweenRequests) {
-      const delayMs = minTimeBetweenRequests - timeSinceLastRequest;
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-
-    this.lastRequestTime = Date.now();
   }
 }
