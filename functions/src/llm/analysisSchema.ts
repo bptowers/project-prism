@@ -13,26 +13,6 @@ import { OpportunityAnalysis } from "../types.js";
 import { LLMValidationError } from "./provider.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Portfolio-call detection
-// The enrichment phases (Phases 2–5) reuse ILLMProvider.analyze() with a dummy
-// record whose opportunityId identifies the call. Those calls have completely
-// different output shapes, so providers must NOT force the per-deal schema on
-// them. IDs must match the dummy records built in analysis/aggregator.ts.
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const PORTFOLIO_CALL_IDS = new Set([
-  "portfolio-analysis",
-  "twenty-questions",
-  "competitive-displacement",
-  "delta-intelligence",
-  "executive-briefing", // legacy id, kept defensively
-]);
-
-export function isPortfolioCall(opportunityId: string): boolean {
-  return PORTFOLIO_CALL_IDS.has(opportunityId);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // JSON Schema (plain object) — used as Claude tool input_schema and OpenAI
 // json_schema. All properties required + additionalProperties:false so it is
 // valid for OpenAI strict mode.

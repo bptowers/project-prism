@@ -22,6 +22,7 @@ import {
   LLMConfig,
   OpportunityRecord,
 } from "./types.js";
+import { estimateCostUsd } from "./util/cost.js";
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -131,6 +132,7 @@ function createExecutionContext(jobType: ExecutionContext["jobType"], sourceFile
     recordsFailed: 0,
     status: "running",
     errors: [],
+    tokenUsage: { input: 0, output: 0 },
   };
 }
 
@@ -175,88 +177,9 @@ export const onCSVUpload = onObjectFinalized(
         `[${context.executionId}] Parsed ${records.length} records from CSV`
       );
 
-      // Compute funnel stages from raw CSV
-      const funnelStages = CSVParser.calculateFunnel(records);
-
-      // Run full pipeline with the provider selected in the upload modal (or env default)
-      const report = await runAnalysisPipeline(
-        records,
-        context,
-        getLLMConfig(selectedProvider)
-      );
-
-      // Add funnel stages from CSV data
-      report.funnelStages = funnelStages;
-
-      // Compute per-region funnel stages
-      for (const [regionKey, regionReport] of Object.entries(report.regions)) {
-        const regionRecords = records.filter(r => r.region === regionKey);
-        regionReport.stageDistribution = CSVParser.calculateFunnel(regionRecords);
-      }
-
-      // Transform for frontend consumption (without LLM enrichment first)
-      const transformed = ReportTransformer.transform(report);
-
-      // Store base report in Firestore immediately so dashboard gets data.
-      // Use merge:true so a previous executiveBriefing from an earlier run today
-      // is preserved while Phase 2 enrichment runs (prevents "flash to sample" on dashboard).
-      const reportDate = new Date().toISOString().split("T")[0];
-      const reportRef = db.collection("reports").doc(reportDate);
-
-      // Write all deals to subcollection BEFORE trimming (full uncapped set)
-      const allDealsForSubcollection = ((transformed as unknown as Record<string, { risks?: Record<string, unknown>[] }>)['all']?.risks || []);
-      await writeDealsSubcollection(reportDate, allDealsForSubcollection);
-
-      const trimmedTransformed = trimTransformedForStorage(transformed as unknown as Record<string, unknown>);
-      const docPayloadInitial = {
-        ...trimReportForStorage(report),
-        transformed: trimmedTransformed,
-        reportDate: report.reportDate,
-        createdAt: FieldValue.serverTimestamp(),
-      };
-      logDocSize(context.executionId, "initial", docPayloadInitial);
-      await reportRef.set(docPayloadInitial, { merge: true });
-
-      console.log(
-        `[${context.executionId}] Report stored: ${report.reportId}`
-      );
-
-      // Try LLM enrichment as a follow-up (portfolio analysis, recommendations)
-      try {
-        const llmConfig = getLLMConfig(selectedProvider);
-        let enrichedReport = await Aggregator.enrichWithLLM(report, llmConfig);
-        console.log(
-          `[${context.executionId}] Phase 2 enrichment complete: Portfolio Analysis`
-        );
-
-        // Phase 3–5: Twenty Questions, Competitive Displacement, Delta Intelligence
-        enrichedReport = await runAdvancedEnrichment(enrichedReport, llmConfig, context.executionId);
-
-        enrichedReport.funnelStages = funnelStages;
-        const enrichedTransformed = ReportTransformer.transform(enrichedReport);
-        const trimmedEnrichedTransformed = trimTransformedForStorage(enrichedTransformed as unknown as Record<string, unknown>);
-        const docPayloadEnriched = {
-          ...trimReportForStorage(enrichedReport),
-          transformed: trimmedEnrichedTransformed,
-          enrichedAt: FieldValue.serverTimestamp(),
-        };
-        logDocSize(context.executionId, "enriched", docPayloadEnriched);
-        await reportRef.update(docPayloadEnriched);
-        console.log(
-          `[${context.executionId}] All enrichment phases complete`
-        );
-      } catch (enrichErr) {
-        console.warn(
-          `[${context.executionId}] LLM enrichment skipped: ${String(enrichErr)}`
-        );
-      }
-
-      // Update execution status
-      context.status = "completed";
-      await db
-        .collection("executions")
-        .doc(context.executionId)
-        .set(context);
+      // Run the full pipeline with the provider selected in the upload modal
+      // (or env default). See processAndStoreReport for the shared sequence.
+      await processAndStoreReport(records, context, getLLMConfig(selectedProvider));
     } catch (error) {
       context.status = "failed";
       context.errors.push(`Pipeline error: ${String(error)}`);
@@ -301,81 +224,7 @@ export const runWeeklyAnalysis = onSchedule(
         return;
       }
 
-      // Calculate funnel stages
-      const funnelStages = CSVParser.calculateFunnel(records);
-
-      // Run existing pipeline (validate -> analyze -> aggregate)
-      const report = await runAnalysisPipeline(records, context, getLLMConfig());
-      report.funnelStages = funnelStages;
-
-      // Compute per-region funnel stages
-      for (const [regionKey, regionReport] of Object.entries(report.regions)) {
-        const regionRecords = records.filter(r => r.region === regionKey);
-        regionReport.stageDistribution = CSVParser.calculateFunnel(regionRecords);
-      }
-
-      // Transform and store (merge:true preserves existing data during enrichment gap)
-      const transformed = ReportTransformer.transform(report);
-      const reportDate = new Date().toISOString().split("T")[0];
-      const reportRef = db.collection("reports").doc(reportDate);
-
-      // Write all deals to subcollection BEFORE trimming (full uncapped set)
-      const allDealsForSubcollection = ((transformed as unknown as Record<string, { risks?: Record<string, unknown>[] }>)['all']?.risks || []);
-      await writeDealsSubcollection(reportDate, allDealsForSubcollection);
-
-      const trimmedTransformed = trimTransformedForStorage(transformed as unknown as Record<string, unknown>);
-      const docPayloadInitial = {
-        ...trimReportForStorage(report),
-        transformed: trimmedTransformed,
-        reportDate: report.reportDate,
-        createdAt: FieldValue.serverTimestamp(),
-        dataSource: "bigquery",
-      };
-      logDocSize(context.executionId, "initial", docPayloadInitial);
-      await reportRef.set(docPayloadInitial, { merge: true });
-
-      console.log(
-        `[${context.executionId}] Report stored: ${report.reportId}`
-      );
-
-      // Try LLM enrichment (non-fatal) — use same provider as Phase 1
-      const scheduledLlmConfig = getLLMConfig();
-      try {
-        let enrichedReport = await Aggregator.enrichWithLLM(
-          report,
-          scheduledLlmConfig
-        );
-        console.log(
-          `[${context.executionId}] Phase 2 enrichment complete: Portfolio Analysis`
-        );
-
-        // Phase 3–5: Twenty Questions, Competitive Displacement, Delta Intelligence
-        enrichedReport = await runAdvancedEnrichment(enrichedReport, scheduledLlmConfig, context.executionId);
-
-        enrichedReport.funnelStages = funnelStages;
-        const enrichedTransformed = ReportTransformer.transform(enrichedReport);
-        const trimmedEnrichedTransformed = trimTransformedForStorage(enrichedTransformed as unknown as Record<string, unknown>);
-        const docPayloadEnriched = {
-          ...trimReportForStorage(enrichedReport),
-          transformed: trimmedEnrichedTransformed,
-          enrichedAt: FieldValue.serverTimestamp(),
-        };
-        logDocSize(context.executionId, "enriched", docPayloadEnriched);
-        await reportRef.update(docPayloadEnriched);
-        console.log(
-          `[${context.executionId}] All enrichment phases complete`
-        );
-      } catch (enrichErr) {
-        console.warn(
-          `[${context.executionId}] LLM enrichment skipped: ${String(enrichErr)}`
-        );
-      }
-
-      context.status = "completed";
-      await db
-        .collection("executions")
-        .doc(context.executionId)
-        .set(context);
+      await processAndStoreReport(records, context, getLLMConfig(), { dataSource: "bigquery" });
     } catch (error) {
       context.status = "failed";
       context.errors.push(`Scheduled analysis error: ${String(error)}`);
@@ -565,78 +414,12 @@ export const fetchFromBigQuery = onRequest(
         return;
       }
 
-      // Calculate funnel stages
-      const funnelStages = CSVParser.calculateFunnel(records);
-
-      // Run existing pipeline (validate -> analyze -> aggregate)
-      const report = await runAnalysisPipeline(records, context, getLLMConfig());
-      report.funnelStages = funnelStages;
-
-      // Compute per-region funnel stages
-      for (const [regionKey, regionReport] of Object.entries(report.regions)) {
-        const regionRecords = records.filter(r => r.region === regionKey);
-        regionReport.stageDistribution = CSVParser.calculateFunnel(regionRecords);
-      }
-
-      // Transform and store (merge:true preserves existing executiveBriefing during Phase 2 gap)
-      const transformed = ReportTransformer.transform(report);
-      const reportDate = new Date().toISOString().split("T")[0];
-      const reportRef = db.collection("reports").doc(reportDate);
-
-      // Write all deals to subcollection BEFORE trimming (full uncapped set)
-      const allDealsForSubcollection = ((transformed as unknown as Record<string, { risks?: Record<string, unknown>[] }>)['all']?.risks || []);
-      await writeDealsSubcollection(reportDate, allDealsForSubcollection);
-
-      const trimmedTransformed = trimTransformedForStorage(transformed as unknown as Record<string, unknown>);
-      await reportRef.set({
-        ...trimReportForStorage(report),
-        transformed: trimmedTransformed,
-        reportDate: report.reportDate,
-        createdAt: FieldValue.serverTimestamp(),
-        dataSource: "bigquery",
-      }, { merge: true });
-
-      console.log(
-        `[${context.executionId}] Report stored: ${report.reportId}`
+      const { report, reportDate } = await processAndStoreReport(
+        records,
+        context,
+        getLLMConfig(),
+        { dataSource: "bigquery" }
       );
-
-      // Try LLM enrichment (non-fatal) — use same provider as Phase 1
-      const bqLlmConfig = getLLMConfig();
-      try {
-        let enrichedReport = await Aggregator.enrichWithLLM(
-          report,
-          bqLlmConfig
-        );
-        console.log(
-          `[${context.executionId}] Phase 2 enrichment complete: Portfolio Analysis`
-        );
-
-        // Phase 3–5: Twenty Questions, Competitive Displacement, Delta Intelligence
-        enrichedReport = await runAdvancedEnrichment(enrichedReport, bqLlmConfig, context.executionId);
-
-        enrichedReport.funnelStages = funnelStages;
-        const enrichedTransformed = ReportTransformer.transform(enrichedReport);
-        const trimmedEnrichedTransformed = trimTransformedForStorage(enrichedTransformed as unknown as Record<string, unknown>);
-        await reportRef.update({
-          ...trimReportForStorage(enrichedReport),
-          transformed: trimmedEnrichedTransformed,
-          enrichedAt: FieldValue.serverTimestamp(),
-        });
-        console.log(
-          `[${context.executionId}] All enrichment phases complete`
-        );
-      } catch (enrichErr) {
-        console.warn(
-          `[${context.executionId}] LLM enrichment skipped: ${String(enrichErr)}`
-        );
-      }
-
-      // Update execution status
-      context.status = "completed";
-      await db
-        .collection("executions")
-        .doc(context.executionId)
-        .set(context);
 
       res.status(200).json({
         success: true,
@@ -843,11 +626,12 @@ async function fetchPreviousReport(): Promise<AggregatedReport | null> {
 async function runAdvancedEnrichment(
   report: AggregatedReport,
   llmConfig: LLMConfig,
-  executionId: string
+  executionId: string,
+  usageSink?: { input: number; output: number }
 ): Promise<AggregatedReport> {
   // Phase 3: Twenty Questions
   try {
-    report = await Aggregator.enrichWithTwentyQuestions(report, llmConfig);
+    report = await Aggregator.enrichWithTwentyQuestions(report, llmConfig, usageSink);
     console.log(`[${executionId}] Phase 3 enrichment complete: Twenty Questions`);
   } catch (err) {
     console.warn(`[${executionId}] Phase 3 skipped (Twenty Questions): ${String(err)}`);
@@ -855,7 +639,7 @@ async function runAdvancedEnrichment(
 
   // Phase 4: Competitive Displacement
   try {
-    report = await Aggregator.enrichWithCompetitiveDisplacement(report, llmConfig);
+    report = await Aggregator.enrichWithCompetitiveDisplacement(report, llmConfig, usageSink);
     console.log(`[${executionId}] Phase 4 enrichment complete: Competitive Displacement`);
   } catch (err) {
     console.warn(`[${executionId}] Phase 4 skipped (Competitive Displacement): ${String(err)}`);
@@ -864,7 +648,7 @@ async function runAdvancedEnrichment(
   // Phase 5: Delta Intelligence (requires previous report)
   try {
     const previousReport = await fetchPreviousReport();
-    report = await Aggregator.enrichWithDeltaIntelligence(report, previousReport, llmConfig);
+    report = await Aggregator.enrichWithDeltaIntelligence(report, previousReport, llmConfig, usageSink);
     console.log(`[${executionId}] Phase 5 enrichment complete: Delta Intelligence`);
   } catch (err) {
     console.warn(`[${executionId}] Phase 5 skipped (Delta Intelligence): ${String(err)}`);
@@ -895,7 +679,8 @@ async function runAnalysisPipeline(
 
   // Step 2: Create analyzer and run analysis
   console.log(`[${context.executionId}] Initializing analyzer...`);
-  const analyzer = await Analyzer.create(llmConfig, 25, 3, 1000);
+  // concurrency omitted → Analyzer reads LLM_CONCURRENCY (default 10)
+  const analyzer = await Analyzer.create(llmConfig, undefined, 3, 1000);
 
   console.log(`[${context.executionId}] Running LLM analysis...`);
   const analyses = await analyzer.analyze(records, context);
@@ -942,4 +727,136 @@ async function runAnalysisPipeline(
   console.log(`[${context.executionId}] Aggregation complete: ${report.reportId}`);
 
   return report;
+}
+
+/**
+ * Full pipeline orchestrator shared by all three entry points (CSV upload,
+ * scheduled BigQuery, on-demand BigQuery fetch). Runs analysis + aggregation,
+ * writes the base report, runs enrichment Phases 2–5, writes the enriched
+ * report, and records execution status.
+ *
+ * This was previously copy-pasted ~80 lines into each entry point; the only
+ * per-caller differences were the LLM config source and a `dataSource` field,
+ * both now parameters. Behaviour is preserved exactly, including merge:true
+ * semantics, base-report-before-enrichment write, non-fatal enrichment, and
+ * the reports/{YYYY-MM-DD} doc key. (One harmonisation: fetchFromBigQuery now
+ * also emits the initial/enriched logDocSize lines the other two already did.)
+ */
+async function processAndStoreReport(
+  records: OpportunityRecord[],
+  context: ExecutionContext,
+  llmConfig: LLMConfig,
+  opts?: { dataSource?: string }
+): Promise<{ report: AggregatedReport; reportDate: string }> {
+  const funnelStages = CSVParser.calculateFunnel(records);
+
+  const report = await runAnalysisPipeline(records, context, llmConfig);
+  report.funnelStages = funnelStages;
+
+  // Per-region funnel stages
+  for (const [regionKey, regionReport] of Object.entries(report.regions)) {
+    const regionRecords = records.filter((r) => r.region === regionKey);
+    regionReport.stageDistribution = CSVParser.calculateFunnel(regionRecords);
+  }
+
+  // Transform for frontend consumption and store the base report immediately
+  // so the dashboard has data while enrichment runs. merge:true preserves a
+  // prior run's enrichment fields during the gap (prevents "flash to sample").
+  const transformed = ReportTransformer.transform(report);
+  const reportDate = new Date().toISOString().split("T")[0];
+  const reportRef = db.collection("reports").doc(reportDate);
+
+  // Full uncapped deal set goes to the subcollection BEFORE trimming
+  const allDealsForSubcollection = ((transformed as unknown as Record<string, { risks?: Record<string, unknown>[] }>)["all"]?.risks || []);
+  await writeDealsSubcollection(reportDate, allDealsForSubcollection);
+
+  const trimmedTransformed = trimTransformedForStorage(transformed as unknown as Record<string, unknown>);
+  const docPayloadInitial = {
+    ...trimReportForStorage(report),
+    transformed: trimmedTransformed,
+    reportDate: report.reportDate,
+    createdAt: FieldValue.serverTimestamp(),
+    // Collision guard: claim ownership of today's doc. Two runs on the same
+    // day share the reports/{date} key with merge:true; without this, a slow
+    // run's enrichment can land on top of a newer run's base write, producing
+    // a chimera (base stats from one run, enrichment from another). The base
+    // write that lands last becomes the owner; only the owner writes enrichment.
+    activeExecutionId: context.executionId,
+    pipelineStatus: "running",
+    ...(opts?.dataSource ? { dataSource: opts.dataSource } : {}),
+  };
+  logDocSize(context.executionId, "initial", docPayloadInitial);
+  await reportRef.set(docPayloadInitial, { merge: true });
+
+  console.log(`[${context.executionId}] Report stored: ${report.reportId}`);
+
+  // Enrichment (non-fatal): Phase 2 portfolio analysis, then Phases 3–5.
+  try {
+    // If a newer run already claimed the doc while our analysis was running,
+    // skip enrichment entirely — the LLM cost is unavoidable up to here, but
+    // there's no point spending ~3 more minutes producing enrichment we're
+    // no longer allowed to write.
+    if (!(await stillOwnsReport(reportRef, context.executionId))) {
+      console.warn(
+        `[${context.executionId}] Superseded by a newer run before enrichment — skipping.`
+      );
+    } else {
+      let enrichedReport = await Aggregator.enrichWithLLM(report, llmConfig, context.tokenUsage);
+      console.log(`[${context.executionId}] Phase 2 enrichment complete: Portfolio Analysis`);
+
+      enrichedReport = await runAdvancedEnrichment(enrichedReport, llmConfig, context.executionId, context.tokenUsage);
+
+      enrichedReport.funnelStages = funnelStages;
+      const enrichedTransformed = ReportTransformer.transform(enrichedReport);
+      const trimmedEnrichedTransformed = trimTransformedForStorage(enrichedTransformed as unknown as Record<string, unknown>);
+      const docPayloadEnriched = {
+        ...trimReportForStorage(enrichedReport),
+        transformed: trimmedEnrichedTransformed,
+        enrichedAt: FieldValue.serverTimestamp(),
+        pipelineStatus: "complete",
+      };
+
+      // Re-check ownership immediately before the write — a newer run may have
+      // claimed the doc during enrichment. This is the correctness guarantee.
+      if (await stillOwnsReport(reportRef, context.executionId)) {
+        logDocSize(context.executionId, "enriched", docPayloadEnriched);
+        await reportRef.update(docPayloadEnriched);
+        console.log(`[${context.executionId}] All enrichment phases complete`);
+      } else {
+        console.warn(
+          `[${context.executionId}] Superseded by a newer run during enrichment — enrichment write skipped.`
+        );
+      }
+    }
+  } catch (enrichErr) {
+    console.warn(`[${context.executionId}] LLM enrichment skipped: ${String(enrichErr)}`);
+  }
+
+  // Cost observability: estimate USD from accumulated token usage (per-deal
+  // analysis + all enrichment phases). Approximate — for at-a-glance
+  // "what did this run cost" visibility, not billing.
+  context.estimatedCostUsd = estimateCostUsd(llmConfig.model, context.tokenUsage);
+  console.log(
+    `[${context.executionId}] Token usage — input: ${context.tokenUsage.input}, ` +
+    `output: ${context.tokenUsage.output}, est. cost: ~$${context.estimatedCostUsd.toFixed(4)} ` +
+    `(model: ${llmConfig.model}, approximate)`
+  );
+
+  context.status = "completed";
+  await db.collection("executions").doc(context.executionId).set(context);
+
+  return { report, reportDate };
+}
+
+/**
+ * True if the report doc is still owned by this execution — i.e. no newer run
+ * has claimed today's reports/{date} doc since we wrote our base report. Used
+ * to prevent a slow run's enrichment from overwriting a newer run's output.
+ */
+async function stillOwnsReport(
+  reportRef: FirebaseFirestore.DocumentReference,
+  executionId: string
+): Promise<boolean> {
+  const snap = await reportRef.get();
+  return snap.data()?.activeExecutionId === executionId;
 }

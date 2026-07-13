@@ -18,30 +18,18 @@ import {
 } from "../llm/provider.js";
 import { COMPREHENSIVE_ANALYSIS_PROMPT } from "../llm/prompts.js";
 import { computeDealMetrics } from "./dealMetrics.js";
+import { mapWithConcurrency } from "../util/concurrency.js";
 
 /**
- * Represents a batch of opportunities to be processed
+ * Global cap on in-flight LLM analysis calls (env-overridable via
+ * LLM_CONCURRENCY). Fallback of 25 chosen so a full ~260-deal run finishes
+ * comfortably under onCSVUpload's 540s timeout even if the env var is unset:
+ * a 258-deal run measured ~731s at concurrency 10, and wall-clock scales
+ * roughly inversely with the cap, so 25 → ~290s. Prod sets LLM_CONCURRENCY=40.
+ * The pre-refactor scheme ran ~55 concurrent with zero rate-limit failures,
+ * so values in this range are known-safe against Gemini's limits.
  */
-interface ProcessingBatch {
-  batchId: string;
-  records: OpportunityRecord[];
-  createdAt: Date;
-}
-
-/**
- * Analysis result for a batch
- */
-interface BatchAnalysisResult {
-  batchId: string;
-  results: OpportunityAnalysis[];
-  errors: Array<{
-    recordId: string;
-    error: string;
-  }>;
-  processingTimeMs: number;
-  successCount: number;
-  failureCount: number;
-}
+const DEFAULT_CONCURRENCY = 25;
 
 /**
  * Main analysis orchestrator
@@ -50,7 +38,7 @@ interface BatchAnalysisResult {
 export class Analyzer {
   private llmProvider: ILLMProvider;
   private validator: DataValidator;
-  private batchSize: number;
+  private concurrency: number;
   private maxRetries: number;
   private retryDelayMs: number;
 
@@ -59,14 +47,15 @@ export class Analyzer {
    */
   constructor(
     llmProvider: ILLMProvider,
-    batchSize: number = 25,
+    concurrency?: number,
     maxRetries: number = 3,
     retryDelayMs: number = 1000,
     enablePiiScrubbing: boolean = true
   ) {
     this.llmProvider = llmProvider;
     this.validator = new DataValidator(enablePiiScrubbing);
-    this.batchSize = batchSize;
+    this.concurrency =
+      concurrency ?? parseInt(process.env.LLM_CONCURRENCY || String(DEFAULT_CONCURRENCY), 10);
     this.maxRetries = maxRetries;
     this.retryDelayMs = retryDelayMs;
   }
@@ -76,12 +65,12 @@ export class Analyzer {
    */
   static async create(
     config: LLMConfig,
-    batchSize?: number,
+    concurrency?: number,
     maxRetries?: number,
     retryDelayMs?: number
   ): Promise<Analyzer> {
     const provider = await LLMProviderFactory.create(config);
-    return new Analyzer(provider, batchSize, maxRetries, retryDelayMs);
+    return new Analyzer(provider, concurrency, maxRetries, retryDelayMs);
   }
 
   /**
@@ -120,47 +109,37 @@ export class Analyzer {
         return [];
       }
 
-      // Step 2: Create processing batches
-      const batches = this.createBatches(validRecords);
+      // Step 2: Process every valid record through a single global concurrency
+      // limiter (at most `this.concurrency` LLM calls in flight at once),
+      // rather than the old batch-of-batches scheme where effective in-flight
+      // was 5 × batchCount and only a racy per-provider rate limiter throttled it.
       console.log(
-        `[${executionContext.executionId}] Created ${batches.length} processing batches`
+        `[${executionContext.executionId}] Analyzing ${validRecords.length} records with concurrency ${this.concurrency}`
       );
 
-      // Step 3: Process all batches in parallel to stay within function timeout
-      // Each batch has its own internal concurrency (5 at a time), so batches
-      // run simultaneously rather than sequentially. This reduces wall-clock time
-      // from ~22min (sequential) to ~6min (parallel), fitting within the 540s limit.
-      batches.forEach((batch, i) => {
-        console.log(
-          `[${executionContext.executionId}] Processing batch ${i + 1}/${batches.length} (${batch.records.length} records)`
-        );
-      });
-
-      const batchResults = await Promise.all(
-        batches.map((batch) => this.processBatch(batch, executionContext))
+      const perRecord = await mapWithConcurrency(
+        validRecords,
+        this.concurrency,
+        (record) => this.processRecord(record, executionContext)
       );
 
       const allResults: OpportunityAnalysis[] = [];
-      let successCount = 0;
-      let failureCount = 0;
+      const errors: Array<{ recordId: string; error: string }> = [];
+      for (const res of perRecord) {
+        if (res.result) allResults.push(res.result);
+        if (res.error) errors.push(res.error);
+      }
 
-      for (const batchResult of batchResults) {
-        allResults.push(...batchResult.results);
-        successCount += batchResult.successCount;
-        failureCount += batchResult.failureCount;
-
-        // Log batch errors
-        if (batchResult.errors.length > 0) {
-          console.warn(
-            `[${executionContext.executionId}] Batch ${batchResult.batchId} errors:`,
-            batchResult.errors
-          );
-        }
+      if (errors.length > 0) {
+        console.warn(
+          `[${executionContext.executionId}] ${errors.length} record(s) failed analysis:`,
+          errors
+        );
       }
 
       const totalTime = Date.now() - startTime;
       console.log(
-        `[${executionContext.executionId}] Analysis complete: ${successCount} successes, ${failureCount} failures (${totalTime}ms)`
+        `[${executionContext.executionId}] Analysis complete: ${allResults.length} successes, ${errors.length} failures (${totalTime}ms)`
       );
 
       return allResults;
@@ -202,6 +181,11 @@ export class Analyzer {
 
         if (analysisResults.length > 0 && analysisResults[0].success) {
           const enriched = this.enrichAnalysis(analysisResults[0].analysis, record);
+          const used = analysisResults[0].tokensUsed;
+          if (used) {
+            executionContext.tokenUsage.input += used.input;
+            executionContext.tokenUsage.output += used.output;
+          }
           executionContext.recordsSuccessful++;
           executionContext.recordsProcessed++;
           return { result: enriched };
@@ -229,47 +213,6 @@ export class Analyzer {
     executionContext.recordsFailed++;
     executionContext.recordsProcessed++;
     return { error: { recordId: record.opportunityId, error: lastError || "Unknown error" } };
-  }
-
-  /**
-   * Processes a single batch of records with concurrency
-   */
-  private async processBatch(
-    batch: ProcessingBatch,
-    executionContext: ExecutionContext
-  ): Promise<BatchAnalysisResult> {
-    const startTime = Date.now();
-    const batchResults: OpportunityAnalysis[] = [];
-    const batchErrors: Array<{ recordId: string; error: string }> = [];
-
-    // Process records concurrently (5 at a time to avoid rate limits)
-    const concurrency = 5;
-    for (let i = 0; i < batch.records.length; i += concurrency) {
-      const chunk = batch.records.slice(i, i + concurrency);
-      const results = await Promise.all(
-        chunk.map((record) => this.processRecord(record, executionContext))
-      );
-
-      for (const res of results) {
-        if (res.result) {
-          batchResults.push(res.result);
-        }
-        if (res.error) {
-          batchErrors.push(res.error);
-        }
-      }
-    }
-
-    const processingTime = Date.now() - startTime;
-
-    return {
-      batchId: batch.batchId,
-      results: batchResults,
-      errors: batchErrors,
-      processingTimeMs: processingTime,
-      successCount: batchResults.length,
-      failureCount: batchErrors.length,
-    };
   }
 
   /**
@@ -340,27 +283,6 @@ export class Analyzer {
       confidence: analysis.confidence ?? 0.5,
       processingTimeMs: analysis.processingTimeMs || 0,
     };
-  }
-
-  /**
-   * Creates processing batches from records
-   */
-  private createBatches(records: OpportunityRecord[]): ProcessingBatch[] {
-    const batches: ProcessingBatch[] = [];
-    const batchCount = Math.ceil(records.length / this.batchSize);
-
-    for (let i = 0; i < batchCount; i++) {
-      const start = i * this.batchSize;
-      const end = Math.min(start + this.batchSize, records.length);
-
-      batches.push({
-        batchId: `batch_${i + 1}_${Date.now()}`,
-        records: records.slice(start, end),
-        createdAt: new Date(),
-      });
-    }
-
-    return batches;
   }
 
   /**
