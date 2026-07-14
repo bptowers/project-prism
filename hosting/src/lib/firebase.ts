@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
-import { getAuth, signInAnonymously, connectAuthEmulator } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, connectAuthEmulator } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -17,6 +17,14 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const auth = getAuth(app);
 
+// Google sign-in provider. Access is gated to company domains (see
+// lib/allowedDomains.ts) by AuthGate + Firestore/Storage rules + backend
+// requireAuth. `prompt: select_account` always shows the account chooser so
+// users can pick the right work account. Against the Auth emulator (dev),
+// signInWithPopup shows a fake account chooser where any email can be entered.
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
+
 // Connect to emulators in development
 if (import.meta.env.DEV) {
   try {
@@ -28,11 +36,5 @@ if (import.meta.env.DEV) {
     // Already connected or emulators not running
   }
 }
-
-// Sign in anonymously so storage.rules (which requires request.auth != null)
-// will allow CSV uploads and reads from the dashboard.
-signInAnonymously(auth).catch((err) => {
-  console.error('Anonymous sign-in failed:', err);
-});
 
 export default app;
