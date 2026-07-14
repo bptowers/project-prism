@@ -43,11 +43,17 @@ npm run serve            # from repo root
 cd hosting && npm run dev
 ```
 
-The frontend auto-connects to the emulators in dev mode and **signs in anonymously** on load
-(`hosting/src/lib/firebase.ts`). Anonymous auth is sufficient for the dashboard — that's by design.
+The frontend auto-connects to the emulators in dev mode. **Access requires a Google sign-in with
+a verified company-domain email** — an `AuthGate` (`hosting/src/components/auth/AuthGate.tsx`) blocks
+the app until you sign in with an allowlisted account. Against the Auth emulator, `signInWithPopup`
+shows a fake account chooser where you can type any test email (e.g. `test@simprogroup.com`).
+Anonymous auth was removed — do **not** reintroduce it (see the auth model note below).
 
 LLM API keys are **not** kept in plain env in production; they live in **Firebase Secret Manager**.
-Locally, `functions/.env` is fine. See [CLAUDE.md](CLAUDE.md) → Environment Variables.
+Locally, `functions/.env` is fine. See [CLAUDE.md](CLAUDE.md) → Environment Variables. Two tuning
+values that bite if wrong: `LLM_MAX_TOKENS` (keep high — Gemini's hidden thinking tokens count
+against it; too low silently truncates enrichment output) and `LLM_CONCURRENCY` (global cap on
+simultaneous LLM calls; prod uses 40 — it must keep a full run inside the 540s function timeout).
 
 ---
 
@@ -93,6 +99,15 @@ These were learned the hard way — read before you debug.
   subcollection into the report at read time. **Do not** re-embed the full deal array in the main
   doc — that's the bug the subcollection migration fixed (it was silently capping at ~150 deals).
 
+- **Auth model — company-domain Google sign-in only.** The dashboard is gated to verified
+  Google accounts on an allowlist of domains (`simprogroup.com`, `simpro.us`, `simpro.au`,
+  `bigchange.com`). This is enforced in **four** places that must stay in sync: the frontend
+  gate + backend `requireAuth`, and the `allowed()` regex in `firestore.rules` and `storage.rules`
+  (canonical list: `hosting/src/lib/allowedDomains.ts`). **To add a domain, edit all four and
+  redeploy rules + functions + hosting.** The Google provider must stay enabled and Anonymous
+  must stay disabled in the Firebase console (Authentication → Sign-in method) — re-enabling
+  anonymous would expose all revenue data to any browser session.
+
 - **Log inspection.** Firebase console → Functions → Logs, or filter by `textPayload`. Useful lines:
   - `Fetched N records from BigQuery`
   - `Analysis complete: N successes, M failures`
@@ -101,20 +116,46 @@ These were learned the hard way — read before you debug.
 
 ---
 
+## Before you take ownership — governance checklist
+
+Prism handles revenue and customer-adjacent data and is moving to team ownership. Treat these as
+gating, not optional, and complete them before RevOps relies on the tool:
+
+- [ ] **Post in `#simpro-internal-ai-created-tooling`** announcing the tool, its owner, and its purpose.
+- [ ] **Obtain IT sign-off** for an internal tool touching revenue data (the auth change and hosting
+      on the Simpro Firebase org account are the relevant safeguards to cite).
+- [ ] **Name a primary owner and a backup owner.** Whoever owns it owns support; IT is advisory only.
+- [ ] **Confirm the deploy account** (`brad.towers@simprogroup.com`) is transferred or a new owner
+      is granted deploy access to `project-prism-489108-a9e2b`.
+- [ ] **Confirm auth config** in the Firebase console: Google provider enabled, Anonymous disabled.
+
+## What's already been done (remediation status)
+
+A pre-handover review produced a phased remediation plan (`docs/REMEDIATION_PLAN.md`). Completed:
+
+- **Phase 1 — trust the numbers:** enrichment phases grounded in real per-deal data; output-token
+  limits raised; structured outputs with explicit failure instead of fake default scores;
+  deterministic classifications computed in code (`util/dealMetrics.ts`); prompt caching.
+- **Phase 2 — backend architecture:** the three write paths consolidated into one
+  `processAndStoreReport` orchestrator; a single global concurrency limiter; a clean
+  `provider.complete()` interface for portfolio prompts; same-day collision guard; token/cost tracking.
+- **Phase 4.4 — auth:** anonymous sign-in replaced with domain-restricted Google sign-in (above).
+
 ## Deferred backlog (for the new owner)
 
-From a pre-handover code review. None are blocking; all improve maintainability:
+None are blocking; all improve maintainability:
 
-- **Backend write-path consolidation** — `functions/src/index.ts` has 3 near-identical write paths
-  (`onCSVUpload`, `runWeeklyAnalysis`, `fetchFromBigQuery`). Extract one shared `persistReport` helper
-  so a fix lands once, not three times.
 - **Shared frontend utils** — `formatCurrency` (×4) and `normalizeStage` (×2) are duplicated across
   dashboard components. Pull into `hosting/src/lib/dealUtils.ts`.
 - **Split `RiskRadar.tsx`** (~1k lines) once the helpers above are extracted.
 - **Strict frontend tsconfig** — enable `noUnusedLocals` / `noUnusedParameters` (backend already has them).
-- **Type drift** — frontend types, backend types, and the transformer each redefine the same shapes.
-  Make the transformer output `satisfies` a single shared interface to catch drift at compile time.
-- **ESLint config + first unit tests** — devDeps are installed but there's no `.eslintrc` and no tests.
+- **Shared type contract (Phase 3)** — frontend types, backend types, and the transformer each
+  redefine the same shapes (this also duplicates the two TS allowlist copies). A single shared
+  interface the transformer output `satisfies` would catch drift at compile time.
+- **CI/CD + lint config (Phase 4)** — Jest tests exist on the backend now, but there's no
+  `.github/workflows` pipeline and no `hosting/` ESLint. Wiring CI needs Brad to create a Firebase
+  deploy secret in GitHub and move `LLM_CONCURRENCY=40` into the CI/deploy config (it currently
+  only lives in the git-ignored `functions/.env`).
 - **Node 22 bump** — Node 20 is decommissioned 2026-10-30; update `package.json` engines + `firebase.json` runtime before then.
 
 ## Paused ideas (not started)

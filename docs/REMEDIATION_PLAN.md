@@ -6,6 +6,14 @@ Project Prism is a revenue intelligence engine (Firebase Cloud Functions backend
 
 This plan turns that review into ordered, executable work. Phases 1–2 fix trust in the numbers (do these before RevOps relies on the tool). Phases 3–5 are handover hardening. Each task lists files and acceptance criteria.
 
+> **Status (updated 2026-07-14):**
+> - ✅ **Phase 1 — Trustworthiness of the numbers** — complete and deployed.
+> - ✅ **Phase 2 — Backend architecture** — complete and deployed.
+> - ✅ **Task 4.4 — Domain-restricted Google sign-in** — complete and deployed (anonymous auth removed).
+> - ✅ **Task 4.5 — Doc repair** — complete (AGENTS.md, `.env.example` files, CLAUDE.md, ONBOARDING.md, this file, PROMPT_ARCHITECTURE.md).
+> - ⬜ **Remaining:** Phase 3 (shared types, upload-error surfacing, error boundary, frontend cleanups); Phase 4 tasks 4.1–4.3 (tests/eval harness, lint + CI/CD + Node 22 bump, enrichment-status surfaced in UI); Phase 5 (optional/deferred).
+> Individual completed tasks below are prefixed **[DONE]**.
+
 **Governance note (org policy — do not skip):** this tool handles revenue/customer data and is moving to team ownership → red zone. Before final handover: post in #simpro-internal-ai-created-tooling, obtain IT approval, name a RevOps owner + backup. These are human tasks for Brad, not agent tasks, but the agent should add them to `ONBOARDING.md` as a pre-handover checklist.
 
 **Key repo facts the executing agent needs:**
@@ -17,7 +25,7 @@ This plan turns that review into ordered, executable work. Phases 1–2 fix trus
 
 ---
 
-## Phase 1 — Trustworthiness of the numbers (URGENT)
+## Phase 1 — Trustworthiness of the numbers (URGENT) — ✅ [DONE]
 
 ### 1.1 Ground the enrichment phases in real per-deal data
 **Problem:** Phases 2–5 prompts demand deal names, reps, MRR, probabilities, days-in-stage ("name deals, name reps, quantify MRR, zero hedging") but `Aggregator.buildReportSummary()` (`functions/src/analysis/aggregator.ts:591-636`) sends only region win rates, 3 theme strings, top-5 at-risk deal names, and competitor names. The LLM fabricates the rest with confidence.
@@ -61,7 +69,7 @@ This plan turns that review into ordered, executable work. Phases 1–2 fix trus
 
 ---
 
-## Phase 2 — Backend architecture
+## Phase 2 — Backend architecture — ✅ [DONE]
 
 ### 2.1 Extract the triplicated pipeline
 **Problem:** `onCSVUpload`, `runWeeklyAnalysis`, `fetchFromBigQuery` (`functions/src/index.ts:143-653`) each repeat ~80 lines: per-region funnel → transform → `writeDealsSubcollection` → trim → `set(merge)` → enrich (Phase 2–5) → re-transform → trim → `update` → execution status.
@@ -137,13 +145,13 @@ This plan turns that review into ordered, executable work. Phases 1–2 fix trus
 - Frontend: show it in `ProcessingFooter` (e.g. "Analysis: 271/271 deals · Enrichment: 4/4 phases ✓" or a warning icon with which phase failed).
 - Alerting: add a `docs/MONITORING.md` (or ONBOARDING.md section) with the exact `gcloud` commands / console steps to create a log-based alert on `status: "failed"` executions (agent can't create the alert without prod access; document it precisely for Brad).
 
-### 4.4 Auth: replace anonymous with domain-restricted Google sign-in
+### 4.4 Auth: replace anonymous with domain-restricted Google sign-in — ✅ [DONE]
 **Problem:** `hosting/src/lib/firebase.ts:34` uses anonymous auth; `firestore.rules` requires only `request.auth != null` — any anonymous session reads all revenue/competitive data. `storage.rules` lets any anonymous user write CSVs to `/uploads/*` (which triggers a billable LLM pipeline).
 
 **Fix:** switch to `signInWithPopup(GoogleAuthProvider)`; gate the app on a signed-in state with a minimal sign-in screen. Enforce domain in `firestore.rules` and `storage.rules`: `request.auth.token.email.matches('.*@simprogroup[.]com$')` && `email_verified` (belt-and-braces alongside a `hd` parameter hint on the provider). Update `requireAuth` in `functions/src/index.ts` to also check the token's email domain. **Manual prerequisite for Brad:** enable the Google provider in Firebase console. Keep emulator/dev path working (`import.meta.env.DEV` can retain anonymous auth against emulators).
 
-### 4.5 Doc repair
-- `AGENTS.md`: fix the find-replace corruption ("Codex" → "Claude"/`claude.ts` at lines ~7, 75, 114-117), wrong schedule ("Mon 6am" → every 3 days, cron `0 6 */3 * *`), stale App.tsx layout description, "npm test works" claim (true after 4.1).
+### 4.5 Doc repair — ✅ [DONE]
+- `AGENTS.md`: fix the find-replace corruption ("Codex" → "Claude"/`claude.ts` at lines ~7, 75, 114-117), wrong schedule ("Mon 6am" → every 3 days, cron `0 6 */3 * *`), stale App.tsx layout description, "npm test works" claim (true after 4.1). — *Done: AGENTS.md collapsed to a thin pointer to `CLAUDE.md` to end the duplication that caused the corruption.*
 - `.env.example`: align with what `index.ts`/`bigquerySource.ts` actually read (`CLAUDE_MODEL` default `claude-sonnet-4-6`, add `BQ_PROJECT_ID`/`BQ_DATASET`/`BQ_TABLE`/`BQ_LOCATION`, `LLM_CONCURRENCY`); create the per-package `functions/.env.example` and `hosting/.env.example` that ONBOARDING.md already tells people to copy.
 - `PROMPT_ARCHITECTURE.md`: refresh after Phase 1 changes (grounding rules, code-computed classifications, structured outputs, config-loaded market intelligence).
 - `ONBOARDING.md`: add pre-handover governance checklist (IT approval, #simpro-internal-ai-created-tooling post, named owner + backup), CI secret setup, monitoring alert setup, prompt-config edit procedure, eval-harness usage.
