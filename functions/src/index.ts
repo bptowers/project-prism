@@ -23,6 +23,7 @@ import {
   OpportunityRecord,
 } from "./types.js";
 import { estimateCostUsd } from "./util/cost.js";
+import { isAllowedEmail } from "./util/allowedDomains.js";
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -45,7 +46,13 @@ async function requireAuth(req: ExpressRequest, res: ExpressResponse): Promise<b
   }
   try {
     const token = authHeader.split("Bearer ")[1];
-    await admin.auth().verifyIdToken(token);
+    const decoded = await admin.auth().verifyIdToken(token);
+    // Domain restriction: only verified emails on the company allowlist.
+    // Rejects anonymous tokens (no email) and any non-allowed domain.
+    if (!isAllowedEmail(decoded.email) || decoded.email_verified !== true) {
+      res.status(403).json({ error: "Forbidden" });
+      return false;
+    }
     return true;
   } catch {
     res.status(403).json({ error: "Forbidden" });

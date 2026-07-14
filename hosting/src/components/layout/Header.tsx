@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { itemVariants } from '@/theme/animations';
 import { Button } from '@/components/ui/Button';
 import { useTheme } from '@/theme/ThemeProvider';
+import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
 interface HeaderProps {
@@ -146,6 +147,32 @@ export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive, r
           >
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
+          {auth.currentUser?.email && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span
+                title={auth.currentUser.email}
+                style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
+                {auth.currentUser.email}
+              </span>
+              <button
+                onClick={() => signOut(auth).catch(() => undefined)}
+                style={{
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  padding: '0.5rem 0.75rem',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.7rem',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Sign out
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </motion.header>
