@@ -12,6 +12,7 @@ This plan turns that review into ordered, executable work. Phases 1–2 fix trus
 > - ✅ **Task 4.4 — Domain-restricted Google sign-in** — complete and deployed (anonymous auth removed).
 > - ✅ **Task 4.5 — Doc repair** — complete (AGENTS.md, `.env.example` files, CLAUDE.md, ONBOARDING.md, this file, PROMPT_ARCHITECTURE.md).
 > - ⬜ **Remaining:** Phase 3 (shared types, upload-error surfacing, error boundary, frontend cleanups); Phase 4 tasks 4.1–4.3 (tests/eval harness, lint + CI/CD + Node 22 bump, enrichment-status surfaced in UI); Phase 5 (optional/deferred).
+> - 🆕 A post-remediation sweep found additional correctness bugs — see **[DATA_CORRECTNESS_PLAN.md](DATA_CORRECTNESS_PLAN.md)**, scheduled ahead of the CI/CD work.
 > Individual completed tasks below are prefixed **[DONE]**.
 
 **Governance note (org policy — do not skip):** this tool handles revenue/customer data and is moving to team ownership → red zone. Before final handover: post in #simpro-internal-ai-created-tooling, obtain IT approval, name a RevOps owner + backup. These are human tasks for Brad, not agent tasks, but the agent should add them to `ONBOARDING.md` as a pre-handover checklist.
