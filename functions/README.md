@@ -119,7 +119,7 @@ curl -X POST https://region-project.cloudfunctions.net/uploadCSV \
 Required:
 ```bash
 LLM_PROVIDER=claude              # claude, gemini, or openai
-LLM_API_KEY=sk-...              # Your API key
+ANTHROPIC_API_KEY=sk-ant-...              # Provider-specific key (GEMINI_API_KEY / OPENAI_API_KEY for the others)
 LLM_MODEL=claude-sonnet-4-5-20250929  # Model name
 LLM_TEMPERATURE=0.3             # 0-2, lower=more deterministic
 LLM_MAX_TOKENS=2000             # Max output tokens

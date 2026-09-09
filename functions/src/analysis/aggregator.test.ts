@@ -158,3 +158,55 @@ describe("getEnrichmentJson", () => {
     expect(result.ok).toBe(true);
   });
 });
+
+// ── Enrichment phases must store normalised shapes ─────────────────────────
+// Regression for the 2026-09-09 blank dashboard: Gemini returned prose strings
+// in array slots and the raw payload was written to Firestore verbatim.
+import { LLMProviderFactory } from "../llm/provider.js";
+import { LLMConfig } from "../types.js";
+
+const fakeConfig: LLMConfig = { provider: "gemini", model: "fake", apiKey: "x", temperature: 0, maxTokens: 10 };
+
+describe("enrichment phases normalise LLM payload shapes before storing", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it("Phase 4 coerces prose in array slots to empty arrays", async () => {
+    jest.spyOn(LLMProviderFactory, "create").mockResolvedValue(
+      fakeProvider([JSON.stringify({
+        winMechanisms: { UK: { primaryCompetitor: "JobLogic" } },
+        lossMechanisms: "Not available in source data.",
+        regionalArbitrage: "Not available in source data.",
+        rewarmOpportunities: "Not available in source data.",
+      })])
+    );
+    const report = await Aggregator.enrichWithCompetitiveDisplacement(minimalReport(), fakeConfig);
+    expect(report.competitiveDisplacement?.lossMechanisms).toEqual([]);
+    expect(report.competitiveDisplacement?.regionalArbitrage).toEqual([]);
+    expect(report.competitiveDisplacement?.rewarmOpportunities).toEqual([]);
+    expect(report.competitiveDisplacement?.winMechanisms).toEqual({ UK: { primaryCompetitor: "JobLogic" } });
+  });
+
+  it("Phase 5 coerces nested array slots", async () => {
+    jest.spyOn(LLMProviderFactory, "create").mockResolvedValue(
+      fakeProvider([JSON.stringify({
+        regionalTrajectory: "None.",
+        earlyWarnings: "None.",
+        significantDealChanges: { improved: "None", deteriorated: [] },
+      })])
+    );
+    const report = await Aggregator.enrichWithDeltaIntelligence(minimalReport(), minimalReport(), fakeConfig);
+    expect(report.deltaIntelligence?.regionalTrajectory).toEqual([]);
+    expect(report.deltaIntelligence?.earlyWarnings).toEqual([]);
+    expect(report.deltaIntelligence?.significantDealChanges).toEqual({ improved: [], deteriorated: [] });
+  });
+
+  it("Phase 3 coerces row arrays on each question", async () => {
+    jest.spyOn(LLMProviderFactory, "create").mockResolvedValue(
+      fakeProvider([JSON.stringify({
+        question2: { label: "Slip", answer: "…", deals: "No slippage detected." },
+      })])
+    );
+    const report = await Aggregator.enrichWithTwentyQuestions(minimalReport(), fakeConfig);
+    expect(report.twentyQuestions?.question2).toEqual({ label: "Slip", answer: "…", deals: [] });
+  });
+});

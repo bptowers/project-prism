@@ -19,6 +19,7 @@ import { TwentyQuestions } from '@/components/dashboard/TwentyQuestions';
 import { CompetitiveDisplacement } from '@/components/dashboard/CompetitiveDisplacement';
 import { DeltaIntelligence } from '@/components/dashboard/DeltaIntelligence';
 import { Panel } from '@/components/ui/Panel';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { UploadModal } from '@/components/dashboard/UploadModal';
 import type { RegionData, RiskDeal } from '@/lib/types';
 
@@ -166,52 +167,74 @@ export default function App() {
       )}
 
       <motion.div variants={containerVariants} initial="hidden" animate={showingContent ? 'visible' : 'hidden'} style={{ display: showingContent ? 'block' : 'none' }}>
-        <AIBriefing
-          briefing={executiveBriefing}
-          fallbackBriefing={fallbackBriefing}
-          totalOpportunities={totalOpportunities}
-          period={displayPeriod}
-          isLive={isLive}
-        />
+        {/* Every section sits behind its own ErrorBoundary: an unexpected
+            payload shape in one widget must never blank the whole page. */}
+        <ErrorBoundary section="AI Briefing">
+          <AIBriefing
+            briefing={executiveBriefing}
+            fallbackBriefing={fallbackBriefing}
+            totalOpportunities={totalOpportunities}
+            period={displayPeriod}
+            isLive={isLive}
+          />
+        </ErrorBoundary>
 
         {/* Risk Radar — hero position: first widget after briefing */}
         <div ref={riskRadarRef} style={{ marginBottom: '2rem' }}>
-          <Panel title="Risk Radar" accent="amber" meta={`${allData.risks.filter(r => r.level === 'HIGH' || r.level === 'MEDIUM').length} of ${allData.risks.length} deals at risk`} maxHeight="none">
-            <RiskRadar risks={allData.risks} onFilteredRisksChange={handleFilteredRisksChange} deltaIntelligence={deltaIntelligence} />
-          </Panel>
+          <ErrorBoundary section="Risk Radar">
+            <Panel title="Risk Radar" accent="amber" meta={`${allData.risks.filter(r => r.level === 'HIGH' || r.level === 'MEDIUM').length} of ${allData.risks.length} deals at risk`} maxHeight="none">
+              <RiskRadar risks={allData.risks} onFilteredRisksChange={handleFilteredRisksChange} deltaIntelligence={deltaIntelligence} />
+            </Panel>
+          </ErrorBoundary>
         </div>
 
-        <StatsRow stats={activeStats} sparklines={data.sparklines} onStatClick={handleStatClick} />
-        <RegionTabs region={region} onSelect={selectRegion} regionCounts={regionCounts} isLive={isLive} />
-        <PipelineFunnel stages={data.funnel} />
+        <ErrorBoundary section="Pipeline Stats">
+          <StatsRow stats={activeStats} sparklines={data.sparklines} onStatClick={handleStatClick} />
+          <RegionTabs region={region} onSelect={selectRegion} regionCounts={regionCounts} isLive={isLive} />
+          <PipelineFunnel stages={data.funnel} />
+        </ErrorBoundary>
 
         {/* 3-col Grid: in-flight pipeline intelligence */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '1.5rem',
-          marginBottom: '2rem',
-        }}>
-          <Panel title="Risk by Stage" accent="amber" meta={`${gridRisks.length} deals`}>
-            <RiskByStage risks={gridRisks} />
-          </Panel>
-          <Panel title="Activity Health" accent="red" meta={`${gridRisks.filter(r => r.daysStalled >= 14).length} dormant`}>
-            <ActivityHealth risks={gridRisks} />
-          </Panel>
-          <Panel title="Forecast Integrity" accent="blue" meta={`${gridRisks.filter(r => r.confidence > 60 && (r.healthScore ?? 100) < 40).length} misaligned`}>
-            <ForecastIntegrity risks={gridRisks} forecastStat={data.stats.forecast} />
-          </Panel>
-        </div>
+        <ErrorBoundary section="Pipeline Intelligence">
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '1.5rem',
+            marginBottom: '2rem',
+          }}>
+            <Panel title="Risk by Stage" accent="amber" meta={`${gridRisks.length} deals`}>
+              <RiskByStage risks={gridRisks} />
+            </Panel>
+            <Panel title="Activity Health" accent="red" meta={`${gridRisks.filter(r => r.daysStalled >= 14).length} dormant`}>
+              <ActivityHealth risks={gridRisks} />
+            </Panel>
+            <Panel title="Forecast Integrity" accent="blue" meta={`${gridRisks.filter(r => r.confidence > 60 && (r.healthScore ?? 100) < 40).length} misaligned`}>
+              <ForecastIntegrity risks={gridRisks} forecastStat={data.stats.forecast} />
+            </Panel>
+          </div>
+        </ErrorBoundary>
 
-        <div style={{ marginBottom: '2rem' }}>
-          <RepHeatmap risks={gridRisks} />
-        </div>
+        <ErrorBoundary section="Rep Heatmap">
+          <div style={{ marginBottom: '2rem' }}>
+            <RepHeatmap risks={gridRisks} />
+          </div>
+        </ErrorBoundary>
 
-        <Recommendations items={data.recommendations} />
-        <TwentyQuestions data={twentyQuestions} />
-        <CompetitiveDisplacement data={competitiveDisplacement} />
-        <DeltaIntelligence data={deltaIntelligence} />
-        <ProcessingFooter />
+        <ErrorBoundary section="AI Recommended Actions">
+          <Recommendations items={data.recommendations} />
+        </ErrorBoundary>
+        <ErrorBoundary section="CRO Intelligence">
+          <TwentyQuestions data={twentyQuestions} />
+        </ErrorBoundary>
+        <ErrorBoundary section="Competitive Displacement">
+          <CompetitiveDisplacement data={competitiveDisplacement} />
+        </ErrorBoundary>
+        <ErrorBoundary section="Delta Intelligence">
+          <DeltaIntelligence data={deltaIntelligence} />
+        </ErrorBoundary>
+        <ErrorBoundary section="Processing Footer">
+          <ProcessingFooter />
+        </ErrorBoundary>
       </motion.div>
     </div>
   );

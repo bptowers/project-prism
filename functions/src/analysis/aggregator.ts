@@ -21,6 +21,11 @@ import {
   DELTA_INTELLIGENCE_PROMPT,
 } from "../llm/prompts.js";
 import { extractAndParseJson } from "../llm/jsonRepair.js";
+import {
+  normalizeCompetitiveDisplacement,
+  normalizeDeltaIntelligence,
+  normalizeTwentyQuestions,
+} from "./enrichmentSchema.js";
 
 /**
  * Portfolio-level enrichment (Phases 2-5) receives free-form JSON with no
@@ -497,7 +502,9 @@ export class Aggregator {
       const summary = this.buildGroundedSummary(report);
       const prompt = TWENTY_QUESTIONS_PROMPT.replace("{REPORT_SUMMARY}", summary);
 
-      report.twentyQuestions = await getEnrichmentJson(provider, prompt, "Twenty Questions", usageSink);
+      report.twentyQuestions = normalizeTwentyQuestions(
+        await getEnrichmentJson(provider, prompt, "Twenty Questions", usageSink)
+      );
       console.log("Twenty Questions enrichment complete");
     } catch (error) {
       console.error("Failed to enrich with Twenty Questions:", error);
@@ -518,7 +525,9 @@ export class Aggregator {
       const summary = this.buildGroundedSummary(report);
       const prompt = COMPETITIVE_DISPLACEMENT_PROMPT.replace("{REPORT_SUMMARY}", summary);
 
-      report.competitiveDisplacement = await getEnrichmentJson(provider, prompt, "Competitive Displacement", usageSink);
+      report.competitiveDisplacement = normalizeCompetitiveDisplacement(
+        await getEnrichmentJson(provider, prompt, "Competitive Displacement", usageSink)
+      );
       console.log("Competitive Displacement enrichment complete");
     } catch (error) {
       console.error("Failed to enrich with Competitive Displacement:", error);
@@ -550,7 +559,9 @@ export class Aggregator {
         .replace("{CURRENT_REPORT}", currentSummary)
         .replace("{PREVIOUS_REPORT}", previousSummary);
 
-      report.deltaIntelligence = await getEnrichmentJson(provider, prompt, "Delta Intelligence", usageSink);
+      report.deltaIntelligence = normalizeDeltaIntelligence(
+        await getEnrichmentJson(provider, prompt, "Delta Intelligence", usageSink)
+      );
       console.log("Delta Intelligence enrichment complete");
     } catch (error) {
       console.error("Failed to enrich with Delta Intelligence:", error);
