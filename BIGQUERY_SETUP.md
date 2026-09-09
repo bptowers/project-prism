@@ -91,7 +91,7 @@ BQ_LOCATION=US
 ### Complete file example
 ```env
 # Copy this to .env and fill in your API key
-LLM_API_KEY=ssk-ant-api03-dp4w8E...
+GEMINI_API_KEY=<your-gemini-key>   # provider-specific secret; never paste real keys into docs
 LLM_PROVIDER=claude
 LLM_MODEL=claude-sonnet-4-6
 LLM_TEMPERATURE=0.3

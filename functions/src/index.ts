@@ -73,57 +73,8 @@ const db = admin.firestore();
 db.settings({ ignoreUndefinedProperties: true });
 const storage = new Storage();
 
-/**
- * Configuration - typically loaded from environment variables or Firestore
- */
-function getLLMConfig(providerOverride?: string): LLMConfig {
-  const provider = providerOverride || process.env.LLM_PROVIDER || "claude";
-
-  // Pick the right API key for the selected provider.
-  // Falls back to ANTHROPIC_API_KEY / LLM_API_KEY so existing Claude deploys
-  // keep working with zero config changes.
-  let apiKey: string;
-  if (provider === "openai") {
-    apiKey = process.env.OPENAI_API_KEY || process.env.LLM_API_KEY || "";
-  } else if (provider === "gemini") {
-    apiKey = process.env.GEMINI_API_KEY || process.env.LLM_API_KEY || "";
-  } else {
-    apiKey = process.env.ANTHROPIC_API_KEY || process.env.LLM_API_KEY || "";
-  }
-
-  if (!apiKey) {
-    throw new Error(`API key not set for provider "${provider}". Add the secret in Firebase Console.`);
-  }
-
-  // Per-provider default models. Provider-specific env vars (e.g. GEMINI_MODEL)
-  // take priority, then the generic LLM_MODEL (only if it matches the provider),
-  // then the hardcoded default.
-  const defaultModels: Record<string, string> = {
-    openai: process.env.OPENAI_MODEL || "gpt-4o",
-    gemini: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-    claude: process.env.CLAUDE_MODEL || "claude-sonnet-4-6",
-  };
-
-  // Only use the generic LLM_MODEL if no provider override was requested
-  // (i.e., it's the default provider from env, not a per-upload selection)
-  const model = providerOverride
-    ? defaultModels[provider] || "gemini-2.5-flash"
-    : process.env.LLM_MODEL || defaultModels[provider] || "claude-sonnet-4-6";
-
-  // 8192 default for all providers: the enrichment-phase JSON outputs
-  // (Twenty Questions especially) routinely exceed 2000 output tokens and
-  // truncated JSON silently fails the phase.
-  const maxTokens = parseInt(process.env.LLM_MAX_TOKENS || "8192", 10);
-
-  return {
-    provider: provider as "claude" | "gemini" | "openai",
-    model,
-    apiKey,
-    temperature: parseFloat(process.env.LLM_TEMPERATURE || "0.3"),
-    maxTokens,
-    topP: parseFloat(process.env.LLM_TOP_P || "0.9"),
-  };
-}
+// LLM provider/model/key resolution lives in llm/config.ts (tested there).
+import { getLLMConfig } from "./llm/config.js";
 
 /**
  * Creates execution context for tracking pipeline progress

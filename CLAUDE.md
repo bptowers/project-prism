@@ -72,11 +72,11 @@ The data flow is: **CSV Upload → Parse → Validate → LLM Analysis → Aggre
 Key layers in `functions/src/`:
 - **`types.ts`** — Single source of truth for all TypeScript interfaces (OpportunityRecord, OpportunityAnalysis, AggregatedReport, etc.). `OpportunityAnalysis` models in-flight deal health (dealHealthScore, velocityAssessment, activityHealth, stakeholderCoverage, competitorThreat, riskSignals, narrativeGap, recommendedAction with P1/P2/P3 priority).
 - **`index.ts`** — 6 Cloud Function entry points (see below)
-- **`llm/`** — LLM provider abstraction using Factory pattern. `provider.ts` defines the `ILLMProvider` interface — `analyze()` for per-deal analysis and `complete(userPrompt, options?)` for the free-form portfolio/enrichment prompts (returns `{text, tokensUsed}`); `claude.ts`, `gemini.ts`, `openai.ts` implement both. `prompts.ts` has all prompt templates (COMPREHENSIVE_ANALYSIS_PROMPT, PORTFOLIO_AGGREGATION_PROMPT, TWENTY_QUESTIONS_PROMPT, COMPETITIVE_DISPLACEMENT_PROMPT, DELTA_INTELLIGENCE_PROMPT). Per-provider default models (in `index.ts` `getLLMConfig`): Claude `claude-sonnet-4-6`, Gemini `gemini-2.5-flash`, OpenAI `gpt-4o`. The upload modal can override provider per-CSV via Storage object metadata (`event.data.metadata?.provider`).
+- **`llm/`** — LLM provider abstraction using Factory pattern. `provider.ts` defines the `ILLMProvider` interface — `analyze()` for per-deal analysis and `complete(userPrompt, options?)` for the free-form portfolio/enrichment prompts (returns `{text, tokensUsed}`); `claude.ts`, `gemini.ts`, `openai.ts` implement both. `prompts.ts` has all prompt templates (COMPREHENSIVE_ANALYSIS_PROMPT, PORTFOLIO_AGGREGATION_PROMPT, TWENTY_QUESTIONS_PROMPT, COMPETITIVE_DISPLACEMENT_PROMPT, DELTA_INTELLIGENCE_PROMPT). Per-provider default models (in `llm/config.ts` `getLLMConfig`): Claude `claude-sonnet-4-6`, Gemini `gemini-2.5-flash`, OpenAI `gpt-4o`. The upload modal can override provider per-CSV via Storage object metadata (`event.data.metadata?.provider`).
 - **`pipeline/`** — `csvParser.ts` handles CSV ingestion with Salesforce field mapping, composite field builders, and region auto-detection. `validator.ts` does data quality scoring and PII detection/scrubbing. BigQuery source filters to open opportunities only (`winLossStatus = 'active'`).
-- **`analysis/`** — `analyzer.ts` orchestrates per-deal LLM processing through a single global concurrency limiter (`util/concurrency.ts` `mapWithConcurrency`), sized by `LLM_CONCURRENCY` (default `DEFAULT_CONCURRENCY = 25`; prod `.env` sets 40). Wall-clock scales roughly inversely with the cap, tuned to finish a ~260-deal run inside the 540s function timeout. `aggregator.ts` generates regional and global reports from individual analyses; `enrichWithLLM()` runs up to 5 enrichment phases (see below) via `provider.complete()`. `util/dealMetrics.ts` computes the deterministic date/threshold fields (`activityHealth`, `velocityAssessment`, days-in-stage, stall detection) in code rather than delegating them to the LLM.
+- **`analysis/`** — `analyzer.ts` orchestrates per-deal LLM processing through a single global concurrency limiter (`util/concurrency.ts` `mapWithConcurrency`), sized by `LLM_CONCURRENCY` (default `DEFAULT_CONCURRENCY = 25`; prod `.env` sets 40). Wall-clock scales roughly inversely with the cap, tuned to finish a ~260-deal run inside the 540s function timeout. `aggregator.ts` generates regional and global reports from individual analyses; `enrichWithLLM()` runs up to 5 enrichment phases (see below) via `provider.complete()`. `analysis/dealMetrics.ts` computes the deterministic date/threshold fields (`activityHealth`, `velocityAssessment`, days-in-stage, stall detection) in code rather than delegating them to the LLM.
 - **`transforms/`** — `reportTransformer.ts` converts backend `AggregatedReport` into the frontend `RegionData` shape for the dashboard.
-- **`util/`** — `concurrency.ts` (`mapWithConcurrency` order-preserving pool), `cost.ts` (`estimateCostUsd(model, usage)` — approximate per-provider price table), `allowedDomains.ts` (auth allowlist + `isAllowedEmail`), `dealMetrics.ts`, and the JSON-repair helpers used to recover truncated LLM output.
+- **`util/`** — `concurrency.ts` (`mapWithConcurrency` order-preserving pool), `cost.ts` (`estimateCostUsd(model, usage)` — approximate per-provider price table), `allowedDomains.ts` (auth allowlist + `isAllowedEmail`). Deterministic deal metrics live in `analysis/dealMetrics.ts`; the JSON-repair helpers (`extractAndParseJson`) and the enrichment shape normalisers (`enrichmentSchema.ts`) live in `llm/` and `analysis/` respectively.
 
 ### Cloud Functions
 | Function | Trigger | Purpose |
@@ -113,13 +113,13 @@ Both sub-projects have `.env.example` files. Copy to `.env` and populate.
 
 ### Backend (`functions/.env`)
 ```
-ANTHROPIC_API_KEY=<key>   # also readable as LLM_API_KEY fallback
-GEMINI_API_KEY=<key>      # also readable as LLM_API_KEY fallback
-OPENAI_API_KEY=<key>      # also readable as LLM_API_KEY fallback
+ANTHROPIC_API_KEY=<key>   # Secret Manager in prod; provider-specific names only (no generic fallback)
+GEMINI_API_KEY=<key>
+OPENAI_API_KEY=<key>
 LLM_PROVIDER=claude|gemini|openai
 LLM_MODEL=claude-sonnet-4-6   # generic default; per-provider overrides: CLAUDE_MODEL, GEMINI_MODEL (default gemini-2.5-flash), OPENAI_MODEL (default gpt-4o)
 LLM_TEMPERATURE=0.3
-LLM_MAX_TOKENS=16384          # output-token cap; Gemini 2.5's hidden "thinking" tokens
+LLM_MAX_TOKENS=16384          # output-token cap (code default 16384); Gemini 2.5's hidden "thinking" tokens
                              # count against this, so keep it high (prod .env uses 65536).
                              # Too low → enrichment JSON truncates and the phase is skipped.
 LLM_CONCURRENCY=25           # global cap on simultaneous per-deal LLM calls (prod uses 40)

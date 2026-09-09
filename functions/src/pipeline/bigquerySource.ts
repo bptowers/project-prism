@@ -26,9 +26,10 @@ export interface BigQueryConfig {
  * based on Salesforce API names from Prism-Data-Requirements-Spec.docx.
  */
 const DEFAULT_BQ_FIELD_MAP: Record<string, string[]> = {
-  // Fivetran converts Salesforce columns to lowercase snake_case and __c to _c.
-  // Each array lists candidates in priority order: Fivetran name first, then
-  // Salesforce API name, then common alternatives.
+  // Each array lists candidates in priority order. The first candidates were
+  // verified against the production table's INFORMATION_SCHEMA (2026-07-15,
+  // edw-simprogroup-propagation.SF_Simpro.sf_opportunity); later entries are
+  // Salesforce API-name fallbacks kept in case the warehouse schema changes.
 
   // Core Opportunity Fields
   opportunityId: ["id", "Id", "Opportunity_ID", "OpportunityId"],
@@ -45,9 +46,18 @@ const DEFAULT_BQ_FIELD_MAP: Record<string, string[]> = {
   // Owner & Activity Fields
   salesRep: ["owner_name", "Owner_Name", "Owner.Name", "Opportunity_Owner"],
   createdDate: ["created_date", "CreatedDate", "Created_Date"],
-  updatedDate: ["_fivetran_synced", "LastModifiedDate", "Last_Modified_Date"],
+  // No LastModifiedDate column exists in the table. _fivetran_start is when the
+  // current row version became active — i.e. the last time the record changed —
+  // so it's the best modification-time proxy (verified: values vary per record).
+  // Caveat: records untouched since the initial Fivetran sync all share that
+  // sync date (2026-04-13) as a floor. _fivetran_synced kept as fallback.
+  updatedDate: ["_fivetran_start", "_fivetran_synced"],
+  // No LastActivityDate column exists in the table — this resolves empty and
+  // dealMetrics falls back to updatedDate for activity-recency calculations.
   lastActivityDate: ["LastActivityDate", "Last_Activity_Date"],
-  nextStep: ["NextStep", "Next_Step"],
+  // Reps use the long-text field: next_step_long_text is populated on ~77% of
+  // open deals vs <1% for next_step. Order matters for velocity/stall metrics.
+  nextStep: ["next_step_long_text", "next_step", "NextStep", "Next_Step"],
   probability: ["probability", "Probability"],
   forecastCategory: ["forecast_category", "ForecastCategoryName", "Forecast_Category"],
   leadSource: ["lead_source", "LeadSource", "Lead_Source"],
@@ -55,29 +65,34 @@ const DEFAULT_BQ_FIELD_MAP: Record<string, string[]> = {
 
   // Region & Geography Fields
   territoryRegion: ["sales_region", "strategic_territory", "Territory_Region__c", "Territory_Region"],
+  // No billing_state/billing_country columns exist — region detection relies on
+  // sales_region/strategic_territory (priority 1) and currency (priority 2).
   billingState: ["BillingState", "Billing_State"],
   billingCountry: ["BillingCountry", "Billing_Country"],
   industry: ["industry", "Industry"],
 
-  // Simpro Custom Fields
+  // Notes & Deal-Context Fields (feed the composite notes sent to the LLM).
+  // The table uses plain snake_case names without the _c suffix for most of
+  // these — the verified column name must come first or the field resolves
+  // empty and the LLM never sees it.
   description: ["Description", "description"],
   whyTheyBought: ["Why_They_Bought__c", "why_they_bought_c"],
-  reasonForWin: ["Reason_for_Win__c", "reason_for_win_c"],
-  winNotes: ["Win_Notes__c", "win_notes_c"],
+  reasonForWin: ["reason_for_win", "Reason_for_Win__c", "reason_for_win_c"],
+  winNotes: ["win_notes", "Win_Notes__c", "win_notes_c"],
   winStory: ["Win_Story__c", "win_story_c"],
   dealTakeaways: ["Deal_Takeaways__c", "deal_takeaways_c"],
-  pathToPurchase: ["Path_to_Purchase__c", "path_to_purchase_c"],
-  managerNotes: ["Manager_Notes__c", "manager_notes_c"],
-  closePlan: ["Close_Plan__c", "close_plan_c"],
-  whyWouldBuy: ["Why_Would_Buy__c", "why_would_buy_c"],
-  whyWouldntBuy: ["Why_Wouldnt_Buy__c", "why_wouldnt_buy_c"],
-  lostReason: ["Lost_Reason__c", "lost_reason_c"],
+  pathToPurchase: ["path_to_purchase", "Path_to_Purchase__c", "path_to_purchase_c"],
+  managerNotes: ["manager_notes", "Manager_Notes__c", "manager_notes_c"],
+  closePlan: ["close_plan", "Close_Plan__c", "close_plan_c"],
+  whyWouldBuy: ["why_would_they_buy_from_us", "Why_Would_Buy__c", "why_would_buy_c"],
+  whyWouldntBuy: ["why_wouldnt_they_buy_from_us", "Why_Wouldnt_Buy__c", "why_wouldnt_buy_c"],
+  lostReason: ["lost_reason", "Lost_Reason__c", "lost_reason_c"],
   lostReasonDetails: ["Lost_Reason_Details__c", "lost_reason_details_c"],
-  lostNotes: ["Lost_Notes__c", "lost_notes_c"],
+  lostNotes: ["lost_notes", "Lost_Notes__c", "lost_notes_c"],
   missingFeatures: ["Missing_Features__c", "missing_features_c"],
-  mainCompetitor: ["Main_Competitor__c", "main_competitor_c"],
+  mainCompetitor: ["competitor_name", "Main_Competitor__c", "main_competitor_c"],
   priceReason: ["Price_Reason__c", "price_reason_c"],
-  economicBuyer: ["Economic_Buyer__c", "economic_buyer_c"],
+  economicBuyer: ["who_is_signing_economic_buyer", "Economic_Buyer__c", "economic_buyer_c"],
   productLine: ["sim_pro_company_c", "simPRO_Company__c", "simPRO_Company"],
 };
 
@@ -189,7 +204,14 @@ export class BigQuerySource {
     const closeDateCol = closeDateCandidates[0];
     const limit = this.config.limit ?? 300;
 
-    const filters: string[] = ["is_closed = FALSE", "LOWER(COALESCE(type, '')) = 'new business'"];
+    // _fivetran_active guards against Fivetran history mode ever retaining
+    // superseded row versions (currently all rows are active, but the columns
+    // exist so the mode could be enabled upstream without warning).
+    const filters: string[] = [
+      "COALESCE(_fivetran_active, TRUE)",
+      "is_closed = FALSE",
+      "LOWER(COALESCE(type, '')) = 'new business'",
+    ];
     const params: Record<string, unknown> = {};
 
     if (this.config.sinceDate) {
