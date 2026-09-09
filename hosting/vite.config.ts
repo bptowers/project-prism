@@ -11,7 +11,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
-    emptyOutDir: false,
+    sourcemap: false, // maps were publicly served from hosting; see review 2026-09-09
+    emptyOutDir: true,  // stop shipping every historical bundle (dist was 221 MB)
   },
 })

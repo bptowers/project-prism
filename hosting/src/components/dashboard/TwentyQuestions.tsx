@@ -12,6 +12,7 @@ import type {
   TQThreatRow,
   TQGapDeal,
 } from '@/lib/types';
+import { asArray } from '@/lib/guards';
 
 interface Props { data?: TwentyQuestionsData; }
 
@@ -44,7 +45,9 @@ interface Col<T> {
 }
 
 function DataTable<T>({ columns, rows }: { columns: Col<T>[]; rows?: T[] }) {
-  if (!rows?.length) return null;
+  // LLM-authored rows: a prose string here must render as "no rows", not throw.
+  const list = asArray<T>(rows);
+  if (!list.length) return null;
   return (
     <div style={{ marginTop: '0.75rem', overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
@@ -56,7 +59,7 @@ function DataTable<T>({ columns, rows }: { columns: Col<T>[]; rows?: T[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, ri) => (
+          {list.map((row, ri) => (
             <tr key={ri} style={{ borderBottom: '1px solid var(--border)' }}>
               {columns.map((c, ci) => (
                 <td key={ci} style={{ padding: '6px 8px', textAlign: c.align || 'left', color: 'var(--text-secondary)' }}>

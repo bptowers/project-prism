@@ -2,15 +2,25 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { itemVariants, cardHover } from '@/theme/animations';
 import { Badge } from '@/components/ui/Badge';
-import type { CompetitiveDisplacementData } from '@/lib/types';
+import type { CompetitiveDisplacementData, LossMechanism, RegionalArbitrage, RewarmOpportunity, WinMechanism } from '@/lib/types';
+import { asArray, isRecord } from '@/lib/guards';
 
 interface Props { data?: CompetitiveDisplacementData; }
 
 export const CompetitiveDisplacement: React.FC<Props> = ({ data }) => {
   if (!data) return null;
 
-  const regions = data.winMechanisms ? Object.entries(data.winMechanisms) : [];
-  const hasContent = regions.length > 0 || (data.lossMechanisms?.length ?? 0) > 0;
+  // LLM-authored payload: coerce every slot to the shape we iterate. Older
+  // reports in Firestore may carry prose strings where arrays belong.
+  const regions = isRecord(data.winMechanisms)
+    ? Object.entries(data.winMechanisms as Record<string, WinMechanism>).filter(([, m]) => isRecord(m))
+    : [];
+  const lossMechanisms = asArray<LossMechanism>(data.lossMechanisms);
+  const regionalArbitrage = asArray<RegionalArbitrage>(data.regionalArbitrage);
+  const rewarmOpportunities = asArray<RewarmOpportunity>(data.rewarmOpportunities);
+  const whyHaventTheyBought = isRecord(data.whyHaventTheyBought) ? data.whyHaventTheyBought : undefined;
+
+  const hasContent = regions.length > 0 || lossMechanisms.length > 0;
   if (!hasContent) return null;
 
   return (
@@ -71,13 +81,13 @@ export const CompetitiveDisplacement: React.FC<Props> = ({ data }) => {
       )}
 
       {/* Loss Mechanisms */}
-      {data.lossMechanisms && data.lossMechanisms.length > 0 && (
+      {lossMechanisms.length > 0 && (
         <>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--error)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Loss Mechanisms
           </div>
           <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '1.5rem' }}>
-            {data.lossMechanisms.map((loss, i) => (
+            {lossMechanisms.map((loss, i) => (
               <div
                 key={i}
                 style={{
@@ -112,13 +122,13 @@ export const CompetitiveDisplacement: React.FC<Props> = ({ data }) => {
       )}
 
       {/* Regional Arbitrage */}
-      {data.regionalArbitrage && data.regionalArbitrage.length > 0 && (
+      {regionalArbitrage.length > 0 && (
         <>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--prism-blue)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Regional Arbitrage
           </div>
           <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '1.5rem' }}>
-            {data.regionalArbitrage.map((arb, i) => (
+            {regionalArbitrage.map((arb, i) => (
               <div key={i} style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-elevated)' }}>
                 <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>{arb.dealProfile}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.8rem' }}>
@@ -136,7 +146,7 @@ export const CompetitiveDisplacement: React.FC<Props> = ({ data }) => {
       )}
 
       {/* Why Haven't They Bought */}
-      {data.whyHaventTheyBought && (
+      {whyHaventTheyBought && (
         <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-elevated)', marginBottom: '1.5rem' }}>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--warning)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Why Haven't They Bought
@@ -144,27 +154,27 @@ export const CompetitiveDisplacement: React.FC<Props> = ({ data }) => {
           <div style={{ fontSize: '0.8rem', lineHeight: 1.6 }}>
             <div style={{ marginBottom: '0.5rem' }}>
               <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>Silent Loss Pattern: </span>
-              <span style={{ color: 'var(--text-primary)' }}>{data.whyHaventTheyBought.silentLossPattern}</span>
+              <span style={{ color: 'var(--text-primary)' }}>{String(whyHaventTheyBought.silentLossPattern ?? '')}</span>
             </div>
             <div style={{ marginBottom: '0.5rem' }}>
               <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>Urgency Gap: </span>
-              <span style={{ color: 'var(--text-primary)' }}>{data.whyHaventTheyBought.urgencyGap}</span>
+              <span style={{ color: 'var(--text-primary)' }}>{String(whyHaventTheyBought.urgencyGap ?? '')}</span>
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>Missing Narrative: </span>
-              <span style={{ color: 'var(--accent)' }}>{data.whyHaventTheyBought.missingNarrative}</span>
+              <span style={{ color: 'var(--accent)' }}>{String(whyHaventTheyBought.missingNarrative ?? '')}</span>
             </div>
           </div>
         </div>
       )}
 
       {/* Rewarm Opportunities */}
-      {data.rewarmOpportunities && data.rewarmOpportunities.length > 0 && (
+      {rewarmOpportunities.length > 0 && (
         <>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--success)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Rewarm Opportunities
           </div>
-          {data.rewarmOpportunities.map((rw, i) => (
+          {rewarmOpportunities.map((rw, i) => (
             <div key={i} style={{ padding: '0.75rem 1rem', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-elevated)', marginBottom: '0.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{rw.lossReason}</span>
