@@ -10,7 +10,8 @@ interface HeaderProps {
   onUploadClick?: () => void;
   period?: string;
   isLive?: boolean;
-  reportDate?: string;
+  /** ISO timestamp of when the report was generated (createdAt), used for "Nh ago". */
+  generatedAt?: string;
 }
 
 type RunState = 'idle' | 'confirming' | 'loading' | 'started' | 'success' | 'error' | 'unauthenticated';
@@ -47,7 +48,7 @@ const smallButton: React.CSSProperties = {
   transition: 'color 0.2s ease, opacity 0.2s ease',
 };
 
-export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive, reportDate }) => {
+export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive, generatedAt }) => {
   const { theme, toggleTheme } = useTheme();
   const [runState, setRunState] = useState<RunState>('idle');
   const [runError, setRunError] = useState<string | null>(null);
@@ -126,7 +127,7 @@ export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive, r
     runState === 'error' || runState === 'unauthenticated' ? 'var(--error)' :
     'var(--text-primary)';
 
-  const relativeTime = reportDate ? getRelativeTime(reportDate) : undefined;
+  const relativeTime = generatedAt ? getRelativeTime(generatedAt) : undefined;
 
   return (
     <motion.header variants={itemVariants} style={{

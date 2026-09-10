@@ -56,7 +56,7 @@ function buildFallbackBriefing(data: RegionData, totalOpportunities?: number): s
 }
 
 export default function App() {
-  const { region, data, allData, selectRegion, loading, isLive, showingContent, executiveBriefing, totalOpportunities, reportPeriod, reportDate, regionCounts, dealsError, reportMeta, twentyQuestions, competitiveDisplacement, deltaIntelligence } = useRegion();
+  const { region, data, allData, selectRegion, loading, isLive, showingContent, executiveBriefing, totalOpportunities, reportPeriod, reportDate, reportCreatedAt, regionCounts, dealsError, reportMeta, twentyQuestions, competitiveDisplacement, deltaIntelligence } = useRegion();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [activeRisks, setActiveRisks] = useState<RiskDeal[]>([]);
   const [radarFiltered, setRadarFiltered] = useState(false);
@@ -109,7 +109,7 @@ export default function App() {
 
   return (
     <div style={{ maxWidth: 1920, margin: '0 auto', padding: '0 2rem' }}>
-      <Header onUploadClick={() => setUploadOpen(true)} period={displayPeriod} isLive={isLive} reportDate={reportDate} />
+      <Header onUploadClick={() => setUploadOpen(true)} period={displayPeriod} isLive={isLive} generatedAt={reportCreatedAt ?? reportDate} />
       <UploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
       <PrismBar style={{ marginBottom: '2rem' }} />
 

@@ -78,16 +78,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function classifySignal(text: string): string {
-  const lower = text.toLowerCase();
-  if (lower.includes('ghost') || lower.includes('dark') || lower.includes('activity') || lower.includes('engagement')) return 'Engagement';
-  if (lower.includes('close date') || lower.includes('stalled') || lower.includes('stage') || lower.includes('velocity')) return 'Velocity';
-  if (lower.includes('forecast') || lower.includes('probability') || lower.includes('fiction')) return 'Forecast hygiene';
-  if (lower.includes('competitor') || lower.includes('competitive')) return 'Competitive pressure';
-  if (lower.includes('economic buyer') || lower.includes('stakeholder') || lower.includes('single')) return 'Stakeholder coverage';
-  return 'Process hygiene';
-}
-
 function buildRiskDimensions(risks: RiskDeal[]): RiskDimension[] {
   const labels = RISK_DIMENSION_LABELS;
   const totals = labels.reduce<Record<string, RiskDimension>>((acc, label) => {
@@ -647,13 +637,8 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
     const confidence = totalWeight
       ? Math.round(filteredRisks.reduce((sum, r) => sum + (100 - riskScore(r)) * weightedValue(r), 0) / totalWeight)
       : 0;
-    const drivers = Object.entries(filteredRisks.reduce<Record<string, number>>((acc, risk) => {
-      const driver = classifySignal(`${risk.summary} ${risk.action}`);
-      acc[driver] = (acc[driver] || 0) + weightedValue(risk);
-      return acc;
-    }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
     const dimensions = buildRiskDimensions(filteredRisks);
-    return { totalWeight, valueTotal, distribution, confidence, drivers, dimensions };
+    return { totalWeight, valueTotal, distribution, confidence, dimensions };
   }, [filteredRisks]);
 
   const lateStageRisks = visibleFilteredRisks

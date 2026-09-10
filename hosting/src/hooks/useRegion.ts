@@ -151,15 +151,21 @@ export function useRegion() {
 
   const dealsError = isLive ? report?.dealsError : undefined;
 
+  // createdAt arrives as a Firestore Timestamp; normalise to an ISO string once.
+  const reportCreatedAt = useMemo<string | undefined>(() => {
+    if (!isLive || !report) return undefined;
+    const createdAt = report.createdAt;
+    if (createdAt instanceof Date) return createdAt.toISOString();
+    if (typeof (createdAt as { toDate?: () => Date } | undefined)?.toDate === 'function') {
+      return (createdAt as { toDate: () => Date }).toDate().toISOString();
+    }
+    return undefined;
+  }, [isLive, report]);
+
   // Run metadata for the footer — read defensively, nothing is invented.
   const reportMeta = useMemo(() => {
     if (!isLive || !report) return undefined;
-    const createdAt = report.createdAt;
-    const createdIso = createdAt instanceof Date
-      ? createdAt.toISOString()
-      : typeof (createdAt as { toDate?: () => Date } | undefined)?.toDate === 'function'
-        ? (createdAt as { toDate: () => Date }).toDate().toISOString()
-        : undefined;
+    const createdIso = reportCreatedAt;
     const quality = report.dataQuality?.averageQualityScore;
     return {
       recordsAnalyzed: typeof report.totalRecordsAnalyzed === 'number' ? report.totalRecordsAnalyzed : undefined,
@@ -171,12 +177,12 @@ export function useRegion() {
       sourceRowLimit: report.pipelineMeta?.sourceRowLimit,
       rejectedCount: report.pipelineMeta?.rejectedCount,
     };
-  }, [isLive, report]);
+  }, [isLive, report, reportCreatedAt]);
 
   return {
     region, data, allData, selectRegion, loading, isLive, hasLiveData, showingContent,
     executiveBriefing: displayBriefing, totalOpportunities, reportPeriod, regionCounts,
-    reportDate, dealsError, reportMeta,
+    reportDate, reportCreatedAt, dealsError, reportMeta,
     twentyQuestions, competitiveDisplacement, deltaIntelligence,
   };
 }

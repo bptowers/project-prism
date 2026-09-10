@@ -83,4 +83,10 @@ describe('Header run analysis', () => {
     expect(screen.queryByText('Export PDF')).not.toBeInTheDocument();
     expect(screen.queryByText('Export Slides')).not.toBeInTheDocument();
   });
+
+  it('shows how long ago the report was generated from its timestamp', () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    render(<Header isLive period="Run 9 Sep 2026" generatedAt={twoHoursAgo} />);
+    expect(screen.getByText('2h ago')).toBeInTheDocument();
+  });
 });

@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import React from 'react';
 
-type ButtonVariant = 'primary' | 'ghost' | 'export';
+type ButtonVariant = 'primary' | 'ghost';
 
 interface ButtonProps {
   variant?: ButtonVariant;
@@ -20,11 +20,6 @@ const variantStyles: Record<ButtonVariant, React.CSSProperties> = {
   },
   ghost: {
     background: 'transparent',
-    color: 'var(--text-secondary)',
-    borderColor: 'var(--border)',
-  },
-  export: {
-    background: 'var(--bg-elevated)',
     color: 'var(--text-secondary)',
     borderColor: 'var(--border)',
   },

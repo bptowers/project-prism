@@ -29,6 +29,9 @@ export function useUpload() {
   // The Firestore listener that detects the new report. Held in a ref so
   // reset() and unmount can always tear it down.
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  // Bumped by reset(); an upload whose generation is stale after awaiting
+  // Storage must not resume into 'analyzing' and re-attach a listener.
+  const generationRef = useRef(0);
 
   const stopListening = useCallback(() => {
     unsubscribeRef.current?.();
@@ -70,6 +73,7 @@ export function useUpload() {
 
   const uploadAndAnalyze = useCallback(async (file: File) => {
     const started = Date.now();
+    const generation = generationRef.current;
     setError(null);
     setStartedAt(started);
     setState('uploading');
@@ -80,10 +84,14 @@ export function useUpload() {
       // can use it instead of the default LLM_PROVIDER environment variable.
       await uploadBytes(storageRef, file, { customMetadata: { provider } });
     } catch (err) {
+      if (generation !== generationRef.current) return;
       setError(errorMessage(err));
       setState('error');
       return;
     }
+
+    // reset() ran while the upload was in flight — the user walked away.
+    if (generation !== generationRef.current) return;
 
     setState('analyzing');
 
@@ -116,6 +124,7 @@ export function useUpload() {
   }, [provider, stopListening]);
 
   const reset = useCallback(() => {
+    generationRef.current += 1;
     stopListening();
     setState('idle');
     setPreview(null);

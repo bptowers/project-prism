@@ -40,6 +40,29 @@ function formatBytes(bytes: number): string {
 
 const FOCUSABLE = 'button, [href], input:not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])';
 
+/**
+ * Elements the browser will actually visit with Tab. Radios need special
+ * handling: only the checked member of a same-name group (or the first, when
+ * none is checked) is in the tab order, so the naive "last focusable element"
+ * can be an unreachable radio and the trap leaks.
+ */
+function tabStops(root: HTMLElement): HTMLElement[] {
+  const all = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE))
+    .filter(el => !el.hasAttribute('disabled') && el.style.display !== 'none');
+  const radioGroups = new Map<string, HTMLInputElement[]>();
+  for (const el of all) {
+    if (el instanceof HTMLInputElement && el.type === 'radio' && el.name) {
+      (radioGroups.get(el.name) ?? radioGroups.set(el.name, []).get(el.name)!).push(el);
+    }
+  }
+  return all.filter(el => {
+    if (!(el instanceof HTMLInputElement) || el.type !== 'radio' || !el.name) return true;
+    const group = radioGroups.get(el.name)!;
+    const representative = group.find(r => r.checked) ?? group[0];
+    return el === representative;
+  });
+}
+
 export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => {
   const { state, preview, error, provider, setProvider, parseFile, uploadAndAnalyze, reset, elapsedSeconds } = useUpload();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,8 +94,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
 
   const trapTab = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'Tab' || !dialogRef.current) return;
-    const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE))
-      .filter(el => !el.hasAttribute('disabled') && el.style.display !== 'none');
+    const focusable = tabStops(dialogRef.current);
     if (focusable.length === 0) {
       e.preventDefault();
       return;
@@ -196,12 +218,18 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
                 {/* IDLE STATE — Drop zone + provider selector */}
                 {state === 'idle' && !preview && (
                   <>
-                    <div
+                    {/* A real button so keyboard users can reach the file picker; drag/drop still works on it. */}
+                    <button
+                      type="button"
                       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                       onDragLeave={() => setDragOver(false)}
                       onDrop={handleDrop}
                       onClick={() => fileInputRef.current?.click()}
                       style={{
+                        display: 'block',
+                        width: '100%',
+                        font: 'inherit',
+                        color: 'inherit',
                         border: `2px dashed ${dragOver ? THEME.accent : THEME.borderEmphasis}`,
                         borderRadius: 8,
                         padding: '40px 24px',
@@ -212,21 +240,23 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
                         marginBottom: 20,
                       }}
                     >
-                      <div style={{ fontSize: '2rem', marginBottom: 8 }}>&#128206;</div>
-                      <div style={{ fontSize: '0.95rem', color: THEME.textPrimary, fontWeight: 600 }}>
+                      <span aria-hidden="true" style={{ display: 'block', fontSize: '2rem', marginBottom: 8 }}>&#128206;</span>
+                      <span style={{ display: 'block', fontSize: '0.95rem', color: THEME.textPrimary, fontWeight: 600 }}>
                         Drop your Salesforce export here
-                      </div>
-                      <div style={{ fontSize: '0.8rem', color: THEME.textMuted, marginTop: 6 }}>
+                      </span>
+                      <span style={{ display: 'block', fontSize: '0.8rem', color: THEME.textMuted, marginTop: 6 }}>
                         or <span style={{ color: THEME.accent, textDecoration: 'underline' }}>click to browse</span>
-                      </div>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".csv"
-                        style={{ display: 'none' }}
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
-                      />
-                    </div>
+                      </span>
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv"
+                      aria-label="Salesforce CSV export"
+                      tabIndex={-1}
+                      style={{ display: 'none' }}
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+                    />
 
                     {/* Provider selector */}
                     <div style={{ marginBottom: 16 }}>

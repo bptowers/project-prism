@@ -50,21 +50,31 @@ describe('UploadModal accessibility', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('traps Tab inside the dialog', () => {
+  it('keeps Tab inside the dialog even from the checked radio, the last real tab stop', () => {
     render(<Harness open onClose={() => undefined} />);
     const dialog = screen.getByRole('dialog');
-    const focusable = Array.from(
-      dialog.querySelectorAll<HTMLElement>('button, [href], input:not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])')
-    ).filter(el => !el.hasAttribute('disabled') && el.style.display !== 'none');
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-
-    last.focus();
+    // Browsers put only the checked member of a radio group in the tab order,
+    // so the checked "Claude" radio is the final tab stop, not the "OpenAI" one.
+    const checked = screen.getByRole('radio', { name: /Claude/ });
+    expect(checked).toBeChecked();
+    checked.focus();
     fireEvent.keyDown(dialog, { key: 'Tab' });
-    expect(first).toHaveFocus();
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
 
-    first.focus();
+    // And Shift+Tab from the first stop lands on that checked radio, not an unreachable one.
     fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
-    expect(last).toHaveFocus();
+    expect(document.activeElement).toBe(checked);
+  });
+
+  it('exposes the drop zone as a keyboard-reachable button that opens the file picker', () => {
+    render(<Harness open onClose={() => undefined} />);
+    const dropZone = screen.getByRole('button', { name: /Drop your Salesforce export here/ });
+    expect(dropZone).not.toHaveAttribute('tabindex', '-1');
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined);
+    // A native button fires click for Enter and Space, so activation is one path.
+    fireEvent.click(dropZone);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    clickSpy.mockRestore();
   });
 });

@@ -33,6 +33,7 @@ const regionState = {
   totalOpportunities: undefined,
   reportPeriod: undefined,
   reportDate: undefined as string | undefined,
+  reportCreatedAt: undefined as string | undefined,
   regionCounts: undefined,
   dealsError: undefined,
   reportMeta: undefined,

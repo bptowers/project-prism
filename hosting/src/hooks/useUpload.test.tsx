@@ -88,4 +88,21 @@ describe('useUpload', () => {
     second.unmount();
     expect(unsubscribe).toHaveBeenCalledTimes(2);
   });
+
+  it('does not resume into analyzing when reset() runs while the upload is in flight', async () => {
+    let finishUpload: () => void = () => undefined;
+    vi.mocked(uploadBytes).mockImplementation(() => new Promise(resolve => { finishUpload = () => resolve({} as never); }));
+    vi.mocked(onSnapshot).mockReturnValue(vi.fn());
+    const { result } = renderHook(() => useUpload());
+
+    let pending: Promise<void> = Promise.resolve();
+    act(() => { pending = result.current.uploadAndAnalyze(file); });
+    expect(result.current.state).toBe('uploading');
+
+    act(() => { result.current.reset(); });
+    await act(async () => { finishUpload(); await pending; });
+
+    expect(result.current.state).toBe('idle');
+    expect(onSnapshot).not.toHaveBeenCalled();
+  });
 });
