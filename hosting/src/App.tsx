@@ -55,7 +55,7 @@ function buildFallbackBriefing(data: RegionData, totalOpportunities?: number): s
 }
 
 export default function App() {
-  const { region, data, allData, selectRegion, loading, isLive, showingContent, executiveBriefing, totalOpportunities, reportPeriod, reportDate, regionCounts, dealsError, twentyQuestions, competitiveDisplacement, deltaIntelligence } = useRegion();
+  const { region, data, allData, selectRegion, loading, isLive, showingContent, executiveBriefing, totalOpportunities, reportPeriod, reportDate, regionCounts, dealsError, reportMeta, twentyQuestions, competitiveDisplacement, deltaIntelligence } = useRegion();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [activeRisks, setActiveRisks] = useState<RiskDeal[]>([]);
   const [radarFiltered, setRadarFiltered] = useState(false);
@@ -236,7 +236,7 @@ export default function App() {
           <DeltaIntelligence data={deltaIntelligence} />
         </ErrorBoundary>
         <ErrorBoundary section="Processing Footer">
-          <ProcessingFooter />
+          <ProcessingFooter {...reportMeta} />
         </ErrorBoundary>
       </motion.div>
     </div>

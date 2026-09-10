@@ -11,7 +11,6 @@ export const PipelineFunnel: React.FC<Props> = ({ stages }) => {
     <motion.div variants={itemVariants} style={{ marginBottom: '2rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem' }}>Pipeline Stage Progression</span>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Avg. cycle: 38 days</span>
       </div>
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '1.5rem', overflowX: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', minWidth: 900 }}>

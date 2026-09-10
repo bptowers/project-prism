@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { Region, RegionData, RiskDeal, StatData, TwentyQuestionsData, CompetitiveDisplacementData, DeltaIntelligenceData } from '@/lib/types';
 import { useLatestReport } from '@/hooks/useFirestore';
 import { countDealsByRegion } from '@/lib/injectDeals';
+import { formatDate } from '@/lib/format';
 
 function computeInFlightStats(risks: RiskDeal[]): { avgHealthScore: StatData; dealsAtRisk: StatData; velocity: StatData } {
   const withScore = risks.filter(r => typeof r.healthScore === 'number');
@@ -150,10 +151,31 @@ export function useRegion() {
 
   const dealsError = isLive ? report?.dealsError : undefined;
 
+  // Run metadata for the footer — read defensively, nothing is invented.
+  const reportMeta = useMemo(() => {
+    if (!isLive || !report) return undefined;
+    const createdAt = report.createdAt;
+    const createdIso = createdAt instanceof Date
+      ? createdAt.toISOString()
+      : typeof (createdAt as { toDate?: () => Date } | undefined)?.toDate === 'function'
+        ? (createdAt as { toDate: () => Date }).toDate().toISOString()
+        : undefined;
+    const quality = report.dataQuality?.averageQualityScore;
+    return {
+      recordsAnalyzed: typeof report.totalRecordsAnalyzed === 'number' ? report.totalRecordsAnalyzed : undefined,
+      provider: typeof report.analysisProvider === 'string' ? report.analysisProvider : undefined,
+      model: typeof report.analysisModel === 'string' ? report.analysisModel : undefined,
+      generatedAt: formatDate(report.reportDate || createdIso) || undefined,
+      dataQualityScore: typeof quality === 'number' ? quality : undefined,
+      sourceTruncated: report.pipelineMeta?.sourceTruncated,
+      sourceRowLimit: report.pipelineMeta?.sourceRowLimit,
+    };
+  }, [isLive, report]);
+
   return {
     region, data, allData, selectRegion, loading, isLive, hasLiveData, showingContent,
     executiveBriefing: displayBriefing, totalOpportunities, reportPeriod, regionCounts,
-    reportDate, dealsError,
+    reportDate, dealsError, reportMeta,
     twentyQuestions, competitiveDisplacement, deltaIntelligence,
   };
 }
