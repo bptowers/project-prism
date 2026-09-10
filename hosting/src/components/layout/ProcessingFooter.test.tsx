@@ -43,4 +43,23 @@ describe('ProcessingFooter', () => {
     render(<ProcessingFooter recordsAnalyzed={120} sourceTruncated={false} sourceRowLimit={500} />);
     expect(screen.queryByText(/Row cap/)).not.toBeInTheDocument();
   });
+
+  it('uses the generic cap message when the row limit is null (CSV uploads) and never prints "null"', () => {
+    render(<ProcessingFooter recordsAnalyzed={80} sourceTruncated sourceRowLimit={null} />);
+    expect(screen.getByText('Source row cap reached — some deals not included')).toBeInTheDocument();
+    expect(screen.queryByText(/null/)).not.toBeInTheDocument();
+  });
+
+  it('reports how many records the validator rejected', () => {
+    render(<ProcessingFooter recordsAnalyzed={80} rejectedCount={3} />);
+    expect(screen.getByText('3 records rejected by validation')).toBeInTheDocument();
+  });
+
+  it('singularises one rejected record and hides the line at zero', () => {
+    const { unmount } = render(<ProcessingFooter recordsAnalyzed={80} rejectedCount={1} />);
+    expect(screen.getByText('1 record rejected by validation')).toBeInTheDocument();
+    unmount();
+    render(<ProcessingFooter recordsAnalyzed={80} rejectedCount={0} />);
+    expect(screen.queryByText(/rejected by validation/)).not.toBeInTheDocument();
+  });
 });

@@ -9,11 +9,14 @@ interface SparklineProps {
 
 export const Sparkline: React.FC<SparklineProps> = ({ data, color, width = 140, height = 32 }) => {
   const { linePath, areaPath, lastPoint } = useMemo(() => {
+    if (data.length === 0) return { linePath: '', areaPath: '', lastPoint: null };
     const min = Math.min(...data) * 0.95;
     const max = Math.max(...data) * 1.05;
     const range = max - min || 1;
+    // A single point sits at the right edge rather than dividing by zero.
+    const step = data.length > 1 ? width / (data.length - 1) : width;
     const points = data.map((v, i) => ({
-      x: (i / (data.length - 1)) * width,
+      x: i * step,
       y: height - ((v - min) / range) * height,
     }));
     const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
@@ -22,6 +25,8 @@ export const Sparkline: React.FC<SparklineProps> = ({ data, color, width = 140, 
   }, [data, color, width, height]);
 
   const gradId = `sg_${color.replace('#', '')}`;
+
+  if (!lastPoint) return null;
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ width: '100%', height }}>

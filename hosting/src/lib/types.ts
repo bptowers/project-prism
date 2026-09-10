@@ -333,8 +333,11 @@ export interface DeltaIntelligenceData {
 /** Source-ingest facts written by the backend (optional on older reports). */
 export interface PipelineMeta {
   sourceTruncated: boolean;
-  sourceRowLimit: number;
+  /** null for CSV uploads, which have no row cap. */
+  sourceRowLimit: number | null;
   sourceRowCount: number;
+  /** Total rejected by the validator; rejectedRecords below is capped. */
+  rejectedCount: number;
   rejectedRecords: { opportunityId: string; reasons: string[] }[];
 }
 

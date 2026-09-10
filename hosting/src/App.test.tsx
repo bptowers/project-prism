@@ -32,7 +32,7 @@ const regionState = {
   executiveBriefing: undefined,
   totalOpportunities: undefined,
   reportPeriod: undefined,
-  reportDate: undefined,
+  reportDate: undefined as string | undefined,
   regionCounts: undefined,
   dealsError: undefined,
   reportMeta: undefined,
@@ -59,5 +59,14 @@ describe('App loading and empty states', () => {
     useRegionMock.mockReturnValue({ ...regionState, loading: false, showingContent: false });
     render(<App />);
     expect(screen.getByText('No live data yet')).toBeInTheDocument();
+  });
+});
+
+describe('App header period', () => {
+  it('formats the report date the same way as the footer', () => {
+    useRegionMock.mockReturnValue({ ...regionState, loading: false, isLive: true, showingContent: true, reportDate: '2026-09-09' });
+    render(<App />);
+    expect(screen.getAllByText('Run 9 Sep 2026').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Sep 9, 2026/)).not.toBeInTheDocument();
   });
 });

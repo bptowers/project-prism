@@ -22,15 +22,16 @@ import { Panel } from '@/components/ui/Panel';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { UploadModal } from '@/components/dashboard/UploadModal';
 import type { RegionData, RiskDeal } from '@/lib/types';
-import { formatCurrency } from '@/lib/format';
+import { formatCurrency, formatDate } from '@/lib/format';
 import { regionLabel } from '@/lib/regions';
 import { isDormant, isDark, isMisaligned } from '@/lib/dealClassifiers';
 
 function formatReportDate(reportDate?: string, period?: string): string | undefined {
   if (!reportDate) return period;
-  const parsed = new Date(reportDate);
-  if (Number.isNaN(parsed.getTime())) return period || reportDate;
-  return `Run ${parsed.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  const formatted = formatDate(reportDate);
+  // formatDate hands back unparseable input unchanged; only prefix a real date.
+  if (formatted === reportDate) return period || reportDate;
+  return `Run ${formatted}`;
 }
 
 function buildFallbackBriefing(data: RegionData, totalOpportunities?: number): string {

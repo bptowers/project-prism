@@ -11,7 +11,9 @@ interface Props {
   /** 0–100 average record quality from the validator. */
   dataQualityScore?: number;
   sourceTruncated?: boolean;
-  sourceRowLimit?: number;
+  sourceRowLimit?: number | null;
+  /** Records the validator rejected before analysis. */
+  rejectedCount?: number;
 }
 
 const Dot: React.FC<{ color: string }> = ({ color }) => (
@@ -34,6 +36,7 @@ export const ProcessingFooter: React.FC<Props> = ({
   dataQualityScore,
   sourceTruncated,
   sourceRowLimit,
+  rejectedCount,
 }) => {
   const items: { dot: string; text: string }[] = [];
   if (typeof recordsAnalyzed === 'number') {
@@ -42,6 +45,9 @@ export const ProcessingFooter: React.FC<Props> = ({
   const engine = [provider, model].filter(Boolean).join(' · ');
   if (engine) items.push({ dot: 'var(--prism-blue)', text: engine });
   if (generatedAt) items.push({ dot: 'var(--accent)', text: generatedAt });
+  if (typeof rejectedCount === 'number' && rejectedCount > 0) {
+    items.push({ dot: 'var(--warning)', text: `${rejectedCount.toLocaleString()} record${rejectedCount === 1 ? '' : 's'} rejected by validation` });
+  }
 
   const hasQuality = typeof dataQualityScore === 'number' && Number.isFinite(dataQualityScore);
   const qualityPct = hasQuality ? Math.round(Math.max(0, Math.min(100, dataQualityScore))) : 0;

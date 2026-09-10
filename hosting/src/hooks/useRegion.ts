@@ -169,6 +169,7 @@ export function useRegion() {
       dataQualityScore: typeof quality === 'number' ? quality : undefined,
       sourceTruncated: report.pipelineMeta?.sourceTruncated,
       sourceRowLimit: report.pipelineMeta?.sourceRowLimit,
+      rejectedCount: report.pipelineMeta?.rejectedCount,
     };
   }, [isLive, report]);
 
