@@ -14,6 +14,18 @@ import { OpportunityAnalysis, OpportunityRecord } from "../types.js";
 export type ActivityHealth = OpportunityAnalysis["activityHealth"];
 export type VelocityAssessment = OpportunityAnalysis["velocityAssessment"];
 
+/**
+ * What "days since last activity" was measured from:
+ *  - "activity":   a real lastActivityDate (logged call/email/meeting)
+ *  - "crm-change": no activity date exists, so the last CRM record change
+ *                  (updatedDate) stands in. Absence of a logged activity is
+ *                  not evidence of silence, so thresholds are looser on this
+ *                  basis (dormant only after 14 days, never "active").
+ *                  Also used when no date evidence exists at all — the day
+ *                  counts are then null.
+ */
+export type ActivityBasis = "activity" | "crm-change";
+
 export interface DealMetrics {
   /** Whole days since lastActivityDate; null when the field is absent/unparseable */
   daysSinceLastActivity: number | null;
@@ -22,6 +34,8 @@ export interface DealMetrics {
   /** Whole days since createdDate */
   daysSinceCreated: number | null;
   activityHealth: ActivityHealth;
+  /** Which date `activityHealth` was derived from — see ActivityBasis. */
+  activityBasis: ActivityBasis;
   velocityAssessment: VelocityAssessment;
   isStalled: boolean;
   hasNextStep: boolean;
@@ -60,9 +74,12 @@ export function computeDealMetrics(
 
   // ── activityHealth ─────────────────────────────────────────────────────
   // From lastActivityDate: ≤7 active, 8–14 cooling, 15–30 dormant, >30 dark.
-  // Fallback to Last Modified when activity date is absent, capped at
-  // "cooling" within 14 days — absence of a logged activity is not positive
-  // evidence of silence. "dark" requires >30 days on whichever signal exists.
+  // Fallback to Last Modified (basis "crm-change") when activity date is
+  // absent, capped at "cooling" within 14 days — absence of a logged activity
+  // is not positive evidence of silence, so a deal only reads dormant/ghost
+  // after 14+ days on this basis. "dark" requires >30 days on whichever
+  // signal exists.
+  const activityBasis: ActivityBasis = daysSinceLastActivity !== null ? "activity" : "crm-change";
   let activityHealth: ActivityHealth;
   if (daysSinceLastActivity !== null) {
     activityHealth =
@@ -116,6 +133,7 @@ export function computeDealMetrics(
     daysSinceLastModified,
     daysSinceCreated,
     activityHealth,
+    activityBasis,
     velocityAssessment,
     isStalled: velocityAssessment === "stalled",
     hasNextStep,

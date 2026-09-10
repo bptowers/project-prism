@@ -122,3 +122,29 @@ describe("velocityAssessment", () => {
     expect(computeDealMetrics(r, NOW)).toEqual(computeDealMetrics(r, NOW));
   });
 });
+
+describe("activityBasis", () => {
+  it("is 'activity' when lastActivityDate is present", () => {
+    const m = computeDealMetrics(record({ lastActivityDate: "2026-07-05", updatedDate: "2026-06-01" }), NOW);
+    expect(m.activityBasis).toBe("activity");
+  });
+
+  it("is 'crm-change' when only updatedDate exists (the fallback the LLM must know about)", () => {
+    const m = computeDealMetrics(record({ updatedDate: "2026-07-05" }), NOW);
+    expect(m.activityBasis).toBe("crm-change");
+  });
+
+  it("is 'crm-change' with null days when no date evidence exists at all", () => {
+    const m = computeDealMetrics(record({}), NOW);
+    expect(m.activityBasis).toBe("crm-change");
+    expect(m.daysSinceLastModified).toBeNull();
+  });
+
+  it("under crm-change the dormant threshold is 14 days, not 5", () => {
+    // 5 days since the last CRM change is NOT dormant — that was the miscalibration
+    expect(computeDealMetrics(record({ updatedDate: "2026-07-03" }), NOW).activityHealth).toBe("cooling");
+    // exactly 14 days is still cooling; 15 tips into dormant
+    expect(computeDealMetrics(record({ updatedDate: "2026-06-24" }), NOW).activityHealth).toBe("cooling");
+    expect(computeDealMetrics(record({ updatedDate: "2026-06-23" }), NOW).activityHealth).toBe("dormant");
+  });
+});
