@@ -5,7 +5,7 @@
  * field-map change, the scheduled BigQuery pipeline is likely mapping fields
  * to empty strings in production.
  */
-import { BigQuerySource, BigQueryConfig } from "./bigquerySource";
+import { BigQuerySource, BigQueryConfig, describeFetch } from "./bigquerySource";
 
 const CONFIG: BigQueryConfig = {
   projectId: "test-project",
@@ -129,5 +129,66 @@ describe("BigQuerySource.buildQuery", () => {
     ).buildQuery();
     expect(query).toContain("COALESCE(_fivetran_active, TRUE)");
     expect(query).toContain("is_closed = FALSE");
+  });
+});
+
+describe("BigQuerySource row-cap telemetry", () => {
+  it("describeFetch flags truncation only when the row count hits the limit", () => {
+    expect(describeFetch(300, 300)).toEqual({ truncated: true, rowLimit: 300, rowCount: 300 });
+    expect(describeFetch(299, 300)).toEqual({ truncated: false, rowLimit: 300, rowCount: 299 });
+    expect(describeFetch(0, 300)).toEqual({ truncated: false, rowLimit: 300, rowCount: 0 });
+  });
+
+  it("exposes the effective row limit (default 300, config override)", () => {
+    expect(new BigQuerySource(CONFIG).rowLimit).toBe(300);
+    expect(new BigQuerySource({ ...CONFIG, limit: 50 }).rowLimit).toBe(50);
+  });
+
+  it("fetchRecordsWithMeta reports truncation and warns naming the cap", async () => {
+    const source = new BigQuerySource({ ...CONFIG, limit: 2 });
+    const rows = [productionRow({ id: "A" }), productionRow({ id: "B" })];
+    (source as unknown as { client: unknown }).client = {
+      query: async () => [rows],
+    };
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const result = await source.fetchRecordsWithMeta();
+      expect(result.records.map((r) => r.opportunityId)).toEqual(["A", "B"]);
+      expect(result.truncated).toBe(true);
+      expect(result.rowLimit).toBe(2);
+      expect(result.rowCount).toBe(2);
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/LIMIT 2\b|cap of 2\b|limit of 2\b/));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("fetchRecordsWithMeta does not warn when under the cap", async () => {
+    const source = new BigQuerySource({ ...CONFIG, limit: 5 });
+    (source as unknown as { client: unknown }).client = {
+      query: async () => [[productionRow()]],
+    };
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const result = await source.fetchRecordsWithMeta();
+      expect(result.truncated).toBe(false);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe("BigQuerySource.mapRow pipeline value basis", () => {
+  it("keeps expectedMRR and amount as separate fields", () => {
+    const record = mapRow(productionRow({ expected_mrr_c: 1500, amount: 18000 }));
+    expect(record.expectedMRR).toBe(1500);
+    expect(record.amount).toBe(18000);
+  });
+
+  it("leaves expectedMRR undefined when the column is null", () => {
+    const record = mapRow(productionRow({ expected_mrr_c: null, amount: 18000 }));
+    expect(record.expectedMRR).toBeUndefined();
+    expect(record.amount).toBe(18000);
   });
 });

@@ -23,7 +23,9 @@ describe("parseStrictAnalysis", () => {
   it("parses a valid payload and preserves values", () => {
     const result = parseStrictAnalysis(validPayload(), "OPP-1", "Claude");
     expect(result.dealHealthScore).toBe(62);
-    expect(result.riskSignals?.level).toBe("medium");
+    // level is derived from the score (62 → low); the model's "medium" is kept as llmLevel
+    expect(result.riskSignals?.level).toBe("low");
+    expect(result.riskSignals?.llmLevel).toBe("medium");
     expect(result.recommendedAction?.action).toBe("Book exec alignment call");
     expect(result.opportunityId).toBe("OPP-1");
   });
@@ -61,5 +63,46 @@ describe("parseStrictAnalysis", () => {
   it("collects multiple problems into one error message", () => {
     const p = { ...validPayload(), velocityAssessment: "warp-speed", activityHealth: "lukewarm" };
     expect(() => parseStrictAnalysis(p, "OPP-1", "Claude")).toThrow(/velocityAssessment.*activityHealth/s);
+  });
+});
+
+describe("parseStrictAnalysis — risk level derived from dealHealthScore", () => {
+  const withScore = (dealHealthScore: number, llmLevel = "medium") => ({
+    ...validPayload(),
+    dealHealthScore,
+    riskSignals: { ...validPayload().riskSignals, level: llmLevel },
+  });
+
+  it.each([
+    [0, "high"],
+    [39, "high"],
+    [40, "medium"],
+    [59, "medium"],
+    [60, "low"],
+    [100, "low"],
+  ])("score %i → level %s", (score, expected) => {
+    const result = parseStrictAnalysis(withScore(score), "OPP-1", "Claude");
+    expect(result.riskSignals?.level).toBe(expected);
+  });
+
+  it("derives level from the CLAMPED score", () => {
+    const result = parseStrictAnalysis(withScore(140, "high"), "OPP-1", "Claude");
+    expect(result.dealHealthScore).toBe(100);
+    expect(result.riskSignals?.level).toBe("low");
+  });
+
+  it("overrides the model's level when it disagrees with the score", () => {
+    const result = parseStrictAnalysis(withScore(65, "high"), "OPP-1", "Claude");
+    expect(result.riskSignals?.level).toBe("low");
+  });
+
+  it("preserves the model's own level as llmLevel", () => {
+    const result = parseStrictAnalysis(withScore(65, "high"), "OPP-1", "Claude");
+    expect(result.riskSignals?.llmLevel).toBe("high");
+  });
+
+  it("still rejects an invalid model level", () => {
+    expect(() => parseStrictAnalysis(withScore(65, "catastrophic"), "OPP-1", "Claude"))
+      .toThrow(/riskSignals.level/);
   });
 });

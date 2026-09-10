@@ -13,8 +13,9 @@ import { Storage } from "@google-cloud/storage";
 import { Analyzer } from "./analysis/analyzer.js";
 import { Aggregator } from "./analysis/aggregator.js";
 import { CSVParser, getDefaultSalesforceMapping, getDefaultRegionMapping } from "./pipeline/csvParser.js";
-import { BigQuerySource, getBigQueryConfig } from "./pipeline/bigquerySource.js";
+import { BigQuerySource, FetchTelemetry, getBigQueryConfig } from "./pipeline/bigquerySource.js";
 import { DataValidator } from "./pipeline/validator.js";
+import { buildPipelineMeta, capRejectedRecords } from "./pipeline/pipelineMeta.js";
 import { ReportTransformer } from "./transforms/reportTransformer.js";
 import {
   AggregatedReport,
@@ -94,6 +95,20 @@ function createExecutionContext(jobType: ExecutionContext["jobType"], sourceFile
   };
 }
 
+/** rejectedRecords caps: the report doc is read by the dashboard on every load; the execution doc keeps more. */
+const REPORT_REJECTED_CAP = 100;
+const EXECUTION_REJECTED_CAP = 500;
+
+/**
+ * The /executions/{id} payload. Same as the context except rejectedRecords is
+ * bounded — a broken-header CSV rejects every row and the full list could
+ * push the doc past 1 MiB. pipelineMeta.rejectedCount keeps the true total.
+ */
+function executionDoc(context: ExecutionContext): ExecutionContext {
+  const pipelineMeta = capRejectedRecords(context.pipelineMeta, EXECUTION_REJECTED_CAP);
+  return pipelineMeta === context.pipelineMeta ? context : { ...context, pipelineMeta };
+}
+
 /**
  * Cloud Storage trigger: Processes CSV uploads
  * Function: onCSVUpload
@@ -146,15 +161,15 @@ export const onCSVUpload = onObjectFinalized(
       await db
         .collection("executions")
         .doc(context.executionId)
-        .set(context);
+        .set(executionDoc(context));
       throw error;
     }
   }
 );
 
 /**
- * Scheduled function: Runs weekly analysis
- * Trigger: Every Monday at 6:00 AM UTC
+ * Scheduled function: Runs the BigQuery analysis
+ * Trigger: Every 3 days at 6:00 AM UTC (cron 0 6 star-slash-3 star star — see `schedule` below)
  */
 export const runWeeklyAnalysis = onSchedule(
   { schedule: "0 6 */3 * *", timeZone: "UTC", timeoutSeconds: 1800, memory: "2GiB", secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] },
@@ -166,7 +181,7 @@ export const runWeeklyAnalysis = onSchedule(
       // Fetch records directly from BigQuery
       const bqConfig = getBigQueryConfig();
       const source = new BigQuerySource(bqConfig);
-      const records = await source.fetchRecords();
+      const { records, ...sourceTelemetry } = await source.fetchRecordsWithMeta();
 
       console.log(
         `[${context.executionId}] Fetched ${records.length} records from BigQuery`
@@ -178,11 +193,14 @@ export const runWeeklyAnalysis = onSchedule(
         await db
           .collection("executions")
           .doc(context.executionId)
-          .set(context);
+          .set(executionDoc(context));
         return;
       }
 
-      await processAndStoreReport(records, context, getLLMConfig(), { dataSource: "bigquery" });
+      await processAndStoreReport(records, context, getLLMConfig(), {
+        dataSource: "bigquery",
+        sourceTelemetry,
+      });
     } catch (error) {
       context.status = "failed";
       context.errors.push(`Scheduled analysis error: ${String(error)}`);
@@ -191,7 +209,7 @@ export const runWeeklyAnalysis = onSchedule(
       await db
         .collection("executions")
         .doc(context.executionId)
-        .set(context);
+        .set(executionDoc(context));
       throw error;
     }
   }
@@ -357,7 +375,7 @@ export const fetchFromBigQuery = onRequest(
 
       // Fetch from BigQuery
       const source = new BigQuerySource(bqConfig);
-      const records = await source.fetchRecords();
+      const { records, ...sourceTelemetry } = await source.fetchRecordsWithMeta();
 
       console.log(
         `[${context.executionId}] Fetched ${records.length} records from BigQuery`
@@ -376,7 +394,7 @@ export const fetchFromBigQuery = onRequest(
         records,
         context,
         getLLMConfig(),
-        { dataSource: "bigquery" }
+        { dataSource: "bigquery", sourceTelemetry }
       );
 
       res.status(200).json({
@@ -476,6 +494,15 @@ function trimReportForStorage(report: AggregatedReport): AggregatedReport {
     // Deals are written to the /reports/{date}/deals subcollection instead of
     // being embedded here. Clearing this avoids blowing the 1 MiB document limit.
     region.allActiveDeals = [];
+  }
+
+  // A pathological upload could reject thousands of rows; keep the doc bounded
+  // (rejectedCount keeps the true total; /executions holds a longer list).
+  if (r.pipelineMeta && r.pipelineMeta.rejectedRecords.length > REPORT_REJECTED_CAP) {
+    console.log(
+      `[trimReportForStorage] capping pipelineMeta.rejectedRecords ${r.pipelineMeta.rejectedRecords.length} → ${REPORT_REJECTED_CAP}`
+    );
+    r.pipelineMeta = capRejectedRecords(r.pipelineMeta, REPORT_REJECTED_CAP);
   }
 
   // Cap LLM enrichment payloads — these are unstructured Record<string,unknown>
@@ -622,18 +649,25 @@ async function runAdvancedEnrichment(
 async function runAnalysisPipeline(
   records: OpportunityRecord[],
   context: ExecutionContext,
-  llmConfig: LLMConfig
+  llmConfig: LLMConfig,
+  sourceTelemetry?: FetchTelemetry
 ): Promise<AggregatedReport> {
   const pipelineStartTime = context.startTime.toISOString();
 
-  // Step 1: Validate records
+  // Step 1: Validate records — the ONE validation pass. The analyzer reuses
+  // this report rather than re-validating (it used to run twice).
   console.log(`[${context.executionId}] Running validation...`);
   const validator = new DataValidator(true);
   const validationReport = validator.validateBatch(records);
 
   console.log(
-    `[${context.executionId}] Validation complete: ${validationReport.validRecords}/${validationReport.totalRecords} valid`
+    `[${context.executionId}] Validation complete: ${validationReport.validRecords}/${validationReport.totalRecords} valid, ` +
+    `${validationReport.rejected.length} rejected, ${validationReport.totalPiiIssues} PII issues scrubbed`
   );
+
+  // Provenance: row cap + rejections, recorded on the execution now so it
+  // survives even if a later step fails.
+  context.pipelineMeta = buildPipelineMeta(sourceTelemetry, validationReport);
 
   // Step 2: Create analyzer and run analysis
   console.log(`[${context.executionId}] Initializing analyzer...`);
@@ -641,7 +675,7 @@ async function runAnalysisPipeline(
   const analyzer = await Analyzer.create(llmConfig, undefined, 3, 1000);
 
   console.log(`[${context.executionId}] Running LLM analysis...`);
-  const analyses = await analyzer.analyze(records, context);
+  const analyses = await analyzer.analyze(records, context, { validationReport });
 
   console.log(
     `[${context.executionId}] Analysis complete: ${analyses.length} successful analyses`
@@ -679,8 +713,10 @@ async function runAnalysisPipeline(
     pipelineStartTime,
     analyzer.getProviderInfo().name,
     analyzer.getProviderInfo().model,
-    validationReport.averageQualityScore
+    validationReport.averageQualityScore,
+    validationReport.totalPiiIssues
   );
+  report.pipelineMeta = context.pipelineMeta;
 
   console.log(`[${context.executionId}] Aggregation complete: ${report.reportId}`);
 
@@ -704,11 +740,11 @@ async function processAndStoreReport(
   records: OpportunityRecord[],
   context: ExecutionContext,
   llmConfig: LLMConfig,
-  opts?: { dataSource?: string }
+  opts?: { dataSource?: string; sourceTelemetry?: FetchTelemetry }
 ): Promise<{ report: AggregatedReport; reportDate: string }> {
   const funnelStages = CSVParser.calculateFunnel(records);
 
-  const report = await runAnalysisPipeline(records, context, llmConfig);
+  const report = await runAnalysisPipeline(records, context, llmConfig, opts?.sourceTelemetry);
   report.funnelStages = funnelStages;
 
   // Per-region funnel stages
@@ -801,7 +837,7 @@ async function processAndStoreReport(
   );
 
   context.status = "completed";
-  await db.collection("executions").doc(context.executionId).set(context);
+  await db.collection("executions").doc(context.executionId).set(executionDoc(context));
 
   return { report, reportDate };
 }

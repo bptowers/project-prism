@@ -1,5 +1,5 @@
 import { Aggregator, getEnrichmentJson } from "./aggregator.js";
-import { AggregatedReport, RiskDeal } from "../types.js";
+import { AggregatedReport, OpportunityAnalysis, RiskDeal } from "../types.js";
 import { ILLMProvider, LLMCompletionOutput } from "../llm/provider.js";
 
 function riskDeal(overrides: Partial<RiskDeal> = {}): RiskDeal {
@@ -10,6 +10,7 @@ function riskDeal(overrides: Partial<RiskDeal> = {}): RiskDeal {
     stage: "Validation",
     salesRep: "James Mitchell",
     amount: 1200,
+    pipelineBasis: "mrr",
     probability: 60,
     dealHealthScore: 55,
     activityHealth: "cooling",
@@ -89,7 +90,10 @@ describe("Aggregator.buildGroundedSummary", () => {
     expect(out).toContain("[END_USER_DATA]");
     expect(out).toContain('"deal":"Acme Platform Deal"');
     expect(out).toContain('"rep":"James Mitchell"');
-    expect(out).toContain('"mrr":1200');
+    expect(out).toContain('"pipelineValue":1200');
+    expect(out).toContain('"basis":"mrr"');
+    expect(out).not.toContain('"mrr":');
+    expect(out).toMatch(/pipelineValue is Expected MRR when basis is "mrr"/);
     expect(out).toContain('"daysSinceLastActivity":9');
   });
 
@@ -208,5 +212,60 @@ describe("enrichment phases normalise LLM payload shapes before storing", () => 
     );
     const report = await Aggregator.enrichWithTwentyQuestions(minimalReport(), fakeConfig);
     expect(report.twentyQuestions?.question2).toEqual({ label: "Slip", answer: "…", deals: [] });
+  });
+});
+
+describe("Aggregator.aggregate dataQuality", () => {
+  it("records the PII issue count supplied by the pipeline", () => {
+    const report = Aggregator.aggregate([], "2026-09-10T00:00:00Z", "test", "test-1", 88, 7);
+    expect(report.dataQuality).toEqual({ averageQualityScore: 88, totalPiiIssuesCaught: 7 });
+  });
+});
+
+describe("Aggregator.aggregate pipeline value basis", () => {
+  function analysis(overrides: Partial<OpportunityAnalysis>): OpportunityAnalysis {
+    return {
+      opportunityId: "OPP-1",
+      accountName: "Acme",
+      opportunityName: "Acme Deal",
+      region: "uk",
+      stage: "Validation",
+      winLossStatus: "active",
+      analysisDate: "2026-09-10T00:00:00Z",
+      dealHealthScore: 70,
+      velocityAssessment: "on-track",
+      activityHealth: "active",
+      stakeholderCoverage: "multi-threaded",
+      competitorThreat: "none",
+      riskSignals: { level: "low", signals: [], summary: "" },
+      narrativeGap: { detected: false, description: "" },
+      regionalIntelligence: { matchesRegionalPattern: true, deviation: "" },
+      competitors: { mentioned: [], context: [] },
+      marketSignals: [],
+      sentiment: { score: 0, label: "neutral" },
+      recommendedAction: { priority: "P3", action: "Keep going", owner: "AE", deadline: "This week" },
+      confidence: 0.8,
+      processingTimeMs: 0,
+      ...overrides,
+    };
+  }
+
+  it("marks a deal with expected MRR as mrr-basis and uses MRR as its amount", () => {
+    const report = Aggregator.aggregate(
+      [analysis({ expectedMRR: 1500, amount: 18000 })],
+      "2026-09-10T00:00:00Z", "test", "test-1", 100
+    );
+    const deal = report.regions.uk.allActiveDeals[0];
+    expect(deal.amount).toBe(1500);
+    expect(deal.pipelineBasis).toBe("mrr");
+  });
+
+  it("marks a deal with only a contract amount as amount-basis", () => {
+    const report = Aggregator.aggregate(
+      [analysis({ amount: 18000, dealHealthScore: 30, riskSignals: { level: "high", signals: [], summary: "" } })],
+      "2026-09-10T00:00:00Z", "test", "test-1", 100
+    );
+    expect(report.regions.uk.allActiveDeals[0]).toMatchObject({ amount: 18000, pipelineBasis: "amount" });
+    expect(report.regions.uk.atRiskDeals[0]).toMatchObject({ amount: 18000, pipelineBasis: "amount" });
   });
 });
