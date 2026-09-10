@@ -131,7 +131,10 @@ export interface OpportunityAnalysis {
   stakeholderCoverage: "multi-threaded" | "single-threaded" | "unknown";
   competitorThreat: "none" | "present" | "active-displacement";
   riskSignals: {
+    /** Derived deterministically from dealHealthScore (<40 high, 40-59 medium, >=60 low). */
     level: "high" | "medium" | "low" | "none";
+    /** The model's own risk call, kept for comparison; `level` is the source of truth. */
+    llmLevel?: "high" | "medium" | "low" | "none";
     signals: string[];
     summary: string;
   };

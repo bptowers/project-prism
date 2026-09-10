@@ -121,6 +121,17 @@ export const OPPORTUNITY_ANALYSIS_JSON_SCHEMA = {
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
+/**
+ * Risk level is a deterministic function of the (clamped) health score so the
+ * dashboard's risk banding is consistent across deals and providers. The
+ * model's own call is kept as `llmLevel` for comparison, never as the truth.
+ */
+export function riskLevelFromHealthScore(score: number): "high" | "medium" | "low" {
+  if (score < 40) return "high";
+  if (score < 60) return "medium";
+  return "low";
+}
+
 function oneOf<T extends string>(
   value: unknown,
   allowed: readonly T[],
@@ -163,7 +174,7 @@ export function parseStrictAnalysis(
   const activityHealth = oneOf(p.activityHealth, ACTIVITY_ENUM, "activityHealth", problems);
   const stakeholderCoverage = oneOf(p.stakeholderCoverage, STAKEHOLDER_ENUM, "stakeholderCoverage", problems);
   const competitorThreat = oneOf(p.competitorThreat, COMPETITOR_THREAT_ENUM, "competitorThreat", problems);
-  const riskLevel = oneOf(p.riskSignals?.level, RISK_LEVEL_ENUM, "riskSignals.level", problems);
+  const llmLevel = oneOf(p.riskSignals?.level, RISK_LEVEL_ENUM, "riskSignals.level", problems);
   if (typeof p.riskSignals?.summary !== "string") {
     problems.push("riskSignals.summary: expected string");
   }
@@ -182,15 +193,18 @@ export function parseStrictAnalysis(
     );
   }
 
+  const dealHealthScore = clamp(p.dealHealthScore, 0, 100);
+
   return {
     opportunityId,
-    dealHealthScore: clamp(p.dealHealthScore, 0, 100),
+    dealHealthScore,
     velocityAssessment,
     activityHealth,
     stakeholderCoverage,
     competitorThreat,
     riskSignals: {
-      level: riskLevel,
+      level: riskLevelFromHealthScore(dealHealthScore),
+      llmLevel,
       signals: strArray(p.riskSignals?.signals),
       summary: p.riskSignals.summary,
     },
