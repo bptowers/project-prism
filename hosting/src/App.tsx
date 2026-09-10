@@ -24,6 +24,7 @@ import { UploadModal } from '@/components/dashboard/UploadModal';
 import type { RegionData, RiskDeal } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { regionLabel } from '@/lib/regions';
+import { isDormant, isDark, isMisaligned } from '@/lib/dealClassifiers';
 
 function formatReportDate(reportDate?: string, period?: string): string | undefined {
   if (!reportDate) return period;
@@ -207,10 +208,10 @@ export default function App() {
             <Panel title="Risk by Stage" accent="amber" meta={`${gridRisks.length} deals`}>
               <RiskByStage risks={gridRisks} />
             </Panel>
-            <Panel title="Activity Health" accent="red" meta={`${gridRisks.filter(r => r.daysStalled >= 14).length} dormant`}>
+            <Panel title="Activity Health" accent="red" meta={`${gridRisks.filter(isDormant).length} dormant · ${gridRisks.filter(isDark).length} dark`}>
               <ActivityHealth risks={gridRisks} />
             </Panel>
-            <Panel title="Forecast Integrity" accent="blue" meta={`${gridRisks.filter(r => r.confidence > 60 && (r.healthScore ?? 100) < 40).length} misaligned`}>
+            <Panel title="Forecast Integrity" accent="blue" meta={`${gridRisks.filter(isMisaligned).length} misaligned`}>
               <ForecastIntegrity risks={gridRisks} forecastStat={data.stats.forecast} />
             </Panel>
           </div>

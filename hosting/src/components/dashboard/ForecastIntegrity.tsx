@@ -1,6 +1,7 @@
 import React from 'react';
 import type { RiskDeal, StatData } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
+import { isMisaligned, isUnderivableRate } from '@/lib/dealClassifiers';
 
 interface Props {
   risks: RiskDeal[];
@@ -8,9 +9,8 @@ interface Props {
 }
 
 export const ForecastIntegrity: React.FC<Props> = ({ risks, forecastStat }) => {
-  const misaligned = risks.filter(
-    r => r.confidence > 60 && ((r.healthScore !== undefined && r.healthScore < 40) || r.level === 'HIGH')
-  );
+  const misaligned = risks.filter(isMisaligned);
+  const forecastUnavailable = isUnderivableRate(forecastStat.value);
 
   const misalignedPipelineValue = misaligned.reduce((sum, r) => sum + (r.pipelineValue ?? 0), 0);
 
@@ -58,19 +58,21 @@ export const ForecastIntegrity: React.FC<Props> = ({ risks, forecastStat }) => {
               fontFamily: 'var(--font-display)',
               fontSize: '1.75rem',
               fontWeight: 700,
-              color: 'var(--text-primary)',
+              color: forecastUnavailable ? 'var(--text-muted)' : 'var(--text-primary)',
               lineHeight: 1,
             }}>
-              {forecastStat.value}
+              {forecastUnavailable ? 'n/a' : forecastStat.value}
             </span>
-            <span style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.75rem',
-              color: dirColor,
-              fontWeight: 600,
-            }}>
-              {dirArrow} {forecastStat.change}
-            </span>
+            {!forecastUnavailable && (
+              <span style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.75rem',
+                color: dirColor,
+                fontWeight: 600,
+              }}>
+                {dirArrow} {forecastStat.change}
+              </span>
+            )}
           </div>
           <div style={{
             fontFamily: 'var(--font-mono)',
@@ -78,7 +80,7 @@ export const ForecastIntegrity: React.FC<Props> = ({ risks, forecastStat }) => {
             color: 'var(--text-muted)',
             marginTop: 2,
           }}>
-            {forecastStat.sub}
+            {forecastUnavailable ? 'no closed deals in source' : forecastStat.sub}
           </div>
         </div>
 
