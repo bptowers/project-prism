@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { ref, uploadBytes } from 'firebase/storage';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { storage, db } from '@/lib/firebase';
+import { parseCsvPreview } from '@/lib/csvPreview';
 
 type UploadState = 'idle' | 'parsing' | 'uploading' | 'analyzing' | 'complete' | 'error';
 
@@ -13,34 +14,52 @@ interface FilePreview {
   regions: string[];
 }
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export function useUpload() {
   const [state, setState] = useState<UploadState>('idle');
   const [preview, setPreview] = useState<FilePreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [provider, setProvider] = useState<'claude' | 'gemini' | 'openai'>('claude');
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  // The Firestore listener that detects the new report. Held in a ref so
+  // reset() and unmount can always tear it down.
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+
+  const stopListening = useCallback(() => {
+    unsubscribeRef.current?.();
+    unsubscribeRef.current = null;
+  }, []);
+
+  useEffect(() => stopListening, [stopListening]);
+
+  // Elapsed-time ticker while an upload or analysis is in flight. This is a
+  // clock, not a progress bar — only the report listener may declare success.
+  useEffect(() => {
+    if (startedAt === null || (state !== 'uploading' && state !== 'analyzing')) return;
+    const tick = () => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [startedAt, state]);
 
   const parseFile = useCallback((file: File) => {
     setState('parsing');
     const reader = new FileReader();
     reader.onload = (e) => {
-      const text = e.target?.result as string;
-      const lines = text.trim().split('\n');
-      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-      const rowCount = lines.length - 1;
-
-      const regionCol = headers.findIndex(h => /region/i.test(h));
-      const regions: string[] = [];
-      if (regionCol >= 0) {
-        const uniq = new Set<string>();
-        lines.slice(1).forEach(line => {
-          const cols = line.split(',');
-          if (cols[regionCol]) uniq.add(cols[regionCol].replace(/^"|"$/g, '').trim());
-        });
-        regions.push(...uniq);
+      try {
+        const text = e.target?.result as string;
+        const summary = parseCsvPreview(text);
+        setPreview({ name: file.name, size: file.size, ...summary });
+        setState('idle');
+      } catch (err) {
+        setError(errorMessage(err));
+        setState('error');
       }
-
-      setPreview({ name: file.name, size: file.size, rows: rowCount, columns: headers, regions });
-      setState('idle');
     };
     reader.onerror = () => {
       setError('Failed to read file');
@@ -50,54 +69,60 @@ export function useUpload() {
   }, []);
 
   const uploadAndAnalyze = useCallback(async (file: File) => {
+    const started = Date.now();
+    setError(null);
+    setStartedAt(started);
+    setState('uploading');
+
     try {
-      setState('uploading');
-      const timestamp = Date.now();
-      const storageRef = ref(storage, `uploads/${timestamp}_${file.name}`);
+      const storageRef = ref(storage, `uploads/${started}_${file.name}`);
       // Pass the selected provider as Storage metadata so the Cloud Function
       // can use it instead of the default LLM_PROVIDER environment variable.
       await uploadBytes(storageRef, file, { customMetadata: { provider } });
-
-      setState('analyzing');
-
-      // Listen for a new report to appear in Firestore (triggered by Cloud Function)
-      const reportQuery = query(
-        collection(db, 'reports'),
-        orderBy('reportDate', 'desc'),
-        limit(1)
-      );
-
-      const timeout = setTimeout(() => {
-        // After 120s, assume completion (Cloud Function may have finished)
-        setState('complete');
-      }, 120_000);
-
-      const unsubscribe = onSnapshot(reportQuery, (snapshot) => {
-        if (!snapshot.empty) {
-          const doc = snapshot.docs[0];
-          const data = doc.data();
-          // Check if this report was created after our upload
-          if (data.createdAt && data.createdAt.toDate() > new Date(timestamp)) {
-            clearTimeout(timeout);
-            unsubscribe();
-            setState('complete');
-          }
-        }
-      });
-
     } catch (err) {
-      console.info('Storage not configured yet — simulating upload.');
-      setState('analyzing');
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      setState('complete');
+      setError(errorMessage(err));
+      setState('error');
+      return;
     }
-  }, [provider]);
+
+    setState('analyzing');
+
+    // Listen for a new report to appear in Firestore (written by the Cloud
+    // Function). Completion is only ever declared from here.
+    const reportQuery = query(
+      collection(db, 'reports'),
+      orderBy('reportDate', 'desc'),
+      limit(1)
+    );
+
+    stopListening();
+    unsubscribeRef.current = onSnapshot(
+      reportQuery,
+      (snapshot) => {
+        if (snapshot.empty) return;
+        const data = snapshot.docs[0].data() as { createdAt?: { toDate?: () => Date } };
+        const createdAt = typeof data.createdAt?.toDate === 'function' ? data.createdAt.toDate() : null;
+        if (createdAt && createdAt.getTime() > started) {
+          stopListening();
+          setState('complete');
+        }
+      },
+      (err) => {
+        stopListening();
+        setError(errorMessage(err));
+        setState('error');
+      }
+    );
+  }, [provider, stopListening]);
 
   const reset = useCallback(() => {
+    stopListening();
     setState('idle');
     setPreview(null);
     setError(null);
-  }, []);
+    setStartedAt(null);
+    setElapsedSeconds(0);
+  }, [stopListening]);
 
-  return { state, preview, error, provider, setProvider, parseFile, uploadAndAnalyze, reset };
+  return { state, preview, error, provider, setProvider, parseFile, uploadAndAnalyze, reset, elapsedSeconds };
 }

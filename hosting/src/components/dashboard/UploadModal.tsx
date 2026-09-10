@@ -25,6 +25,13 @@ const THEME = {
 
 const PRISM_GRADIENT = 'linear-gradient(to right, var(--prism-blue), var(--prism-green), var(--prism-amber), var(--prism-red))';
 
+function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}m ${s.toString().padStart(2, '0')}s`;
+}
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -32,7 +39,7 @@ function formatBytes(bytes: number): string {
 }
 
 export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => {
-  const { state, preview, error, provider, setProvider, parseFile, uploadAndAnalyze, reset } = useUpload();
+  const { state, preview, error, provider, setProvider, parseFile, uploadAndAnalyze, reset, elapsedSeconds } = useUpload();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -293,6 +300,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
                       style={{ display: 'inline-block', width: 32, height: 32, border: `3px solid ${THEME.border}`, borderTopColor: THEME.accent, borderRadius: '50%', marginBottom: 16 }}
                     />
                     <div style={{ fontSize: '0.9rem', color: THEME.textPrimary }}>Uploading to Firebase Storage...</div>
+                    <div style={{ fontSize: '0.7rem', color: THEME.textMuted, marginTop: 8, fontFamily: 'var(--font-mono)' }}>
+                      Elapsed: {formatElapsed(elapsedSeconds)}
+                    </div>
                     <div style={{ height: 4, background: THEME.bgElevated, borderRadius: 4, overflow: 'hidden', marginTop: 16 }}>
                       <motion.div
                         animate={{ x: ['-100%', '100%'] }}
@@ -321,8 +331,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
                     <div style={{ fontSize: '0.8rem', color: THEME.textMuted, marginTop: 8 }}>
                       Using <strong style={{ color: THEME.accent }}>{providerLabel}</strong>
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: THEME.textMuted, marginTop: 12 }}>
-                      Estimated: 15-30 seconds
+                    <div style={{ fontSize: '0.7rem', color: THEME.textMuted, marginTop: 12, fontFamily: 'var(--font-mono)' }}>
+                      Elapsed: {formatElapsed(elapsedSeconds)}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: THEME.textMuted, marginTop: 6 }}>
+                      A full run can take several minutes. This dialog updates when the new report is written.
                     </div>
                   </div>
                 )}
@@ -350,7 +363,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
                         backgroundColor: THEME.bgElevated, borderRadius: 6, padding: 12, marginBottom: 20,
                         fontSize: '0.8rem', color: THEME.textSecondary,
                       }}>
-                        <div><strong>{preview.rows.toLocaleString()}</strong> opportunities processed</div>
+                        <div><strong>{preview.rows.toLocaleString()}</strong> rows uploaded</div>
                         {preview.regions.length > 0 && (
                           <div style={{ marginTop: 4 }}>Regions: {preview.regions.join(', ')}</div>
                         )}
