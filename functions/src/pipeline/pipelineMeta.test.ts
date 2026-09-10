@@ -1,4 +1,4 @@
-import { buildPipelineMeta } from "./pipelineMeta";
+import { buildPipelineMeta, capRejectedRecords } from "./pipelineMeta";
 import { ValidationReport } from "../types";
 
 function validation(overrides: Partial<ValidationReport> = {}): ValidationReport {
@@ -25,6 +25,7 @@ describe("buildPipelineMeta", () => {
       sourceTruncated: true,
       sourceRowLimit: 300,
       sourceRowCount: 300,
+      rejectedCount: 1,
       rejectedRecords: [{ opportunityId: "OPP-9", reasons: ["Missing stage"] }],
     });
   });
@@ -35,7 +36,36 @@ describe("buildPipelineMeta", () => {
       sourceTruncated: false,
       sourceRowLimit: null,
       sourceRowCount: 42,
+      rejectedCount: 0,
       rejectedRecords: [],
     });
+  });
+
+  it("rejectedCount equals the full rejection list length", () => {
+    const rejected = Array.from({ length: 7 }, (_, i) => ({ opportunityId: `OPP-${i}`, reasons: ["Missing stage"] }));
+    const meta = buildPipelineMeta(undefined, validation({ rejected }));
+    expect(meta.rejectedCount).toBe(7);
+    expect(meta.rejectedRecords).toHaveLength(7);
+  });
+});
+
+describe("capRejectedRecords", () => {
+  const rejected = Array.from({ length: 5 }, (_, i) => ({ opportunityId: `OPP-${i}`, reasons: ["Missing stage"] }));
+  const meta = buildPipelineMeta(undefined, validation({ rejected }));
+
+  it("truncates the list but keeps rejectedCount as the true total", () => {
+    const capped = capRejectedRecords(meta, 2)!;
+    expect(capped.rejectedRecords.map((r) => r.opportunityId)).toEqual(["OPP-0", "OPP-1"]);
+    expect(capped.rejectedCount).toBe(5);
+  });
+
+  it("returns the input unchanged when under the cap and never mutates it", () => {
+    expect(capRejectedRecords(meta, 10)).toBe(meta);
+    capRejectedRecords(meta, 2);
+    expect(meta.rejectedRecords).toHaveLength(5);
+  });
+
+  it("passes undefined through for runs that never reached validation", () => {
+    expect(capRejectedRecords(undefined, 2)).toBeUndefined();
   });
 });

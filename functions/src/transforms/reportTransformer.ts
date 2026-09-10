@@ -10,6 +10,7 @@ import {
   RiskDeal,
   ThemeCount,
 } from "../types.js";
+import type { PipelineBasis } from "../util/pipelineValue.js";
 
 /**
  * Days-stalled shown on the dashboard. Uses the real computed
@@ -67,7 +68,7 @@ interface FrontendRiskDeal {
   /** expectedMRR when the deal has one, else contract Amount — see pipelineBasis */
   pipelineValue: number;
   /** "mrr" | "amount"; undefined on reports written before the field existed */
-  pipelineBasis?: "mrr" | "amount";
+  pipelineBasis?: PipelineBasis;
   healthScore: number;
   confidence: number;
   summary: string;
@@ -116,6 +117,11 @@ interface RegionData {
   recommendations: Recommendation[];
   trendData: TrendData;
 }
+
+/** Same ranking the aggregator applies to atRiskDeals (high first). */
+const RISK_LEVEL_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+/** Aggregator.extractAndRankThemes default limit. */
+const THEME_LIMIT = 8;
 
 const FUNNEL_COLORS = [
   "var(--prism-blue)",
@@ -184,9 +190,13 @@ export class ReportTransformer {
       losses,
       active: sum((r) => r.active),
       winRate: wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) / 100 : 0,
-      topWinThemes: this.mergeThemes(reports.map((r) => r.topWinThemes), totalOpportunities),
-      topLossThemes: this.mergeThemes(reports.map((r) => r.topLossThemes), totalOpportunities),
-      atRiskDeals: reports.flatMap((r) => r.atRiskDeals),
+      // Same denominators as Aggregator.generateRegionReport: win themes are a
+      // share of wins, loss themes a share of losses.
+      topWinThemes: this.mergeThemes(reports.map((r) => r.topWinThemes), wins),
+      topLossThemes: this.mergeThemes(reports.map((r) => r.topLossThemes), losses),
+      atRiskDeals: reports
+        .flatMap((r) => r.atRiskDeals)
+        .sort((a, b) => RISK_LEVEL_ORDER[a.riskLevel] - RISK_LEVEL_ORDER[b.riskLevel]),
       allActiveDeals: reports.flatMap((r) => r.allActiveDeals ?? []),
       competitorActivity: this.mergeCompetitors(reports.map((r) => r.competitorActivity)),
       marketSignals: [...new Set(reports.flatMap((r) => r.marketSignals))],
@@ -198,7 +208,8 @@ export class ReportTransformer {
     };
   }
 
-  private static mergeThemes(lists: ThemeCount[][], totalOpportunities: number): ThemeCount[] {
+  /** Mirrors Aggregator.extractAndRankThemes: % of `denominator`, top 8 by count. */
+  private static mergeThemes(lists: ThemeCount[][], denominator: number): ThemeCount[] {
     const byTheme: Record<string, ThemeCount> = {};
     for (const t of lists.flat()) {
       const cur = byTheme[t.theme];
@@ -212,9 +223,10 @@ export class ReportTransformer {
     return Object.values(byTheme)
       .map((t) => ({
         ...t,
-        percentage: totalOpportunities > 0 ? Math.round((t.count / totalOpportunities) * 100) : 0,
+        percentage: denominator > 0 ? Math.round((t.count / denominator) * 100) : 0,
       }))
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => b.count - a.count)
+      .slice(0, THEME_LIMIT);
   }
 
   private static mergeCompetitors(lists: CompetitorActivity[][]): CompetitorActivity[] {

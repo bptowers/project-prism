@@ -95,3 +95,23 @@ describe("Analyzer.analyze validation pass", () => {
     }
   });
 });
+
+describe("Analyzer.analyze validation report alignment guard", () => {
+  it("re-validates when the supplied report was built for a different record set", async () => {
+    const provider = new RecordingProvider();
+    const analyzer = new Analyzer(provider, 2, 0, 0);
+    const records = [record(), record({ opportunityId: "OPP-2", stage: "" })];
+    // Report built for a single record — indexes would not line up with `records`
+    const stale = new DataValidator().validateBatch([record()]);
+    const validateSpy = jest.spyOn(DataValidator.prototype, "validateBatch");
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      await analyzer.analyze(records, context(), { validationReport: stale });
+      expect(validateSpy).toHaveBeenCalledTimes(1);
+      expect(provider.seen).toEqual(["OPP-1"]); // OPP-2 (no stage) rejected by the fresh pass
+    } finally {
+      validateSpy.mockRestore();
+      warn.mockRestore();
+    }
+  });
+});

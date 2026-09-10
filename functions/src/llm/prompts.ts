@@ -11,7 +11,7 @@
  * UK | AU | NZ | North America
  */
 
-import { computeDealMetrics } from "../analysis/dealMetrics.js";
+import { STALL_DAYS, computeDealMetrics } from "../analysis/dealMetrics.js";
 import { pipelineBasis, pipelineValue } from "../util/pipelineValue.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -425,7 +425,7 @@ ANALYSIS FRAMEWORK
    - Price Anchor Damage: Discount already offered without documented value discussion first.
 
    TIER 3 — PROCESS RISKS (important but recoverable with correct actions):
-   - Cycle Stall: In current stage 14+ days without documented progress.
+   - Cycle Stall: In current stage ${STALL_DAYS}+ days without documented progress.
    - Missing Required Fields: Key fields empty for current stage.
    - Next Step Absent: No documented next step = deal is drifting.
    - Partner Misalignment: Partner pricing or messaging conflicts with direct positioning.

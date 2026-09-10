@@ -26,6 +26,13 @@ export type VelocityAssessment = OpportunityAnalysis["velocityAssessment"];
  */
 export type ActivityBasis = "activity" | "crm-change";
 
+/**
+ * Days in stage (Last Modified proxy) beyond which velocity reads "stalled".
+ * Shared with the COMPREHENSIVE_ANALYSIS_PROMPT "Cycle Stall" signal so the
+ * computed metric and the prompt's wording can never disagree.
+ */
+export const STALL_DAYS = 14;
+
 export interface DealMetrics {
   /** Whole days since lastActivityDate; null when the field is absent/unparseable */
   daysSinceLastActivity: number | null;
@@ -97,7 +104,7 @@ export function computeDealMetrics(
 
   // ── velocityAssessment ─────────────────────────────────────────────────
   // Stage age proxies from Last Modified (2–3 day/stage benchmark, 14-day cycle):
-  //   stalled:      >8 days in stage, OR confirmed activity silence >14 days
+  //   stalled:      >STALL_DAYS in stage, OR confirmed activity silence >14 days
   //   accelerating: <2 days in stage, next step defined, activity within 3 days
   //   on-track:     ≤4 days in stage with a next step
   //   slowing:      everything else, INCLUDING a missing next step on its own —
@@ -112,7 +119,7 @@ export function computeDealMetrics(
 
   let velocityAssessment: VelocityAssessment;
   if (
-    (stageAgeDays !== null && stageAgeDays > 8) ||
+    (stageAgeDays !== null && stageAgeDays > STALL_DAYS) ||
     (daysSinceLastActivity !== null && daysSinceLastActivity > 14)
   ) {
     velocityAssessment = "stalled";

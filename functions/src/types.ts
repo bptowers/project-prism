@@ -6,6 +6,8 @@
 /**
  * Represents a raw opportunity record from Salesforce CSV export
  */
+import type { PipelineBasis } from "./util/pipelineValue.js";
+
 export interface OpportunityRecord {
   opportunityId: string;
   accountName: string;
@@ -80,6 +82,9 @@ export interface PipelineMeta {
   sourceRowLimit: number | null;
   /** Rows received from the source before validation. */
   sourceRowCount: number;
+  /** Total records rejected — survives capping of rejectedRecords on stored docs. */
+  rejectedCount: number;
+  /** May be capped when stored (100 on the report doc, 500 on the execution doc). */
   rejectedRecords: RejectedRecord[];
 }
 
@@ -106,7 +111,7 @@ export interface RiskDeal {
   /** Pipeline value: expectedMRR when present, else Amount — see pipelineBasis. */
   amount?: number;
   /** Which source field `amount` came from ("mrr" = Expected MRR, "amount" = contract Amount). */
-  pipelineBasis?: "mrr" | "amount";
+  pipelineBasis?: PipelineBasis;
   probability?: number;
   dealHealthScore: number;
   activityHealth: "active" | "cooling" | "dormant" | "dark";

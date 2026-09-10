@@ -22,8 +22,8 @@ export interface FetchResult extends FetchTelemetry {
 }
 
 /**
- * Pure helper: a result set that fills the LIMIT exactly almost certainly
- * means more rows exist upstream, so treat rowCount === rowLimit as truncated.
+ * Pure helper: a result set that fills the LIMIT (rowCount >= rowLimit)
+ * almost certainly means more rows exist upstream, so report it as truncated.
  */
 export function describeFetch(rowCount: number, rowLimit: number): FetchTelemetry {
   return { truncated: rowCount >= rowLimit, rowLimit, rowCount };

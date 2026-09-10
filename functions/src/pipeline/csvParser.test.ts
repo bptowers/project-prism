@@ -30,7 +30,7 @@ describe("CSVParser.parse header handling", () => {
   const parser = () => new CSVParser(getDefaultSalesforceMapping(), getDefaultRegionMapping());
 
   it("strips a UTF-8 BOM so the first header column is recognised", () => {
-    const csv = "﻿Opportunity_ID,Account_Name,Opportunity_Name,Stage\nOPP-1,Acme,Acme Deal,Discovery\n";
+    const csv = "\uFEFFOpportunity_ID,Account_Name,Opportunity_Name,Stage\nOPP-1,Acme,Acme Deal,Discovery\n";
     const [rec] = parser().parse(csv);
     expect(rec.opportunityId).toBe("OPP-1");
   });

@@ -15,7 +15,7 @@ import { Aggregator } from "./analysis/aggregator.js";
 import { CSVParser, getDefaultSalesforceMapping, getDefaultRegionMapping } from "./pipeline/csvParser.js";
 import { BigQuerySource, FetchTelemetry, getBigQueryConfig } from "./pipeline/bigquerySource.js";
 import { DataValidator } from "./pipeline/validator.js";
-import { buildPipelineMeta } from "./pipeline/pipelineMeta.js";
+import { buildPipelineMeta, capRejectedRecords } from "./pipeline/pipelineMeta.js";
 import { ReportTransformer } from "./transforms/reportTransformer.js";
 import {
   AggregatedReport,
@@ -95,6 +95,20 @@ function createExecutionContext(jobType: ExecutionContext["jobType"], sourceFile
   };
 }
 
+/** rejectedRecords caps: the report doc is read by the dashboard on every load; the execution doc keeps more. */
+const REPORT_REJECTED_CAP = 100;
+const EXECUTION_REJECTED_CAP = 500;
+
+/**
+ * The /executions/{id} payload. Same as the context except rejectedRecords is
+ * bounded — a broken-header CSV rejects every row and the full list could
+ * push the doc past 1 MiB. pipelineMeta.rejectedCount keeps the true total.
+ */
+function executionDoc(context: ExecutionContext): ExecutionContext {
+  const pipelineMeta = capRejectedRecords(context.pipelineMeta, EXECUTION_REJECTED_CAP);
+  return pipelineMeta === context.pipelineMeta ? context : { ...context, pipelineMeta };
+}
+
 /**
  * Cloud Storage trigger: Processes CSV uploads
  * Function: onCSVUpload
@@ -147,7 +161,7 @@ export const onCSVUpload = onObjectFinalized(
       await db
         .collection("executions")
         .doc(context.executionId)
-        .set(context);
+        .set(executionDoc(context));
       throw error;
     }
   }
@@ -179,7 +193,7 @@ export const runWeeklyAnalysis = onSchedule(
         await db
           .collection("executions")
           .doc(context.executionId)
-          .set(context);
+          .set(executionDoc(context));
         return;
       }
 
@@ -195,7 +209,7 @@ export const runWeeklyAnalysis = onSchedule(
       await db
         .collection("executions")
         .doc(context.executionId)
-        .set(context);
+        .set(executionDoc(context));
       throw error;
     }
   }
@@ -482,12 +496,13 @@ function trimReportForStorage(report: AggregatedReport): AggregatedReport {
     region.allActiveDeals = [];
   }
 
-  // A pathological upload could reject thousands of rows; keep the doc bounded.
-  if (r.pipelineMeta && r.pipelineMeta.rejectedRecords.length > 100) {
+  // A pathological upload could reject thousands of rows; keep the doc bounded
+  // (rejectedCount keeps the true total; /executions holds a longer list).
+  if (r.pipelineMeta && r.pipelineMeta.rejectedRecords.length > REPORT_REJECTED_CAP) {
     console.log(
-      `[trimReportForStorage] capping pipelineMeta.rejectedRecords ${r.pipelineMeta.rejectedRecords.length} → 100 (full list is on /executions)`
+      `[trimReportForStorage] capping pipelineMeta.rejectedRecords ${r.pipelineMeta.rejectedRecords.length} → ${REPORT_REJECTED_CAP}`
     );
-    r.pipelineMeta.rejectedRecords = r.pipelineMeta.rejectedRecords.slice(0, 100);
+    r.pipelineMeta = capRejectedRecords(r.pipelineMeta, REPORT_REJECTED_CAP);
   }
 
   // Cap LLM enrichment payloads — these are unstructured Record<string,unknown>
@@ -822,7 +837,7 @@ async function processAndStoreReport(
   );
 
   context.status = "completed";
-  await db.collection("executions").doc(context.executionId).set(context);
+  await db.collection("executions").doc(context.executionId).set(executionDoc(context));
 
   return { report, reportDate };
 }

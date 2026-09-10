@@ -191,3 +191,40 @@ describe("ReportTransformer pipeline value basis", () => {
     expect(out.uk.risks[0].pipelineBasis).toBeUndefined();
   });
 });
+
+describe("ReportTransformer.mergeRegionReports themes and ordering", () => {
+  const theme = (t: string, count: number) => ({ theme: t, count, examples: [`${t}-ex`], percentage: 0 });
+
+  it("recomputes win-theme % over wins and loss-theme % over losses, like the aggregator", () => {
+    const a = regionReport("au", {
+      totalOpportunities: 10, wins: 4, losses: 2, active: 4,
+      topWinThemes: [theme("Champion", 2)],
+      topLossThemes: [theme("Price", 1)],
+    });
+    const b = regionReport("nz", {
+      totalOpportunities: 10, wins: 1, losses: 3, active: 6,
+      topWinThemes: [theme("Champion", 1)],
+      topLossThemes: [theme("Price", 2), theme("Timing", 1)],
+    });
+    const merged = ReportTransformer.mergeRegionReports("au", [a, b]);
+    // 3 of 5 wins = 60%, not 3 of 20 opportunities = 15%
+    expect(merged.topWinThemes).toEqual([{ theme: "Champion", count: 3, examples: ["Champion-ex"], percentage: 60 }]);
+    // 3 of 5 losses = 60%; 1 of 5 = 20%
+    expect(merged.topLossThemes.map((t) => [t.theme, t.percentage])).toEqual([["Price", 60], ["Timing", 20]]);
+  });
+
+  it("keeps the aggregator's 8-theme limit after merging", () => {
+    const a = regionReport("au", { wins: 20, topWinThemes: Array.from({ length: 6 }, (_, i) => theme(`A${i}`, 6 - i)) });
+    const b = regionReport("nz", { wins: 20, topWinThemes: Array.from({ length: 6 }, (_, i) => theme(`B${i}`, 6 - i)) });
+    const merged = ReportTransformer.mergeRegionReports("au", [a, b]);
+    expect(merged.topWinThemes).toHaveLength(8);
+    expect(merged.topWinThemes[0].count).toBe(6);
+  });
+
+  it("re-sorts merged at-risk deals high-first", () => {
+    const a = regionReport("au", { atRiskDeals: [riskDeal({ opportunityId: "AU-med", riskLevel: "medium" })] });
+    const b = regionReport("nz", { atRiskDeals: [riskDeal({ opportunityId: "NZ-high", riskLevel: "high" })] });
+    const merged = ReportTransformer.mergeRegionReports("au", [a, b]);
+    expect(merged.atRiskDeals.map((d) => d.opportunityId)).toEqual(["NZ-high", "AU-med"]);
+  });
+});

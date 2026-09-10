@@ -94,8 +94,16 @@ export class Analyzer {
         `[${executionContext.executionId}] Starting analysis of ${records.length} records`
       );
 
-      // Step 1: Validate records (or reuse the pipeline's single pass)
+      // Step 1: Validate records (or reuse the pipeline's single pass). The
+      // supplied report is filtered by index, so it must cover exactly these
+      // records; if it does not, re-validate rather than misalign.
       let validationReport = opts?.validationReport;
+      if (validationReport && validationReport.totalRecords !== records.length) {
+        console.warn(
+          `[${executionContext.executionId}] Supplied validation report covers ${validationReport.totalRecords} records but ${records.length} were passed — re-validating`
+        );
+        validationReport = undefined;
+      }
       if (!validationReport) {
         console.log(`[${executionContext.executionId}] Validating records...`);
         validationReport = this.validator.validateBatch(records);

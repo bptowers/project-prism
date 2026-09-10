@@ -1,4 +1,4 @@
-import { computeDealMetrics, daysBetween } from "./dealMetrics.js";
+import { STALL_DAYS, computeDealMetrics, daysBetween } from "./dealMetrics.js";
 import { OpportunityRecord } from "../types.js";
 
 const NOW = new Date("2026-07-08T12:00:00Z");
@@ -74,17 +74,25 @@ describe("velocityAssessment", () => {
     expect(m.velocityAssessment).toBe("on-track");
   });
 
-  it("slowing: stage age 4-8 days even with a next step", () => {
-    const m = computeDealMetrics(
-      record({ updatedDate: "2026-07-02", lastActivityDate: "2026-07-02", nextStep: "Follow up" }),
-      NOW
-    );
-    expect(m.velocityAssessment).toBe("slowing");
+  it("slowing: stage age 5-14 days even with a next step (not yet a stall)", () => {
+    // 6 days
+    expect(computeDealMetrics(
+      record({ updatedDate: "2026-07-02", lastActivityDate: "2026-07-02", nextStep: "Follow up" }), NOW
+    ).velocityAssessment).toBe("slowing");
+    // 13 days — used to read "stalled" under the old 8-day proxy
+    expect(computeDealMetrics(
+      record({ updatedDate: "2026-06-25", lastActivityDate: "2026-07-06", nextStep: "Follow up" }), NOW
+    ).velocityAssessment).toBe("slowing");
+    // exactly STALL_DAYS is still slowing
+    expect(computeDealMetrics(
+      record({ updatedDate: "2026-06-24", lastActivityDate: "2026-07-06", nextStep: "Follow up" }), NOW
+    ).velocityAssessment).toBe("slowing");
   });
 
-  it("stalled: stage age over 8 days", () => {
+  it("stalled: stage age over STALL_DAYS (14), matching the prompt's Cycle Stall", () => {
+    expect(STALL_DAYS).toBe(14);
     const m = computeDealMetrics(
-      record({ updatedDate: "2026-06-25", lastActivityDate: "2026-06-25", nextStep: "Follow up" }),
+      record({ updatedDate: "2026-06-23", lastActivityDate: "2026-07-06", nextStep: "Follow up" }),
       NOW
     );
     expect(m.velocityAssessment).toBe("stalled");

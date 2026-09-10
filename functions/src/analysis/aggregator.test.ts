@@ -10,6 +10,7 @@ function riskDeal(overrides: Partial<RiskDeal> = {}): RiskDeal {
     stage: "Validation",
     salesRep: "James Mitchell",
     amount: 1200,
+    pipelineBasis: "mrr",
     probability: 60,
     dealHealthScore: 55,
     activityHealth: "cooling",
@@ -89,7 +90,10 @@ describe("Aggregator.buildGroundedSummary", () => {
     expect(out).toContain("[END_USER_DATA]");
     expect(out).toContain('"deal":"Acme Platform Deal"');
     expect(out).toContain('"rep":"James Mitchell"');
-    expect(out).toContain('"mrr":1200');
+    expect(out).toContain('"pipelineValue":1200');
+    expect(out).toContain('"basis":"mrr"');
+    expect(out).not.toContain('"mrr":');
+    expect(out).toMatch(/pipelineValue is Expected MRR when basis is "mrr"/);
     expect(out).toContain('"daysSinceLastActivity":9');
   });
 

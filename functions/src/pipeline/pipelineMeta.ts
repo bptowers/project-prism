@@ -20,6 +20,21 @@ export function buildPipelineMeta(
     sourceTruncated: source?.truncated ?? false,
     sourceRowLimit: source?.rowLimit ?? null,
     sourceRowCount: source?.rowCount ?? validation.totalRecords,
+    rejectedCount: validation.rejected.length,
     rejectedRecords: validation.rejected,
   };
+}
+
+/**
+ * Bounds rejectedRecords before a Firestore write. A CSV with a broken header
+ * rejects every row, and thousands of entries would push a document past the
+ * 1 MiB limit. rejectedCount keeps the true total. Returns the same object
+ * when nothing needs capping; never mutates the input.
+ */
+export function capRejectedRecords(
+  meta: PipelineMeta | undefined,
+  maxEntries: number
+): PipelineMeta | undefined {
+  if (!meta || meta.rejectedRecords.length <= maxEntries) return meta;
+  return { ...meta, rejectedRecords: meta.rejectedRecords.slice(0, maxEntries) };
 }
