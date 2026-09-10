@@ -57,7 +57,30 @@ export interface ValidationReport {
   averageQualityScore: number;
   totalPiiIssues: number;
   recordValidations: RecordValidation[];
+  /** Records dropped by validation, with the reasons — never silently discarded. */
+  rejected: RejectedRecord[];
   timestamp: Date;
+}
+
+/** A record the validator refused to pass on to analysis. */
+export interface RejectedRecord {
+  opportunityId: string;
+  reasons: string[];
+}
+
+/**
+ * Where the records came from and what happened to them before analysis.
+ * Written to both /executions/{id} and the top level of /reports/{date} so
+ * the dashboard can show "300 of ? rows (capped)" and "1 record rejected".
+ */
+export interface PipelineMeta {
+  /** True when the source returned exactly its row cap — more rows likely exist. */
+  sourceTruncated: boolean;
+  /** The source's row cap, or null for uncapped sources such as CSV uploads. */
+  sourceRowLimit: number | null;
+  /** Rows received from the source before validation. */
+  sourceRowCount: number;
+  rejectedRecords: RejectedRecord[];
 }
 
 /**
@@ -230,6 +253,7 @@ export interface AggregatedReport {
     averageQualityScore: number;
     totalPiiIssuesCaught: number;
   };
+  pipelineMeta?: PipelineMeta;
   executiveBriefing?: string;
   recommendations?: Array<{
     priority: "P1" | "P2" | "P3";
@@ -365,4 +389,5 @@ export interface ExecutionContext {
   tokenUsage: { input: number; output: number };
   /** Rough USD estimate from tokenUsage — approximate, for observability only. */
   estimatedCostUsd?: number;
+  pipelineMeta?: PipelineMeta;
 }

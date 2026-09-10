@@ -77,7 +77,8 @@ export class Aggregator {
     processingStartTime: string,
     analysisProvider: string,
     analysisModel: string,
-    dataQualityScore: number
+    dataQualityScore: number,
+    totalPiiIssuesCaught: number = 0
   ): AggregatedReport {
     const reportDate = new Date().toISOString();
     const reportId = `report_${Date.now()}`;
@@ -107,7 +108,7 @@ export class Aggregator {
       global,
       dataQuality: {
         averageQualityScore: dataQualityScore,
-        totalPiiIssuesCaught: 0, // Set by pipeline
+        totalPiiIssuesCaught,
       },
     };
   }

@@ -210,3 +210,10 @@ describe("enrichment phases normalise LLM payload shapes before storing", () => 
     expect(report.twentyQuestions?.question2).toEqual({ label: "Slip", answer: "…", deals: [] });
   });
 });
+
+describe("Aggregator.aggregate dataQuality", () => {
+  it("records the PII issue count supplied by the pipeline", () => {
+    const report = Aggregator.aggregate([], "2026-09-10T00:00:00Z", "test", "test-1", 88, 7);
+    expect(report.dataQuality).toEqual({ averageQualityScore: 88, totalPiiIssuesCaught: 7 });
+  });
+});

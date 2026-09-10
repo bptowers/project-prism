@@ -6,6 +6,29 @@
 import { BigQuery, BigQueryOptions } from "@google-cloud/bigquery";
 import { OpportunityRecord } from "../types.js";
 
+/** Default LIMIT applied to the BigQuery pull when config.limit is unset. */
+export const DEFAULT_ROW_LIMIT = 300;
+
+/** Telemetry about a single fetch, independent of the mapped records. */
+export interface FetchTelemetry {
+  /** True when the query returned exactly `rowLimit` rows — the cap was hit. */
+  truncated: boolean;
+  rowLimit: number;
+  rowCount: number;
+}
+
+export interface FetchResult extends FetchTelemetry {
+  records: OpportunityRecord[];
+}
+
+/**
+ * Pure helper: a result set that fills the LIMIT exactly almost certainly
+ * means more rows exist upstream, so treat rowCount === rowLimit as truncated.
+ */
+export function describeFetch(rowCount: number, rowLimit: number): FetchTelemetry {
+  return { truncated: rowCount >= rowLimit, rowLimit, rowCount };
+}
+
 /**
  * Configuration for BigQuery data source
  */
@@ -159,10 +182,25 @@ export class BigQuerySource {
     this.fieldMap = fieldMap || DEFAULT_BQ_FIELD_MAP;
   }
 
+  /** Effective LIMIT for this source (config override or DEFAULT_ROW_LIMIT). */
+  get rowLimit(): number {
+    return this.config.limit ?? DEFAULT_ROW_LIMIT;
+  }
+
   /**
-   * Fetches opportunity records from BigQuery
+   * Fetches opportunity records from BigQuery. Kept for callers that only
+   * want records; prefer fetchRecordsWithMeta() so the row cap is observable.
    */
   async fetchRecords(): Promise<OpportunityRecord[]> {
+    return (await this.fetchRecordsWithMeta()).records;
+  }
+
+  /**
+   * Fetches opportunity records plus telemetry about whether the query's
+   * LIMIT was hit. A silently-capped pull looks identical to a complete one
+   * downstream, so the cap must be surfaced here.
+   */
+  async fetchRecordsWithMeta(): Promise<FetchResult> {
     const { query, params } = this.buildQuery();
     console.log(
       `[BigQuerySource] Executing query against ${this.config.dataset}.${this.config.table}`
@@ -176,6 +214,14 @@ export class BigQuerySource {
 
     console.log(`[BigQuerySource] Fetched ${rows.length} rows from BigQuery`);
 
+    const telemetry = describeFetch(rows.length, this.rowLimit);
+    if (telemetry.truncated) {
+      console.warn(
+        `[BigQuerySource] Result set hit the query cap of ${telemetry.rowLimit} rows (LIMIT ${telemetry.rowLimit}) — ` +
+        `more open opportunities likely exist upstream. Raise BigQueryConfig.limit to include them.`
+      );
+    }
+
     if (rows.length > 0) {
       console.log(`[BigQuerySource] Columns found: ${Object.keys(rows[0]).join(", ")}`);
 
@@ -188,7 +234,10 @@ export class BigQuerySource {
       console.log(`[BigQuerySource] Region distribution: ${JSON.stringify(regionCounts)}`);
     }
 
-    return rows.map((row: Record<string, unknown>) => this.mapRow(row));
+    return {
+      ...telemetry,
+      records: rows.map((row: Record<string, unknown>) => this.mapRow(row)),
+    };
   }
 
   /**
@@ -202,7 +251,7 @@ export class BigQuerySource {
     const orderCol = orderCandidates[0];
     const closeDateCandidates = this.fieldMap["closedDate"] || ["close_date"];
     const closeDateCol = closeDateCandidates[0];
-    const limit = this.config.limit ?? 300;
+    const limit = this.rowLimit;
 
     // _fivetran_active guards against Fivetran history mode ever retaining
     // superseded row versions (currently all rows are active, but the columns
