@@ -6,12 +6,22 @@ import type { FunnelStage } from '@/lib/types';
 interface Props { stages: FunnelStage[]; }
 
 export const PipelineFunnel: React.FC<Props> = ({ stages }) => {
-  const maxCount = Math.max(...stages.map(s => s.count));
+  // Math.max() of an empty list is -Infinity, which turns every bar height into NaN.
+  const maxCount = Math.max(1, ...stages.map(s => s.count));
   return (
     <motion.div variants={itemVariants} style={{ marginBottom: '2rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem' }}>Pipeline Stage Progression</span>
       </div>
+      {stages.length === 0 && (
+        <div style={{
+          padding: '0.85rem 1rem', border: '1px dashed var(--border)', borderRadius: 8, background: 'var(--bg-elevated)',
+          fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)',
+        }}>
+          No stage data in this report.
+        </div>
+      )}
+      {stages.length > 0 && (
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '1.5rem', overflowX: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', minWidth: 900 }}>
           {stages.map((stage, idx) => {
@@ -46,6 +56,7 @@ export const PipelineFunnel: React.FC<Props> = ({ stages }) => {
           })}
         </div>
       </div>
+      )}
     </motion.div>
   );
 };

@@ -14,8 +14,9 @@ import type {
 } from '@/lib/types';
 import { asArray } from '@/lib/guards';
 import { formatDate } from '@/lib/format';
+import { NotGeneratedPanel } from '@/components/dashboard/NotGeneratedPanel';
 
-interface Props { data?: TwentyQuestionsData; }
+interface Props { data?: TwentyQuestionsData; isLive?: boolean; }
 
 // All ten CRO questions the backend answers (see TWENTY_QUESTIONS_PROMPT).
 // Previously only question1–7 were listed here, so questions 8–10 never
@@ -269,18 +270,20 @@ function hasDetail(q: TQQuestion): boolean {
   );
 }
 
-export const TwentyQuestions: React.FC<Props> = ({ data }) => {
+export const TwentyQuestions: React.FC<Props> = ({ data, isLive }) => {
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  if (!data) return null;
-
   const questions: { key: string; question: TQQuestion }[] = [];
-  for (const key of QUESTION_KEYS) {
-    const question = data[key];
-    if (question) questions.push({ key, question });
+  if (data) {
+    for (const key of QUESTION_KEYS) {
+      const question = data[key];
+      if (question) questions.push({ key, question });
+    }
   }
 
-  if (questions.length === 0) return null;
+  if (questions.length === 0) {
+    return isLive ? <NotGeneratedPanel title="CRO Intelligence" /> : null;
+  }
 
   return (
     <motion.div variants={itemVariants} style={{ marginBottom: '2rem' }}>

@@ -15,8 +15,18 @@ export const Recommendations: React.FC<Props> = ({ items }) => (
   <motion.div variants={itemVariants} style={{ marginBottom: '2rem' }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
       <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem' }}>AI Recommended Actions</span>
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Prioritized by revenue impact</span>
+      {items.length > 0 && (
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Prioritized by revenue impact</span>
+      )}
     </div>
+    {items.length === 0 && (
+      <div style={{
+        padding: '0.85rem 1rem', border: '1px dashed var(--border)', borderRadius: 8, background: 'var(--bg-elevated)',
+        fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)',
+      }}>
+        No recommendations were generated for this run.
+      </div>
+    )}
     <div style={{ display: 'grid', gap: '0.75rem' }}>
       {items.map((r, i) => (
         <div key={i} style={{

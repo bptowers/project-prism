@@ -13,4 +13,16 @@ describe('PipelineFunnel', () => {
     expect(screen.getByText('Pipeline Stage Progression')).toBeInTheDocument();
     expect(screen.queryByText(/Avg\. cycle/)).not.toBeInTheDocument();
   });
+
+  it('renders an empty-state line and does not throw when there are no stages', () => {
+    render(<PipelineFunnel stages={[]} />);
+    expect(screen.getByText('Pipeline Stage Progression')).toBeInTheDocument();
+    expect(screen.getByText('No stage data in this report.')).toBeInTheDocument();
+  });
+
+  it('renders stage counts when present', () => {
+    render(<PipelineFunnel stages={stages} />);
+    expect(screen.getByText('Discovery')).toBeInTheDocument();
+    expect(screen.getByText('10')).toBeInTheDocument();
+  });
 });

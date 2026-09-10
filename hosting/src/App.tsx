@@ -133,7 +133,20 @@ export default function App() {
         </span>
       </div>
 
-      {!showingContent && (
+      {loading && !showingContent && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          padding: '6rem 2rem',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.85rem',
+          color: 'var(--text-muted)',
+        }}>
+          Loading…
+        </div>
+      )}
+
+      {!loading && !showingContent && (
         <div style={{
           display: 'flex',
           flexDirection: 'column',
@@ -227,13 +240,13 @@ export default function App() {
           <Recommendations items={data.recommendations} />
         </ErrorBoundary>
         <ErrorBoundary section="CRO Intelligence">
-          <TwentyQuestions data={twentyQuestions} />
+          <TwentyQuestions data={twentyQuestions} isLive={isLive} />
         </ErrorBoundary>
         <ErrorBoundary section="Competitive Displacement">
-          <CompetitiveDisplacement data={competitiveDisplacement} />
+          <CompetitiveDisplacement data={competitiveDisplacement} isLive={isLive} />
         </ErrorBoundary>
         <ErrorBoundary section="Delta Intelligence">
-          <DeltaIntelligence data={deltaIntelligence} />
+          <DeltaIntelligence data={deltaIntelligence} isLive={isLive} />
         </ErrorBoundary>
         <ErrorBoundary section="Processing Footer">
           <ProcessingFooter {...reportMeta} />
