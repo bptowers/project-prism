@@ -22,6 +22,7 @@ import { Panel } from '@/components/ui/Panel';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { UploadModal } from '@/components/dashboard/UploadModal';
 import type { RegionData, RiskDeal } from '@/lib/types';
+import { formatCurrency } from '@/lib/format';
 
 function formatReportDate(reportDate?: string, period?: string): string | undefined {
   if (!reportDate) return period;
@@ -73,7 +74,6 @@ export default function App() {
     if (!radarFiltered) return data.stats;
     const risks = activeRisks;
     if (!risks.length) return data.stats;
-    const fmt = (n: number) => n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `$${Math.round(n / 1_000)}K` : `$${Math.round(n)}`;
     const totalPipeline = risks.reduce((sum, r) => sum + (r.pipelineValue || 0), 0);
     const withScore = risks.filter(r => typeof r.healthScore === 'number');
     const avgScore = withScore.length ? Math.round(withScore.reduce((sum, r) => sum + (r.healthScore ?? 0), 0) / withScore.length) : null;
@@ -85,7 +85,7 @@ export default function App() {
       : null;
     return {
       ...data.stats,
-      pipeline: { value: fmt(totalPipeline), change: `${risks.length} deals`, dir: 'flat' as const, sub: 'Active pipeline value' },
+      pipeline: { value: formatCurrency(totalPipeline), change: `${risks.length} deals`, dir: 'flat' as const, sub: 'Active pipeline value' },
       avgHealthScore: { value: avgScore !== null ? `${avgScore}` : '—', change: avgScore !== null ? (avgScore >= 70 ? 'Healthy' : avgScore >= 40 ? 'Caution' : 'At Risk') : '—', dir: (avgScore !== null ? (avgScore >= 70 ? 'up' : 'down') : 'flat') as 'up' | 'down' | 'flat', sub: 'avg deal health score' },
       atRisk: { value: `${atRiskCount}`, change: `${highCount} high`, dir: highCount > 0 ? 'down' as const : 'flat' as const, sub: `${atRiskCount} deals flagged` },
       dealsAtRisk: { value: `${atRiskPct}%`, change: `${atRiskCount} deals`, dir: atRiskPct > 50 ? 'up' as const : 'flat' as const, sub: 'HIGH or MEDIUM risk' },

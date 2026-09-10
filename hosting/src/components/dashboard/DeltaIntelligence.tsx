@@ -4,6 +4,7 @@ import { itemVariants, cardHover } from '@/theme/animations';
 import { Badge } from '@/components/ui/Badge';
 import type { DeltaIntelligenceData, DeltaDeal, EarlyWarning } from '@/lib/types';
 import { asArray, isRecord } from '@/lib/guards';
+import { formatDate } from '@/lib/format';
 
 interface Props { data?: DeltaIntelligenceData; }
 
@@ -56,7 +57,7 @@ export const DeltaIntelligence: React.FC<Props> = ({ data }) => {
         </h3>
         {data.comparedTo && (
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-            vs {data.comparedTo}{data.daysBetween ? ` (${data.daysBetween}d)` : ''}
+            vs {formatDate(data.comparedTo)}{data.daysBetween ? ` (${data.daysBetween}d)` : ''}
           </span>
         )}
       </div>

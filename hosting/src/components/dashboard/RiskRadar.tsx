@@ -3,6 +3,9 @@ import { Badge } from '@/components/ui/Badge';
 import type { RiskDeal } from '@/lib/types';
 import { DealDetailModal } from '@/components/dashboard/DealDetailModal';
 import { useDealReviews } from '@/hooks/useDealReviews';
+import { formatCurrency, normalizeStage, isLateStage, STAGE_ORDER } from '@/lib/format';
+import { regionLabel, REGION_LABEL_ORDER } from '@/lib/regions';
+import { dimensionSignals, RISK_DIMENSION_LABELS } from '@/lib/riskSignals';
 
 interface Props {
   risks: RiskDeal[];
@@ -16,46 +19,12 @@ type ActiveFilters = Record<FilterGroup, string[]>;
 type RiskDimension = { label: string; value: number; pipeline: number };
 
 const MAX_DEALS = 12;
-const STAGE_ORDER = ['Discovery', 'Qualification', 'Solution', 'Proposal', 'Negotiation', 'Commit', 'Contract Review', 'Approved'];
 
 const bandColor: Record<RiskBand, string> = {
   Green: 'var(--success)',
   Yellow: 'var(--warning)',
   Red: 'var(--error)',
 };
-
-function normalizeStage(stage?: string): string {
-  if (!stage) return 'Unknown';
-  const lower = stage.toLowerCase();
-  const match = STAGE_ORDER.find(s => lower.includes(s.toLowerCase()));
-  if (lower.includes('signature') || lower.includes('commit')) return 'Commit';
-  if (lower.includes('contract')) return 'Contract Review';
-  if (lower.includes('draft')) return 'Proposal';
-  if (lower.includes('approved')) return 'Approved';
-  return match || stage;
-}
-
-function isLateStage(stage?: string): boolean {
-  const normalized = normalizeStage(stage);
-  return ['Proposal', 'Negotiation', 'Commit', 'Contract Review', 'Approved'].includes(normalized);
-}
-
-function regionLabel(region?: string): string {
-  const lower = (region || '').toLowerCase().trim();
-  if (
-    lower === 'na' || lower === 'us' || lower === 'usd' || lower === 'cad' || lower === 'namer' ||
-    lower.includes('north america')
-  ) return 'North America';
-  if (
-    lower === 'uk' || lower === 'gb' || lower === 'gbp' || lower === 'eu' || lower === 'eur' ||
-    lower.includes('united kingdom') || lower.includes('britain') || lower.includes('emea')
-  ) return 'UK';
-  if (
-    lower === 'au' || lower === 'aud' || lower === 'aus' || lower === 'nz' || lower === 'nzd' ||
-    lower === 'anz' || lower.includes('australia') || lower.includes('new zealand') || lower.includes('apac')
-  ) return 'ANZ';
-  return region || 'Unknown';
-}
 
 function riskScore(risk: RiskDeal): number {
   if (typeof risk.healthScore === 'number') return Math.max(0, Math.min(100, 100 - risk.healthScore));
@@ -98,13 +67,6 @@ function weightedValue(risk: RiskDeal): number {
   return value > 0 ? value : 1;
 }
 
-function formatCurrency(value: number): string {
-  if (value <= 0) return '$0';
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${Math.round(value / 1_000)}K`;
-  return `$${Math.round(value)}`;
-}
-
 function percent(value: number, total: number): number {
   if (!total) return 0;
   return Math.round((value / total) * 100);
@@ -124,40 +86,8 @@ function classifySignal(text: string): string {
   return 'Process hygiene';
 }
 
-function dimensionSignals(risk: RiskDeal): string[] {
-  const lower = `${risk.summary} ${risk.action}`.toLowerCase();
-  const signals: string[] = [];
-
-  if (lower.includes('ghost') || lower.includes('dark') || lower.includes('activity') || lower.includes('engagement') || lower.includes('no response')) {
-    signals.push('Engagement');
-  }
-  if (lower.includes('stalled') || lower.includes('stage') || lower.includes('velocity') || lower.includes('close date') || risk.daysStalled >= 4) {
-    signals.push('Velocity');
-  }
-  if (lower.includes('forecast') || lower.includes('probability') || lower.includes('commit') || lower.includes('fiction')) {
-    signals.push('Forecast');
-  }
-  if (lower.includes('stakeholder') || lower.includes('champion') || lower.includes('economic buyer') || lower.includes('committee') || lower.includes('single')) {
-    signals.push('Stakeholders');
-  }
-  if (lower.includes('competitor') || lower.includes('competitive') || lower.includes('fud') || lower.includes('poc')) {
-    signals.push('Competition');
-  }
-  if (lower.includes('pricing') || lower.includes('budget') || lower.includes('cost') || lower.includes('commercial')) {
-    signals.push('Commercial');
-  }
-  if (lower.includes('qualification') || lower.includes('missing') || lower.includes('no next') || lower.includes('hygiene') || lower.includes('review')) {
-    signals.push('Process');
-  }
-  if (isLateStage(risk.stage)) {
-    signals.push('Late Stage');
-  }
-
-  return signals.length ? signals : ['Process'];
-}
-
 function buildRiskDimensions(risks: RiskDeal[]): RiskDimension[] {
-  const labels = ['Engagement', 'Velocity', 'Forecast', 'Stakeholders', 'Competition', 'Commercial', 'Process', 'Late Stage'];
+  const labels = RISK_DIMENSION_LABELS;
   const totals = labels.reduce<Record<string, RiskDimension>>((acc, label) => {
     acc[label] = { label, value: 0, pipeline: 0 };
     return acc;
@@ -670,9 +600,8 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
     });
     const stages = STAGE_ORDER.filter(stage => stageSet.has(stage));
     const extraStages = [...stageSet].filter(stage => !STAGE_ORDER.includes(stage)).sort();
-    const regionOrder = ['North America', 'UK', 'ANZ'];
-    const regions = regionOrder.filter(region => regionSet.has(region));
-    const extraRegions = [...regionSet].filter(region => !regionOrder.includes(region)).sort();
+    const regions = REGION_LABEL_ORDER.filter(region => regionSet.has(region));
+    const extraRegions = [...regionSet].filter(region => !REGION_LABEL_ORDER.includes(region)).sort();
     return {
       stages: [...stages, ...extraStages],
       reps: [...repSet].sort(),

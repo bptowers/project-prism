@@ -13,6 +13,7 @@ import type {
   TQGapDeal,
 } from '@/lib/types';
 import { asArray } from '@/lib/guards';
+import { formatDate } from '@/lib/format';
 
 interface Props { data?: TwentyQuestionsData; }
 
@@ -125,7 +126,7 @@ function QuestionDetail({ qKey, question }: { qKey: string; question: TQQuestion
               { header: 'Rep', cell: (d) => d.rep },
               { header: 'Region', cell: (d) => regionCell(d.region) },
               { header: 'MRR', align: 'right', cell: (d) => mrrCell(d.mrr) },
-              { header: 'Close Date', cell: (d) => d.currentCloseDate || '—' },
+              { header: 'Close Date', cell: (d) => formatDate(d.currentCloseDate) || '—' },
               { header: 'Signal', cell: (d) => d.slippageSignal || '—' },
               { header: 'Likely Cause', cell: (d) => d.likelyCause || '—' },
             ]}
@@ -241,7 +242,7 @@ function QuestionDetail({ qKey, question }: { qKey: string; question: TQQuestion
               { header: 'Health', align: 'right', cell: (d) => d.healthScore ?? '—' },
               { header: 'Urgency', cell: (d) => d.urgencySignal || '—' },
               { header: 'CRO Action', cell: (d) => d.croAction || '—' },
-              { header: 'By', cell: (d) => (d.deadline ? <Badge variant="high">{d.deadline}</Badge> : '—') },
+              { header: 'By', cell: (d) => (d.deadline ? <Badge variant="high">{formatDate(d.deadline)}</Badge> : '—') },
             ]}
             rows={question.deals}
           />

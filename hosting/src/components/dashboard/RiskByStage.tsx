@@ -1,30 +1,9 @@
 import React from 'react';
 import type { RiskDeal } from '@/lib/types';
+import { normalizeStage, STAGE_ORDER } from '@/lib/format';
 
 interface Props {
   risks: RiskDeal[];
-}
-
-const STAGE_ORDER = [
-  'Discovery',
-  'Qualification',
-  'Solution',
-  'Proposal',
-  'Negotiation',
-  'Commit',
-  'Contract Review',
-  'Approved',
-];
-
-function normalizeStage(stage?: string): string {
-  if (!stage) return 'Unknown';
-  const lower = stage.toLowerCase();
-  if (lower.includes('signature') || lower.includes('commit')) return 'Commit';
-  if (lower.includes('contract')) return 'Contract Review';
-  if (lower.includes('draft')) return 'Proposal';
-  if (lower.includes('approved')) return 'Approved';
-  const match = STAGE_ORDER.find(s => lower.includes(s.toLowerCase()));
-  return match || stage;
 }
 
 export const RiskByStage: React.FC<Props> = ({ risks }) => {

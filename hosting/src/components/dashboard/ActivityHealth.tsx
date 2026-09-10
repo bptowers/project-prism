@@ -1,15 +1,9 @@
 import React from 'react';
 import type { RiskDeal } from '@/lib/types';
+import { formatCurrency } from '@/lib/format';
 
 interface Props {
   risks: RiskDeal[];
-}
-
-function formatCurrency(value: number): string {
-  if (value <= 0) return '$0';
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${Math.round(value / 1_000)}K`;
-  return `$${Math.round(value)}`;
 }
 
 interface Bucket {

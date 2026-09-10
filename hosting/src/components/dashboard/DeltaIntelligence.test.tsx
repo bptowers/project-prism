@@ -27,4 +27,10 @@ describe('DeltaIntelligence with malformed payload', () => {
     expect(screen.getByText('Acme')).toBeInTheDocument();
     expect(screen.queryByText(/Early Warnings/)).not.toBeInTheDocument();
   });
+
+  it('renders the comparison date unambiguously rather than as raw ISO', () => {
+    render(<DeltaIntelligence data={malformed} />);
+    expect(screen.getByText(/vs 7 Sep 2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/2026-09-07/)).not.toBeInTheDocument();
+  });
 });
