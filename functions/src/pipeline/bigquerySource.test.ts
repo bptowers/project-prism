@@ -178,3 +178,17 @@ describe("BigQuerySource row-cap telemetry", () => {
     }
   });
 });
+
+describe("BigQuerySource.mapRow pipeline value basis", () => {
+  it("keeps expectedMRR and amount as separate fields", () => {
+    const record = mapRow(productionRow({ expected_mrr_c: 1500, amount: 18000 }));
+    expect(record.expectedMRR).toBe(1500);
+    expect(record.amount).toBe(18000);
+  });
+
+  it("leaves expectedMRR undefined when the column is null", () => {
+    const record = mapRow(productionRow({ expected_mrr_c: null, amount: 18000 }));
+    expect(record.expectedMRR).toBeUndefined();
+    expect(record.amount).toBe(18000);
+  });
+});

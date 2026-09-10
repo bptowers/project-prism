@@ -64,7 +64,10 @@ interface FrontendRiskDeal {
   region: string;
   level: "HIGH" | "MEDIUM" | "LOW";
   value: string;
+  /** expectedMRR when the deal has one, else contract Amount — see pipelineBasis */
   pipelineValue: number;
+  /** "mrr" | "amount"; undefined on reports written before the field existed */
+  pipelineBasis?: "mrr" | "amount";
   healthScore: number;
   confidence: number;
   summary: string;
@@ -335,6 +338,7 @@ export class ReportTransformer {
           level: deal.riskLevel.toUpperCase() as "HIGH" | "MEDIUM" | "LOW",
           value: deal.opportunityName || deal.opportunityId || "—",
           pipelineValue: deal.amount || 0,
+          pipelineBasis: deal.pipelineBasis,
           healthScore: deal.dealHealthScore,
           confidence: deal.probability ?? 50,
           summary: deal.summary,
@@ -474,6 +478,7 @@ export class ReportTransformer {
       level: d.riskLevel.toUpperCase() as "HIGH" | "MEDIUM" | "LOW",
       value: d.opportunityName || d.opportunityId || "—",
       pipelineValue: d.amount || 0,
+      pipelineBasis: d.pipelineBasis,
       healthScore: d.dealHealthScore,
       confidence: d.probability ?? 50,
       summary: d.summary,

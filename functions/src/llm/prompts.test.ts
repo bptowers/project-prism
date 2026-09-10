@@ -90,3 +90,25 @@ describe("COMPREHENSIVE_ANALYSIS_PROMPT risk-signal calibration", () => {
     expect(COMPREHENSIVE_ANALYSIS_PROMPT).not.toMatch(/Cycle Stall: In current stage 5\+ days/);
   });
 });
+
+describe("formatOpportunityForPrompt pipeline value", () => {
+  const base = {
+    opportunityId: "006X",
+    accountName: "Acme",
+    opportunityName: "Acme Deal",
+    stage: "Validation",
+    winLossStatus: "active",
+    notes: "",
+  };
+
+  it("shows expected MRR as the MRR figure when present", () => {
+    const out = formatOpportunityForPrompt({ ...base, expectedMRR: 1500, amount: 18000 });
+    expect(out).toMatch(/MRR: \$1,500 MRR/);
+    expect(out).not.toMatch(/\$18,000 MRR/);
+  });
+
+  it("falls back to amount and says so when no MRR exists", () => {
+    const out = formatOpportunityForPrompt({ ...base, amount: 18000 });
+    expect(out).toMatch(/MRR: \$18,000 MRR \(from Amount/);
+  });
+});

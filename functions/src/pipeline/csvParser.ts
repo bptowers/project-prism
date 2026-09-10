@@ -5,6 +5,7 @@
 
 import { parse } from "csv-parse/sync";
 import { FieldMapping, OpportunityRecord, RegionMapping } from "../types.js";
+import { pipelineValue } from "../util/pipelineValue.js";
 
 /**
  * CSV Parser for Salesforce exports
@@ -532,7 +533,7 @@ export class CSVParser {
         stageMap[stage] = { count: 0, revenue: 0 };
       }
       stageMap[stage].count++;
-      stageMap[stage].revenue += record.amount || 0;
+      stageMap[stage].revenue += pipelineValue(record) || 0;
     }
 
     return Object.entries(stageMap)

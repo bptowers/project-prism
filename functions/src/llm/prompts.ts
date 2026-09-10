@@ -12,6 +12,7 @@
  */
 
 import { computeDealMetrics } from "../analysis/dealMetrics.js";
+import { pipelineBasis, pipelineValue } from "../util/pipelineValue.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REGIONAL MARKET INTELLIGENCE
@@ -1352,6 +1353,7 @@ export function formatOpportunityForPrompt(data: {
   opportunityName: string;
   stage: string;
   amount?: number;
+  expectedMRR?: number;
   winLossStatus: string;
   notes: string;
   dealReviewNotes?: string;
@@ -1372,7 +1374,12 @@ export function formatOpportunityForPrompt(data: {
   productLine?: string;
 }): string {
   const na = "\u2014";
-  const amt = data.amount ? `$${data.amount.toLocaleString()} MRR` : na;
+  // MRR figure: Expected MRR when present; otherwise the contract Amount stands
+  // in and the model is told so, since the prompt's thresholds are in MRR.
+  const value = pipelineValue(data);
+  const amt = value != null
+    ? `$${value.toLocaleString()} MRR${pipelineBasis(data) === "amount" ? " (from Amount — no Expected MRR recorded)" : ""}`
+    : na;
   const prob = data.probability != null ? `${data.probability}%` : na;
   const forecast = data.forecastCategory || na;
 

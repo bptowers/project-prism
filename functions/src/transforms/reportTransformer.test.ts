@@ -168,3 +168,26 @@ describe("ReportTransformer AU/NZ merge", () => {
     expect(out.uk.stats.pipeline.value).toBe("5 opps");
   });
 });
+
+describe("ReportTransformer pipeline value basis", () => {
+  it("carries pipelineBasis through to the frontend deal record", () => {
+    const out = ReportTransformer.transform(
+      report({
+        UK: regionReport("UK", {
+          allActiveDeals: [
+            riskDeal({ opportunityId: "M", amount: 1500, pipelineBasis: "mrr" }),
+            riskDeal({ opportunityId: "A", amount: 18000, pipelineBasis: "amount" }),
+          ],
+        }),
+      })
+    );
+    const byId = Object.fromEntries(out.uk.risks.map((d) => [d.opportunityId, d]));
+    expect(byId.M).toMatchObject({ pipelineValue: 1500, pipelineBasis: "mrr" });
+    expect(byId.A).toMatchObject({ pipelineValue: 18000, pipelineBasis: "amount" });
+  });
+
+  it("leaves pipelineBasis undefined for legacy deals that never recorded it", () => {
+    const out = ReportTransformer.transform(report({ UK: regionReport("UK") }));
+    expect(out.uk.risks[0].pipelineBasis).toBeUndefined();
+  });
+});

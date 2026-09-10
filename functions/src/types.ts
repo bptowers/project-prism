@@ -103,7 +103,10 @@ export interface RiskDeal {
   stage: string;
   salesRep?: string;
   segment?: string;
+  /** Pipeline value: expectedMRR when present, else Amount — see pipelineBasis. */
   amount?: number;
+  /** Which source field `amount` came from ("mrr" = Expected MRR, "amount" = contract Amount). */
+  pipelineBasis?: "mrr" | "amount";
   probability?: number;
   dealHealthScore: number;
   activityHealth: "active" | "cooling" | "dormant" | "dark";

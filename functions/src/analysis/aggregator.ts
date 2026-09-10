@@ -13,6 +13,7 @@ import {
   RiskDeal,
   ThemeCount,
 } from "../types.js";
+import { pipelineBasis, pipelineValue } from "../util/pipelineValue.js";
 import { ILLMProvider, LLMProviderFactory } from "../llm/provider.js";
 import {
   PORTFOLIO_AGGREGATION_PROMPT,
@@ -304,7 +305,8 @@ export class Aggregator {
           stage: deal.stage,
           salesRep: deal.salesRep,
           segment: deal.dealType,
-          amount: deal.expectedMRR ?? deal.amount,
+          amount: pipelineValue(deal),
+          pipelineBasis: pipelineBasis(deal),
           probability: deal.probability,
           dealHealthScore: deal.dealHealthScore,
           activityHealth: deal.activityHealth,
@@ -342,7 +344,8 @@ export class Aggregator {
         stage: deal.stage,
         salesRep: deal.salesRep,
         segment: deal.dealType,
-        amount: deal.expectedMRR ?? deal.amount,
+        amount: pipelineValue(deal),
+        pipelineBasis: pipelineBasis(deal),
         probability: deal.probability,
         dealHealthScore: deal.dealHealthScore,
         activityHealth: deal.activityHealth,

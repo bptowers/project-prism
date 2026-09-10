@@ -340,9 +340,11 @@ export class BigQuerySource {
     const stage = this.getString(row, "stage");
     const winLossStatus = this.deriveWinLossStatus(stage, row);
 
-    // Revenue: prefer Expected MRR over Amount (per Simpro data spec)
+    // Revenue: Expected MRR and Amount (total contract value) are different
+    // quantities, so both are kept. Consumers that want the blended
+    // "pipeline value" use util/pipelineValue.ts (MRR preferred, Amount fallback).
     const expectedMRR = this.getNumber(row, "expectedMRR");
-    const amount = expectedMRR ?? this.getNumber(row, "amount");
+    const amount = this.getNumber(row, "amount");
 
     const record: OpportunityRecord = {
       opportunityId: this.getString(row, "opportunityId"),
