@@ -23,6 +23,7 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { UploadModal } from '@/components/dashboard/UploadModal';
 import type { RegionData, RiskDeal } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
+import { regionLabel } from '@/lib/regions';
 
 function formatReportDate(reportDate?: string, period?: string): string | undefined {
   if (!reportDate) return period;
@@ -37,7 +38,8 @@ function buildFallbackBriefing(data: RegionData, totalOpportunities?: number): s
   const high = flagged.filter(r => r.level === 'HIGH').length;
   const medium = flagged.filter(r => r.level === 'MEDIUM').length;
   const regions = flagged.reduce<Record<string, number>>((acc, r) => {
-    acc[r.region || 'Unknown'] = (acc[r.region || 'Unknown'] || 0) + 1;
+    const label = regionLabel(r.region);
+    acc[label] = (acc[label] || 0) + 1;
     return acc;
   }, {});
   const topRegion = Object.entries(regions).sort((a, b) => b[1] - a[1])[0];
@@ -52,7 +54,7 @@ function buildFallbackBriefing(data: RegionData, totalOpportunities?: number): s
 }
 
 export default function App() {
-  const { region, data, allData, selectRegion, loading, isLive, showingContent, executiveBriefing, totalOpportunities, reportPeriod, reportDate, regionCounts, twentyQuestions, competitiveDisplacement, deltaIntelligence } = useRegion();
+  const { region, data, allData, selectRegion, loading, isLive, showingContent, executiveBriefing, totalOpportunities, reportPeriod, reportDate, regionCounts, dealsError, twentyQuestions, competitiveDisplacement, deltaIntelligence } = useRegion();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [activeRisks, setActiveRisks] = useState<RiskDeal[]>([]);
   const [radarFiltered, setRadarFiltered] = useState(false);
@@ -183,7 +185,7 @@ export default function App() {
         <div ref={riskRadarRef} style={{ marginBottom: '2rem' }}>
           <ErrorBoundary section="Risk Radar">
             <Panel title="Risk Radar" accent="amber" meta={`${allData.risks.filter(r => r.level === 'HIGH' || r.level === 'MEDIUM').length} of ${allData.risks.length} deals at risk`} maxHeight="none">
-              <RiskRadar risks={allData.risks} onFilteredRisksChange={handleFilteredRisksChange} deltaIntelligence={deltaIntelligence} />
+              <RiskRadar risks={allData.risks} onFilteredRisksChange={handleFilteredRisksChange} deltaIntelligence={deltaIntelligence} dealsError={dealsError} />
             </Panel>
           </ErrorBoundary>
         </div>

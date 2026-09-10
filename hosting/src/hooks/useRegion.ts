@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { Region, RegionData, RiskDeal, StatData, TwentyQuestionsData, CompetitiveDisplacementData, DeltaIntelligenceData } from '@/lib/types';
 import { useLatestReport } from '@/hooks/useFirestore';
+import { countDealsByRegion } from '@/lib/injectDeals';
 
 function computeInFlightStats(risks: RiskDeal[]): { avgHealthScore: StatData; dealsAtRisk: StatData; velocity: StatData } {
   const withScore = risks.filter(r => typeof r.healthScore === 'number');
@@ -140,23 +141,19 @@ export function useRegion() {
 
   const displayBriefing = executiveBriefing ?? (isLive ? lastKnownBriefing : undefined);
 
-  // Per-region opportunity counts for RegionTabs — derived from transformed report
+  // Per-region deal counts for RegionTabs — counted from the deals actually
+  // loaded (per normalised key), so the badge matches what the tab shows.
   const regionCounts = useMemo<Record<string, number> | undefined>(() => {
-    if (!isLive || !report?.transformed) return undefined;
-    const counts: Record<string, number> = {};
-    for (const [key, regionData] of Object.entries(report.transformed as Record<string, { stats: { pipeline: { value: string } } }>)) {
-      if (key === 'all') continue; // skip global aggregate
-      const val = regionData?.stats?.pipeline?.value ?? '';
-      const match = val.match(/^(\d+)/);
-      if (match) counts[key] = parseInt(match[1], 10);
-    }
-    return counts;
-  }, [isLive, report]);
+    if (!isLive) return undefined;
+    return countDealsByRegion(allData.risks ?? []);
+  }, [isLive, allData]);
+
+  const dealsError = isLive ? report?.dealsError : undefined;
 
   return {
     region, data, allData, selectRegion, loading, isLive, hasLiveData, showingContent,
     executiveBriefing: displayBriefing, totalOpportunities, reportPeriod, regionCounts,
-    reportDate,
+    reportDate, dealsError,
     twentyQuestions, competitiveDisplacement, deltaIntelligence,
   };
 }

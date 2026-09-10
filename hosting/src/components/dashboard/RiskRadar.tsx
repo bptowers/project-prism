@@ -11,6 +11,8 @@ interface Props {
   risks: RiskDeal[];
   onFilteredRisksChange?: (risks: RiskDeal[], isFiltered: boolean) => void;
   deltaIntelligence?: import('@/lib/types').DeltaIntelligenceData;
+  /** Message from a failed /reports/{date}/deals fetch — shown instead of "no risks". */
+  dealsError?: string;
 }
 
 type RiskBand = 'Green' | 'Yellow' | 'Red';
@@ -556,7 +558,7 @@ function LateStageDealsStrip({ risks }: { risks: RiskDeal[] }) {
   );
 }
 
-export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, deltaIntelligence }) => {
+export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, deltaIntelligence, dealsError }) => {
   const [selectedDeal, setSelectedDeal] = useState<RiskDeal | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [lateOnly, setLateOnly] = useState(false);
@@ -671,14 +673,27 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
 
   if (risks.length === 0) {
     return (
-      <div style={{ padding: '1.5rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>
-        No active risks detected in the current report.
+      <div style={{ padding: '1.5rem', color: dealsError ? 'var(--error)' : 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>
+        {dealsError ? `Could not load deals: ${dealsError}` : 'No active risks detected in the current report.'}
       </div>
     );
   }
 
   return (
     <div style={{ display: 'grid', gap: '1.25rem' }}>
+      {dealsError && (
+        <div style={{
+          padding: '0.6rem 0.85rem',
+          borderRadius: 6,
+          background: 'var(--error-subtle)',
+          border: '1px solid var(--error)',
+          fontSize: '0.78rem',
+          fontFamily: 'var(--font-mono)',
+          color: 'var(--error)',
+        }}>
+          Could not load deals: {dealsError} — showing the capped list embedded in the report.
+        </div>
+      )}
       {deterioratedCount > 0 && (
         <div style={{
           display: 'inline-flex',
@@ -889,7 +904,7 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: 4, flexWrap: 'wrap' }}>
                       <Badge variant={band === 'Red' ? 'high' : band === 'Yellow' ? 'medium' : 'low'}>{band}</Badge>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--text-muted)' }}>{risk.region}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--text-muted)' }}>{regionLabel(risk.region)}</span>
                       <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--text-muted)' }}>{normalizeStage(risk.stage)}</span>
                     </div>
                     <div style={{ color: 'var(--text-primary)', fontWeight: 800, fontSize: '0.92rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

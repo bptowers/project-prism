@@ -339,5 +339,7 @@ export interface ReportDocument {
   competitiveDisplacement?: CompetitiveDisplacementData;
   deltaIntelligence?: DeltaIntelligenceData;
   transformed?: Record<string, RegionData>;
+  /** Set client-side when the /reports/{date}/deals subcollection fetch failed. */
+  dealsError?: string;
   [key: string]: unknown;
 }

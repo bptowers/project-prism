@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { RiskDeal } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
+import { regionLabel } from '@/lib/regions';
 import { dimensionSignals } from '@/lib/riskSignals';
 
 interface Props {
@@ -179,7 +180,7 @@ export const DealDetailModal: React.FC<Props> = ({ deal, onClose }) => {
                 {[
                   { label: 'Stage', value: deal.stage ?? '—' },
                   { label: 'Rep', value: deal.rep ?? '—' },
-                  { label: 'Region', value: deal.region },
+                  { label: 'Region', value: regionLabel(deal.region) },
                   { label: 'Segment', value: deal.segment ?? '—' },
                   { label: 'Confidence', value: `${deal.confidence}%` },
                   { label: 'Days Stalled', value: `${deal.daysStalled}d` },
