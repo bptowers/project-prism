@@ -2,6 +2,9 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { RiskDeal } from '@/lib/types';
+import { formatCurrency } from '@/lib/format';
+import { regionLabel } from '@/lib/regions';
+import { dimensionSignals } from '@/lib/riskSignals';
 
 interface Props {
   deal: RiskDeal | null;
@@ -43,25 +46,6 @@ function HealthRing({ score }: { score: number }) {
   );
 }
 
-function dimensionSignals(risk: RiskDeal): string[] {
-  const lower = `${risk.summary} ${risk.action}`.toLowerCase();
-  const signals: string[] = [];
-  if (lower.includes('ghost') || lower.includes('dark') || lower.includes('activity') || lower.includes('engagement') || lower.includes('no response')) signals.push('Engagement');
-  if (lower.includes('stalled') || lower.includes('stage') || lower.includes('velocity') || lower.includes('close date') || risk.daysStalled >= 4) signals.push('Velocity');
-  if (lower.includes('forecast') || lower.includes('probability') || lower.includes('commit') || lower.includes('fiction')) signals.push('Forecast');
-  if (lower.includes('stakeholder') || lower.includes('champion') || lower.includes('economic buyer') || lower.includes('committee') || lower.includes('single')) signals.push('Stakeholders');
-  if (lower.includes('competitor') || lower.includes('competitive') || lower.includes('fud') || lower.includes('poc')) signals.push('Competition');
-  if (lower.includes('pricing') || lower.includes('budget') || lower.includes('cost') || lower.includes('commercial')) signals.push('Commercial');
-  if (lower.includes('qualification') || lower.includes('missing') || lower.includes('no next') || lower.includes('hygiene') || lower.includes('review')) signals.push('Process');
-  return signals.length ? signals : ['Process'];
-}
-
-function formatCurrency(value: number): string {
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${Math.round(value / 1_000)}K`;
-  return `$${Math.round(value)}`;
-}
-
 const SIGNAL_COLORS: Record<string, string> = {
   Engagement: 'var(--error)',
   Velocity: 'var(--warning)',
@@ -70,6 +54,7 @@ const SIGNAL_COLORS: Record<string, string> = {
   Competition: 'var(--error)',
   Commercial: 'var(--success)',
   Process: 'var(--text-muted)',
+  'Late Stage': 'var(--prism-blue)',
 };
 
 const LABEL_STYLE: React.CSSProperties = {
@@ -195,7 +180,7 @@ export const DealDetailModal: React.FC<Props> = ({ deal, onClose }) => {
                 {[
                   { label: 'Stage', value: deal.stage ?? '—' },
                   { label: 'Rep', value: deal.rep ?? '—' },
-                  { label: 'Region', value: deal.region },
+                  { label: 'Region', value: regionLabel(deal.region) },
                   { label: 'Segment', value: deal.segment ?? '—' },
                   { label: 'Confidence', value: `${deal.confidence}%` },
                   { label: 'Days Stalled', value: `${deal.daysStalled}d` },

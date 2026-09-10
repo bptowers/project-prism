@@ -3,11 +3,16 @@ import { Badge } from '@/components/ui/Badge';
 import type { RiskDeal } from '@/lib/types';
 import { DealDetailModal } from '@/components/dashboard/DealDetailModal';
 import { useDealReviews } from '@/hooks/useDealReviews';
+import { formatCurrency, normalizeStage, isLateStage, STAGE_ORDER } from '@/lib/format';
+import { regionLabel, REGION_LABEL_ORDER } from '@/lib/regions';
+import { dimensionSignals, RISK_DIMENSION_LABELS } from '@/lib/riskSignals';
 
 interface Props {
   risks: RiskDeal[];
   onFilteredRisksChange?: (risks: RiskDeal[], isFiltered: boolean) => void;
   deltaIntelligence?: import('@/lib/types').DeltaIntelligenceData;
+  /** Message from a failed /reports/{date}/deals fetch — shown instead of "no risks". */
+  dealsError?: string;
 }
 
 type RiskBand = 'Green' | 'Yellow' | 'Red';
@@ -16,46 +21,12 @@ type ActiveFilters = Record<FilterGroup, string[]>;
 type RiskDimension = { label: string; value: number; pipeline: number };
 
 const MAX_DEALS = 12;
-const STAGE_ORDER = ['Discovery', 'Qualification', 'Solution', 'Proposal', 'Negotiation', 'Commit', 'Contract Review', 'Approved'];
 
 const bandColor: Record<RiskBand, string> = {
   Green: 'var(--success)',
   Yellow: 'var(--warning)',
   Red: 'var(--error)',
 };
-
-function normalizeStage(stage?: string): string {
-  if (!stage) return 'Unknown';
-  const lower = stage.toLowerCase();
-  const match = STAGE_ORDER.find(s => lower.includes(s.toLowerCase()));
-  if (lower.includes('signature') || lower.includes('commit')) return 'Commit';
-  if (lower.includes('contract')) return 'Contract Review';
-  if (lower.includes('draft')) return 'Proposal';
-  if (lower.includes('approved')) return 'Approved';
-  return match || stage;
-}
-
-function isLateStage(stage?: string): boolean {
-  const normalized = normalizeStage(stage);
-  return ['Proposal', 'Negotiation', 'Commit', 'Contract Review', 'Approved'].includes(normalized);
-}
-
-function regionLabel(region?: string): string {
-  const lower = (region || '').toLowerCase().trim();
-  if (
-    lower === 'na' || lower === 'us' || lower === 'usd' || lower === 'cad' || lower === 'namer' ||
-    lower.includes('north america')
-  ) return 'North America';
-  if (
-    lower === 'uk' || lower === 'gb' || lower === 'gbp' || lower === 'eu' || lower === 'eur' ||
-    lower.includes('united kingdom') || lower.includes('britain') || lower.includes('emea')
-  ) return 'UK';
-  if (
-    lower === 'au' || lower === 'aud' || lower === 'aus' || lower === 'nz' || lower === 'nzd' ||
-    lower === 'anz' || lower.includes('australia') || lower.includes('new zealand') || lower.includes('apac')
-  ) return 'ANZ';
-  return region || 'Unknown';
-}
 
 function riskScore(risk: RiskDeal): number {
   if (typeof risk.healthScore === 'number') return Math.max(0, Math.min(100, 100 - risk.healthScore));
@@ -98,13 +69,6 @@ function weightedValue(risk: RiskDeal): number {
   return value > 0 ? value : 1;
 }
 
-function formatCurrency(value: number): string {
-  if (value <= 0) return '$0';
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${Math.round(value / 1_000)}K`;
-  return `$${Math.round(value)}`;
-}
-
 function percent(value: number, total: number): number {
   if (!total) return 0;
   return Math.round((value / total) * 100);
@@ -114,50 +78,8 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function classifySignal(text: string): string {
-  const lower = text.toLowerCase();
-  if (lower.includes('ghost') || lower.includes('dark') || lower.includes('activity') || lower.includes('engagement')) return 'Engagement';
-  if (lower.includes('close date') || lower.includes('stalled') || lower.includes('stage') || lower.includes('velocity')) return 'Velocity';
-  if (lower.includes('forecast') || lower.includes('probability') || lower.includes('fiction')) return 'Forecast hygiene';
-  if (lower.includes('competitor') || lower.includes('competitive')) return 'Competitive pressure';
-  if (lower.includes('economic buyer') || lower.includes('stakeholder') || lower.includes('single')) return 'Stakeholder coverage';
-  return 'Process hygiene';
-}
-
-function dimensionSignals(risk: RiskDeal): string[] {
-  const lower = `${risk.summary} ${risk.action}`.toLowerCase();
-  const signals: string[] = [];
-
-  if (lower.includes('ghost') || lower.includes('dark') || lower.includes('activity') || lower.includes('engagement') || lower.includes('no response')) {
-    signals.push('Engagement');
-  }
-  if (lower.includes('stalled') || lower.includes('stage') || lower.includes('velocity') || lower.includes('close date') || risk.daysStalled >= 4) {
-    signals.push('Velocity');
-  }
-  if (lower.includes('forecast') || lower.includes('probability') || lower.includes('commit') || lower.includes('fiction')) {
-    signals.push('Forecast');
-  }
-  if (lower.includes('stakeholder') || lower.includes('champion') || lower.includes('economic buyer') || lower.includes('committee') || lower.includes('single')) {
-    signals.push('Stakeholders');
-  }
-  if (lower.includes('competitor') || lower.includes('competitive') || lower.includes('fud') || lower.includes('poc')) {
-    signals.push('Competition');
-  }
-  if (lower.includes('pricing') || lower.includes('budget') || lower.includes('cost') || lower.includes('commercial')) {
-    signals.push('Commercial');
-  }
-  if (lower.includes('qualification') || lower.includes('missing') || lower.includes('no next') || lower.includes('hygiene') || lower.includes('review')) {
-    signals.push('Process');
-  }
-  if (isLateStage(risk.stage)) {
-    signals.push('Late Stage');
-  }
-
-  return signals.length ? signals : ['Process'];
-}
-
 function buildRiskDimensions(risks: RiskDeal[]): RiskDimension[] {
-  const labels = ['Engagement', 'Velocity', 'Forecast', 'Stakeholders', 'Competition', 'Commercial', 'Process', 'Late Stage'];
+  const labels = RISK_DIMENSION_LABELS;
   const totals = labels.reduce<Record<string, RiskDimension>>((acc, label) => {
     acc[label] = { label, value: 0, pipeline: 0 };
     return acc;
@@ -626,7 +548,7 @@ function LateStageDealsStrip({ risks }: { risks: RiskDeal[] }) {
   );
 }
 
-export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, deltaIntelligence }) => {
+export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, deltaIntelligence, dealsError }) => {
   const [selectedDeal, setSelectedDeal] = useState<RiskDeal | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [lateOnly, setLateOnly] = useState(false);
@@ -670,9 +592,8 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
     });
     const stages = STAGE_ORDER.filter(stage => stageSet.has(stage));
     const extraStages = [...stageSet].filter(stage => !STAGE_ORDER.includes(stage)).sort();
-    const regionOrder = ['North America', 'UK', 'ANZ'];
-    const regions = regionOrder.filter(region => regionSet.has(region));
-    const extraRegions = [...regionSet].filter(region => !regionOrder.includes(region)).sort();
+    const regions = REGION_LABEL_ORDER.filter(region => regionSet.has(region));
+    const extraRegions = [...regionSet].filter(region => !REGION_LABEL_ORDER.includes(region)).sort();
     return {
       stages: [...stages, ...extraStages],
       reps: [...repSet].sort(),
@@ -716,13 +637,8 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
     const confidence = totalWeight
       ? Math.round(filteredRisks.reduce((sum, r) => sum + (100 - riskScore(r)) * weightedValue(r), 0) / totalWeight)
       : 0;
-    const drivers = Object.entries(filteredRisks.reduce<Record<string, number>>((acc, risk) => {
-      const driver = classifySignal(`${risk.summary} ${risk.action}`);
-      acc[driver] = (acc[driver] || 0) + weightedValue(risk);
-      return acc;
-    }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
     const dimensions = buildRiskDimensions(filteredRisks);
-    return { totalWeight, valueTotal, distribution, confidence, drivers, dimensions };
+    return { totalWeight, valueTotal, distribution, confidence, dimensions };
   }, [filteredRisks]);
 
   const lateStageRisks = visibleFilteredRisks
@@ -742,14 +658,27 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
 
   if (risks.length === 0) {
     return (
-      <div style={{ padding: '1.5rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>
-        No active risks detected in the current report.
+      <div style={{ padding: '1.5rem', color: dealsError ? 'var(--error)' : 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>
+        {dealsError ? `Could not load deals: ${dealsError}` : 'No active risks detected in the current report.'}
       </div>
     );
   }
 
   return (
     <div style={{ display: 'grid', gap: '1.25rem' }}>
+      {dealsError && (
+        <div style={{
+          padding: '0.6rem 0.85rem',
+          borderRadius: 6,
+          background: 'var(--error-subtle)',
+          border: '1px solid var(--error)',
+          fontSize: '0.78rem',
+          fontFamily: 'var(--font-mono)',
+          color: 'var(--error)',
+        }}>
+          Could not load deals: {dealsError} — showing the capped list embedded in the report.
+        </div>
+      )}
       {deterioratedCount > 0 && (
         <div style={{
           display: 'inline-flex',
@@ -850,22 +779,35 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', letterSpacing: '0.08em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 14 }}>
             Risk Distribution by Pipeline Value
           </div>
-          <div style={{ display: 'flex', height: 25, borderRadius: 6, overflow: 'hidden', background: 'var(--bg-elevated)' }}>
+          <div role="img" aria-label={summary.distribution.map(item => `${item.label} ${item.pct}%`).join(', ')} style={{ display: 'flex', height: 25, borderRadius: 6, overflow: 'hidden', background: 'var(--bg-elevated)' }}>
             {summary.distribution.map(item => (
               <div
                 key={item.label}
+                title={`${item.label}: ${item.pct}%`}
                 style={{
                   width: `${Math.max(item.pct, item.value ? 4 : 0)}%`,
                   background: bandColor[item.label],
                   minWidth: item.value ? 18 : 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  color: '#fff',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.62rem',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
                 }}
-              />
+              >
+                {item.pct >= 12 ? item.label : ''}
+              </div>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: '1.3rem', flexWrap: 'wrap', marginTop: 14 }}>
+          <div data-testid="risk-distribution-legend" style={{ display: 'flex', gap: '1.3rem', flexWrap: 'wrap', marginTop: 14 }}>
             {summary.distribution.map(item => (
               <span key={item.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
                 <span style={{ width: 10, height: 10, borderRadius: 999, background: bandColor[item.label] }} />
+                <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{item.label}</span>
                 <strong style={{ color: 'var(--text-primary)' }}>{item.pct}%</strong>
                 {summary.valueTotal > 0 ? formatCurrency(item.pipeline) : `${Math.round(item.value)} deals`}
               </span>
@@ -940,9 +882,21 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
             const reviewKey = risk.opportunityId || risk.value;
             const dealReviewed = isReviewed(reviewKey);
             return (
-              <button
+              // A div with role=button rather than <button>: the Review action
+              // inside must stay a real button, and buttons cannot nest.
+              <div
                 key={`${risk.id}-${index}`}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${risk.value}`}
                 onClick={() => setSelectedDeal(risk)}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedDeal(risk);
+                  }
+                }}
                 style={{
                   textAlign: 'left',
                   padding: '1rem',
@@ -960,7 +914,7 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: 4, flexWrap: 'wrap' }}>
                       <Badge variant={band === 'Red' ? 'high' : band === 'Yellow' ? 'medium' : 'low'}>{band}</Badge>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--text-muted)' }}>{risk.region}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--text-muted)' }}>{regionLabel(risk.region)}</span>
                       <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--text-muted)' }}>{normalizeStage(risk.stage)}</span>
                     </div>
                     <div style={{ color: 'var(--text-primary)', fontWeight: 800, fontSize: '0.92rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -969,10 +923,12 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
                   </div>
                   {/* Reviewed toggle — stopPropagation so it doesn't open the modal */}
                   <button
+                    type="button"
                     onClick={e => {
                       e.stopPropagation();
                       toggleReview(reviewKey);
                     }}
+                    onKeyDown={e => e.stopPropagation()}
                     title={dealReviewed ? 'Mark as not reviewed' : 'Mark as reviewed'}
                     style={{
                       background: 'none',
@@ -998,7 +954,7 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
                 <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                   {risk.summary}
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>

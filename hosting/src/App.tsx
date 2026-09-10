@@ -22,12 +22,16 @@ import { Panel } from '@/components/ui/Panel';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { UploadModal } from '@/components/dashboard/UploadModal';
 import type { RegionData, RiskDeal } from '@/lib/types';
+import { formatCurrency, formatDate } from '@/lib/format';
+import { regionLabel } from '@/lib/regions';
+import { isDormant, isDark, isMisaligned } from '@/lib/dealClassifiers';
 
 function formatReportDate(reportDate?: string, period?: string): string | undefined {
   if (!reportDate) return period;
-  const parsed = new Date(reportDate);
-  if (Number.isNaN(parsed.getTime())) return period || reportDate;
-  return `Run ${parsed.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  const formatted = formatDate(reportDate);
+  // formatDate hands back unparseable input unchanged; only prefix a real date.
+  if (formatted === reportDate) return period || reportDate;
+  return `Run ${formatted}`;
 }
 
 function buildFallbackBriefing(data: RegionData, totalOpportunities?: number): string {
@@ -36,7 +40,8 @@ function buildFallbackBriefing(data: RegionData, totalOpportunities?: number): s
   const high = flagged.filter(r => r.level === 'HIGH').length;
   const medium = flagged.filter(r => r.level === 'MEDIUM').length;
   const regions = flagged.reduce<Record<string, number>>((acc, r) => {
-    acc[r.region || 'Unknown'] = (acc[r.region || 'Unknown'] || 0) + 1;
+    const label = regionLabel(r.region);
+    acc[label] = (acc[label] || 0) + 1;
     return acc;
   }, {});
   const topRegion = Object.entries(regions).sort((a, b) => b[1] - a[1])[0];
@@ -51,7 +56,7 @@ function buildFallbackBriefing(data: RegionData, totalOpportunities?: number): s
 }
 
 export default function App() {
-  const { region, data, allData, selectRegion, loading, isLive, showingContent, executiveBriefing, totalOpportunities, reportPeriod, reportDate, regionCounts, twentyQuestions, competitiveDisplacement, deltaIntelligence } = useRegion();
+  const { region, data, allData, selectRegion, loading, isLive, showingContent, executiveBriefing, totalOpportunities, reportPeriod, reportDate, reportCreatedAt, regionCounts, dealsError, reportMeta, twentyQuestions, competitiveDisplacement, deltaIntelligence } = useRegion();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [activeRisks, setActiveRisks] = useState<RiskDeal[]>([]);
   const [radarFiltered, setRadarFiltered] = useState(false);
@@ -73,7 +78,6 @@ export default function App() {
     if (!radarFiltered) return data.stats;
     const risks = activeRisks;
     if (!risks.length) return data.stats;
-    const fmt = (n: number) => n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `$${Math.round(n / 1_000)}K` : `$${Math.round(n)}`;
     const totalPipeline = risks.reduce((sum, r) => sum + (r.pipelineValue || 0), 0);
     const withScore = risks.filter(r => typeof r.healthScore === 'number');
     const avgScore = withScore.length ? Math.round(withScore.reduce((sum, r) => sum + (r.healthScore ?? 0), 0) / withScore.length) : null;
@@ -85,7 +89,7 @@ export default function App() {
       : null;
     return {
       ...data.stats,
-      pipeline: { value: fmt(totalPipeline), change: `${risks.length} deals`, dir: 'flat' as const, sub: 'Active pipeline value' },
+      pipeline: { value: formatCurrency(totalPipeline), change: `${risks.length} deals`, dir: 'flat' as const, sub: 'Active pipeline value' },
       avgHealthScore: { value: avgScore !== null ? `${avgScore}` : '—', change: avgScore !== null ? (avgScore >= 70 ? 'Healthy' : avgScore >= 40 ? 'Caution' : 'At Risk') : '—', dir: (avgScore !== null ? (avgScore >= 70 ? 'up' : 'down') : 'flat') as 'up' | 'down' | 'flat', sub: 'avg deal health score' },
       atRisk: { value: `${atRiskCount}`, change: `${highCount} high`, dir: highCount > 0 ? 'down' as const : 'flat' as const, sub: `${atRiskCount} deals flagged` },
       dealsAtRisk: { value: `${atRiskPct}%`, change: `${atRiskCount} deals`, dir: atRiskPct > 50 ? 'up' as const : 'flat' as const, sub: 'HIGH or MEDIUM risk' },
@@ -105,7 +109,7 @@ export default function App() {
 
   return (
     <div style={{ maxWidth: 1920, margin: '0 auto', padding: '0 2rem' }}>
-      <Header onUploadClick={() => setUploadOpen(true)} period={displayPeriod} isLive={isLive} reportDate={reportDate} />
+      <Header onUploadClick={() => setUploadOpen(true)} period={displayPeriod} isLive={isLive} generatedAt={reportCreatedAt ?? reportDate} />
       <UploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
       <PrismBar style={{ marginBottom: '2rem' }} />
 
@@ -130,7 +134,20 @@ export default function App() {
         </span>
       </div>
 
-      {!showingContent && (
+      {loading && !showingContent && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          padding: '6rem 2rem',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.85rem',
+          color: 'var(--text-muted)',
+        }}>
+          Loading…
+        </div>
+      )}
+
+      {!loading && !showingContent && (
         <div style={{
           display: 'flex',
           flexDirection: 'column',
@@ -183,7 +200,7 @@ export default function App() {
         <div ref={riskRadarRef} style={{ marginBottom: '2rem' }}>
           <ErrorBoundary section="Risk Radar">
             <Panel title="Risk Radar" accent="amber" meta={`${allData.risks.filter(r => r.level === 'HIGH' || r.level === 'MEDIUM').length} of ${allData.risks.length} deals at risk`} maxHeight="none">
-              <RiskRadar risks={allData.risks} onFilteredRisksChange={handleFilteredRisksChange} deltaIntelligence={deltaIntelligence} />
+              <RiskRadar risks={allData.risks} onFilteredRisksChange={handleFilteredRisksChange} deltaIntelligence={deltaIntelligence} dealsError={dealsError} />
             </Panel>
           </ErrorBoundary>
         </div>
@@ -205,10 +222,10 @@ export default function App() {
             <Panel title="Risk by Stage" accent="amber" meta={`${gridRisks.length} deals`}>
               <RiskByStage risks={gridRisks} />
             </Panel>
-            <Panel title="Activity Health" accent="red" meta={`${gridRisks.filter(r => r.daysStalled >= 14).length} dormant`}>
+            <Panel title="Activity Health" accent="red" meta={`${gridRisks.filter(isDormant).length} dormant · ${gridRisks.filter(isDark).length} dark`}>
               <ActivityHealth risks={gridRisks} />
             </Panel>
-            <Panel title="Forecast Integrity" accent="blue" meta={`${gridRisks.filter(r => r.confidence > 60 && (r.healthScore ?? 100) < 40).length} misaligned`}>
+            <Panel title="Forecast Integrity" accent="blue" meta={`${gridRisks.filter(isMisaligned).length} misaligned`}>
               <ForecastIntegrity risks={gridRisks} forecastStat={data.stats.forecast} />
             </Panel>
           </div>
@@ -224,16 +241,16 @@ export default function App() {
           <Recommendations items={data.recommendations} />
         </ErrorBoundary>
         <ErrorBoundary section="CRO Intelligence">
-          <TwentyQuestions data={twentyQuestions} />
+          <TwentyQuestions data={twentyQuestions} isLive={isLive} />
         </ErrorBoundary>
         <ErrorBoundary section="Competitive Displacement">
-          <CompetitiveDisplacement data={competitiveDisplacement} />
+          <CompetitiveDisplacement data={competitiveDisplacement} isLive={isLive} />
         </ErrorBoundary>
         <ErrorBoundary section="Delta Intelligence">
-          <DeltaIntelligence data={deltaIntelligence} />
+          <DeltaIntelligence data={deltaIntelligence} isLive={isLive} />
         </ErrorBoundary>
         <ErrorBoundary section="Processing Footer">
-          <ProcessingFooter />
+          <ProcessingFooter {...reportMeta} />
         </ErrorBoundary>
       </motion.div>
     </div>

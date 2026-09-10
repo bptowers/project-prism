@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { itemVariants } from '@/theme/animations';
 import { Sparkline } from '@/components/ui/Sparkline';
-import type { Stats } from '@/lib/types';
+import type { StatData, Stats } from '@/lib/types';
+import { isUnderivableRate } from '@/lib/dealClassifiers';
 
 function getStatColor(key: string, value: string): string | null {
   if (value === '—' || value === '' || value == null) return null;
@@ -37,13 +38,24 @@ function getStatColor(key: string, value: string): string | null {
 const statConfig: Record<string, { label: string; borderColor: string; sparkColor: string; valueColor?: string }> = {
   pipeline:       { label: 'Pipeline Value',      borderColor: 'var(--accent)',      sparkColor: 'var(--accent)' },
   avgHealthScore: { label: 'Avg Health Score',    borderColor: 'var(--success)',     sparkColor: 'var(--success)',  valueColor: 'var(--success)' },
-  atRisk:         { label: 'Revenue at Risk',     borderColor: 'var(--error)',       sparkColor: 'var(--error)',    valueColor: 'var(--error)' },
-  dealsAtRisk:    { label: 'Deals at Risk',       borderColor: 'var(--error)',       sparkColor: 'var(--error)',    valueColor: 'var(--error)' },
+  atRisk:         { label: 'Deals at Risk',       borderColor: 'var(--error)',       sparkColor: 'var(--error)',    valueColor: 'var(--error)' },
+  dealsAtRisk:    { label: '% Pipeline at Risk',  borderColor: 'var(--error)',       sparkColor: 'var(--error)',    valueColor: 'var(--error)' },
   forecast:       { label: 'Forecast Confidence', borderColor: 'var(--accent)',      sparkColor: 'var(--accent)' },
   velocity:       { label: 'Avg Days Stalled',     borderColor: 'var(--prism-blue)',  sparkColor: 'var(--prism-blue)' },
 };
 
 const CLICKABLE_KEYS = new Set(['atRisk', 'dealsAtRisk']);
+
+// Rates the backend derives from closed deals. A literal 0% means there were
+// none in the source, not that confidence is zero — render as n/a.
+const RATE_KEYS = new Set(['forecast', 'winRate']);
+
+function displayStat(key: string, stat: StatData): StatData {
+  if (RATE_KEYS.has(key) && isUnderivableRate(stat.value)) {
+    return { value: 'n/a', change: '—', dir: 'flat', sub: 'no closed deals in source' };
+  }
+  return stat;
+}
 
 interface Props {
   stats: Stats;
@@ -57,8 +69,9 @@ export const StatsRow: React.FC<Props> = ({ stats, sparklines, onStatClick }) =>
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
       {(['pipeline', 'avgHealthScore', 'atRisk', 'dealsAtRisk', 'forecast', 'velocity'] as Array<keyof typeof statConfig>).map(key => {
-        const stat = stats[key as keyof typeof stats];
-        if (!stat) return null;
+        const rawStat = stats[key as keyof typeof stats];
+        if (!rawStat) return null;
+        const stat = displayStat(key, rawStat);
         const cfg = statConfig[key];
         const dynamicColor = getStatColor(key, stat.value ?? '');
         const effectiveColor = dynamicColor ?? cfg.borderColor;

@@ -26,3 +26,16 @@ describe('CompetitiveDisplacement with malformed payload', () => {
     expect(screen.queryByText(/Loss Mechanisms/)).not.toBeInTheDocument();
   });
 });
+
+describe('CompetitiveDisplacement empty states', () => {
+  it('renders nothing when there is no live report', () => {
+    const { container } = render(<CompetitiveDisplacement data={undefined} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('says the section was not generated when live data lacks it', () => {
+    render(<CompetitiveDisplacement data={undefined} isLive />);
+    expect(screen.getByText('Competitive Displacement')).toBeInTheDocument();
+    expect(screen.getByText('Not generated for this run')).toBeInTheDocument();
+  });
+});

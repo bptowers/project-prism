@@ -1,29 +1,24 @@
 import React from 'react';
 import type { RiskDeal } from '@/lib/types';
+import { formatCurrency } from '@/lib/format';
+import { isDormant, isDark } from '@/lib/dealClassifiers';
 
 interface Props {
   risks: RiskDeal[];
-}
-
-function formatCurrency(value: number): string {
-  if (value <= 0) return '$0';
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${Math.round(value / 1_000)}K`;
-  return `$${Math.round(value)}`;
 }
 
 interface Bucket {
   label: string;
   range: string;
   color: string;
-  test: (days: number) => boolean;
+  test: (deal: RiskDeal) => boolean;
 }
 
 const BUCKETS: Bucket[] = [
-  { label: 'Active',  range: '0–6 days',   color: 'var(--success)', test: d => d >= 0 && d <= 6 },
-  { label: 'Cooling', range: '7–13 days',  color: 'var(--warning)', test: d => d >= 7 && d <= 13 },
-  { label: 'Dormant', range: '14–29 days', color: 'var(--error)',   test: d => d >= 14 && d <= 29 },
-  { label: 'Dark',    range: '30+ days',   color: '#666',            test: d => d >= 30 },
+  { label: 'Active',  range: '0–6 days',   color: 'var(--success)', test: d => d.daysStalled >= 0 && d.daysStalled <= 6 },
+  { label: 'Cooling', range: '7–13 days',  color: 'var(--warning)', test: d => d.daysStalled >= 7 && d.daysStalled <= 13 },
+  { label: 'Dormant', range: '14–29 days', color: 'var(--error)',   test: isDormant },
+  { label: 'Dark',    range: '30+ days',   color: 'var(--text-muted)', test: isDark },
 ];
 
 export const ActivityHealth: React.FC<Props> = ({ risks }) => {
@@ -44,7 +39,7 @@ export const ActivityHealth: React.FC<Props> = ({ risks }) => {
   const total = risks.length;
 
   const buckets = BUCKETS.map(b => {
-    const deals = risks.filter(r => b.test(r.daysStalled));
+    const deals = risks.filter(b.test);
     const pipelineValue = deals.reduce((sum, r) => sum + (r.pipelineValue ?? 0), 0);
     return { ...b, count: deals.length, pipelineValue };
   });

@@ -50,6 +50,8 @@ export interface RiskDeal {
   summary: string;
   action: string;
   daysStalled: number;
+  /** Which source field pipelineValue was derived from (backend contract; optional on older reports). */
+  pipelineBasis?: 'mrr' | 'amount';
 }
 
 export interface MarketSignal {
@@ -328,16 +330,33 @@ export interface DeltaIntelligenceData {
   earlyWarnings?: EarlyWarning[];
 }
 
+/** Source-ingest facts written by the backend (optional on older reports). */
+export interface PipelineMeta {
+  sourceTruncated: boolean;
+  /** null for CSV uploads, which have no row cap. */
+  sourceRowLimit: number | null;
+  sourceRowCount: number;
+  /** Total rejected by the validator; rejectedRecords below is capped. */
+  rejectedCount: number;
+  rejectedRecords: { opportunityId: string; reasons: string[] }[];
+}
+
 export interface ReportDocument {
   id: string;
   reportDate: string;
-  createdAt: Date;
+  /** Firestore Timestamp on the wire; the client reads it defensively. */
+  createdAt: Date | { toDate: () => Date };
   analysisProvider: string;
+  analysisModel?: string;
   totalRecordsAnalyzed: number;
+  dataQuality?: { averageQualityScore?: number };
+  pipelineMeta?: PipelineMeta;
   executiveBriefing?: string;
   twentyQuestions?: TwentyQuestionsData;
   competitiveDisplacement?: CompetitiveDisplacementData;
   deltaIntelligence?: DeltaIntelligenceData;
   transformed?: Record<string, RegionData>;
+  /** Set client-side when the /reports/{date}/deals subcollection fetch failed. */
+  dealsError?: string;
   [key: string]: unknown;
 }
