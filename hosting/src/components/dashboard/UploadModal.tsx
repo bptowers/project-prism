@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUpload } from '@/hooks/useUpload';
 
@@ -38,11 +38,56 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const FOCUSABLE = 'button, [href], input:not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])';
+
 export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => {
   const { state, preview, error, provider, setProvider, parseFile, uploadAndAnalyze, reset, elapsedSeconds } = useUpload();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  // Focus management: move focus into the dialog on open, restore it to the
+  // element that opened us on close, and close on Escape.
+  useEffect(() => {
+    if (!isOpen) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleClose();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      previouslyFocused?.focus?.();
+    };
+    // handleClose is recreated each render; the effect only needs to re-run on open/close.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  const trapTab = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Tab' || !dialogRef.current) return;
+    const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE))
+      .filter(el => !el.hasAttribute('disabled') && el.style.display !== 'none');
+    if (focusable.length === 0) {
+      e.preventDefault();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey && (active === first || active === dialogRef.current)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
 
   const handleFile = (file: File) => {
     if (!file.name.endsWith('.csv')) return;
@@ -97,12 +142,19 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
           >
             {/* Modal */}
             <motion.div
+              ref={dialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="upload-modal-title"
+              tabIndex={-1}
+              onKeyDown={trapTab}
               initial={{ opacity: 0, y: 30, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 30, scale: 0.97 }}
               transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
               onClick={(e: React.MouseEvent) => e.stopPropagation()}
               style={{
+                outline: 'none',
                 width: '90vw',
                 maxWidth: 560,
                 maxHeight: '90vh',
@@ -119,7 +171,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
               {/* Header */}
               <div style={{ padding: '24px 28px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontFamily: 'var(--font-display)', fontWeight: 700, color: THEME.textPrimary }}>
+                  <h2 id="upload-modal-title" style={{ margin: 0, fontSize: '1.25rem', fontFamily: 'var(--font-display)', fontWeight: 700, color: THEME.textPrimary }}>
                     Upload Salesforce Export
                   </h2>
                   <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: THEME.textMuted }}>
@@ -128,6 +180,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
                 </div>
                 <button
                   onClick={handleClose}
+                  aria-label="Close"
                   style={{
                     background: 'none', border: 'none', color: THEME.textMuted, fontSize: '1.5rem',
                     cursor: 'pointer', padding: '4px 8px', lineHeight: 1,

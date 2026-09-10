@@ -794,22 +794,35 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', letterSpacing: '0.08em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 14 }}>
             Risk Distribution by Pipeline Value
           </div>
-          <div style={{ display: 'flex', height: 25, borderRadius: 6, overflow: 'hidden', background: 'var(--bg-elevated)' }}>
+          <div role="img" aria-label={summary.distribution.map(item => `${item.label} ${item.pct}%`).join(', ')} style={{ display: 'flex', height: 25, borderRadius: 6, overflow: 'hidden', background: 'var(--bg-elevated)' }}>
             {summary.distribution.map(item => (
               <div
                 key={item.label}
+                title={`${item.label}: ${item.pct}%`}
                 style={{
                   width: `${Math.max(item.pct, item.value ? 4 : 0)}%`,
                   background: bandColor[item.label],
                   minWidth: item.value ? 18 : 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  color: '#fff',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.62rem',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
                 }}
-              />
+              >
+                {item.pct >= 12 ? item.label : ''}
+              </div>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: '1.3rem', flexWrap: 'wrap', marginTop: 14 }}>
+          <div data-testid="risk-distribution-legend" style={{ display: 'flex', gap: '1.3rem', flexWrap: 'wrap', marginTop: 14 }}>
             {summary.distribution.map(item => (
               <span key={item.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
                 <span style={{ width: 10, height: 10, borderRadius: 999, background: bandColor[item.label] }} />
+                <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{item.label}</span>
                 <strong style={{ color: 'var(--text-primary)' }}>{item.pct}%</strong>
                 {summary.valueTotal > 0 ? formatCurrency(item.pipeline) : `${Math.round(item.value)} deals`}
               </span>
@@ -884,9 +897,21 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
             const reviewKey = risk.opportunityId || risk.value;
             const dealReviewed = isReviewed(reviewKey);
             return (
-              <button
+              // A div with role=button rather than <button>: the Review action
+              // inside must stay a real button, and buttons cannot nest.
+              <div
                 key={`${risk.id}-${index}`}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${risk.value}`}
                 onClick={() => setSelectedDeal(risk)}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedDeal(risk);
+                  }
+                }}
                 style={{
                   textAlign: 'left',
                   padding: '1rem',
@@ -913,10 +938,12 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
                   </div>
                   {/* Reviewed toggle — stopPropagation so it doesn't open the modal */}
                   <button
+                    type="button"
                     onClick={e => {
                       e.stopPropagation();
                       toggleReview(reviewKey);
                     }}
+                    onKeyDown={e => e.stopPropagation()}
                     title={dealReviewed ? 'Mark as not reviewed' : 'Mark as reviewed'}
                     style={{
                       background: 'none',
@@ -942,7 +969,7 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
                 <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                   {risk.summary}
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>

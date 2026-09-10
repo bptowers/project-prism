@@ -18,7 +18,7 @@ const BUCKETS: Bucket[] = [
   { label: 'Active',  range: '0–6 days',   color: 'var(--success)', test: d => d.daysStalled >= 0 && d.daysStalled <= 6 },
   { label: 'Cooling', range: '7–13 days',  color: 'var(--warning)', test: d => d.daysStalled >= 7 && d.daysStalled <= 13 },
   { label: 'Dormant', range: '14–29 days', color: 'var(--error)',   test: isDormant },
-  { label: 'Dark',    range: '30+ days',   color: '#666',            test: isDark },
+  { label: 'Dark',    range: '30+ days',   color: 'var(--text-muted)', test: isDark },
 ];
 
 export const ActivityHealth: React.FC<Props> = ({ risks }) => {

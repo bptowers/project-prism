@@ -297,38 +297,67 @@ export const TwentyQuestions: React.FC<Props> = ({ data, isLive }) => {
       </div>
       {questions.map(({ key, question }) => {
         const expandable = hasDetail(question);
+        const isOpen = expanded === key;
+        const detailId = `tq-${key}-detail`;
+        const headerStyle: React.CSSProperties = {
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem',
+        };
+        const headerContent = (
+          <>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Badge variant="info">{QUESTION_BADGES[key] || key}</Badge>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {question.label}
+              </span>
+            </span>
+            {expandable && (
+              <span aria-hidden="true" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                {isOpen ? '▼' : '▶'}
+              </span>
+            )}
+          </>
+        );
         return (
           <div
             key={key}
-            onClick={() => expandable && setExpanded(expanded === key ? null : key)}
             style={{
               padding: '1rem',
               border: '1px solid var(--border)',
               borderRadius: 8,
               marginBottom: '0.75rem',
               background: 'var(--bg-elevated)',
-              cursor: expandable ? 'pointer' : 'default',
               borderLeft: '3px solid var(--prism-blue)',
               transition: 'all 0.15s ease',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Badge variant="info">{QUESTION_BADGES[key] || key}</Badge>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {question.label}
-                </span>
-              </div>
-              {expandable && (
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-                  {expanded === key ? '▼' : '▶'}
-                </span>
-              )}
-            </div>
+            {expandable ? (
+              // Real button so the accordion is keyboard-operable and announces state.
+              <button
+                type="button"
+                aria-expanded={isOpen}
+                aria-controls={detailId}
+                onClick={() => setExpanded(isOpen ? null : key)}
+                style={{
+                  ...headerStyle,
+                  width: '100%',
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  font: 'inherit',
+                  color: 'inherit',
+                }}
+              >
+                {headerContent}
+              </button>
+            ) : (
+              <div style={headerStyle}>{headerContent}</div>
+            )}
             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               {question.answer}
             </div>
-            {expanded === key && <QuestionDetail qKey={key} question={question} />}
+            {isOpen && <div id={detailId}><QuestionDetail qKey={key} question={question} /></div>}
           </div>
         );
       })}

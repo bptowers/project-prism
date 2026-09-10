@@ -6,6 +6,21 @@ interface Props {
   risks: RiskDeal[];
 }
 
+// Each band segment carries its count and a letter so the split is readable
+// without relying on colour alone.
+const segmentStyle: React.CSSProperties = {
+  height: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  overflow: 'hidden',
+  whiteSpace: 'nowrap',
+  color: '#fff',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '0.58rem',
+  fontWeight: 700,
+};
+
 export const RiskByStage: React.FC<Props> = ({ risks }) => {
   if (risks.length === 0) {
     return (
@@ -75,13 +90,19 @@ export const RiskByStage: React.FC<Props> = ({ risks }) => {
               display: 'flex',
             }}>
               {high > 0 && (
-                <div style={{ width: `${highPct}%`, background: 'var(--error)', height: '100%', borderRadius: lowPct === 0 && medPct === 0 ? 3 : '3px 0 0 3px' }} />
+                <div aria-label={`${stage}: ${high} high risk`} title={`${high} high`} style={{ ...segmentStyle, width: `${highPct}%`, background: 'var(--error)', borderRadius: lowPct === 0 && medPct === 0 ? 3 : '3px 0 0 3px' }}>
+                  {high} H
+                </div>
               )}
               {medium > 0 && (
-                <div style={{ width: `${medPct}%`, background: 'var(--warning)', height: '100%' }} />
+                <div aria-label={`${stage}: ${medium} medium risk`} title={`${medium} medium`} style={{ ...segmentStyle, width: `${medPct}%`, background: 'var(--warning)' }}>
+                  {medium} M
+                </div>
               )}
               {low > 0 && (
-                <div style={{ width: `${lowPct}%`, background: 'var(--success)', height: '100%', borderRadius: highPct === 0 && medPct === 0 ? 3 : '0 3px 3px 0' }} />
+                <div aria-label={`${stage}: ${low} low risk`} title={`${low} low`} style={{ ...segmentStyle, width: `${lowPct}%`, background: 'var(--success)', borderRadius: highPct === 0 && medPct === 0 ? 3 : '0 3px 3px 0' }}>
+                  {low} L
+                </div>
               )}
             </div>
 
