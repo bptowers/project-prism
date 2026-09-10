@@ -34,6 +34,7 @@ export class CSVParser {
       // Parse CSV using csv-parse
       const records = parse(csvContent, {
         columns: true,
+        bom: true, // Excel/Salesforce exports often start with U+FEFF, which would corrupt the first header
         skip_empty_lines: true,
         trim: true,
         relaxColumnCount: true,
@@ -67,10 +68,12 @@ export class CSVParser {
         rawRecord,
         this.fieldMapping.opportunityId
       ),
-      accountName: this.getFieldValue(
-        rawRecord,
-        this.fieldMapping.accountName
-      ),
+      // Account and Opportunity are distinct fields. Exports without an
+      // account column (e.g. sample-data/opportunities.csv) fall back to the
+      // opportunity name so the record still passes validation.
+      accountName:
+        this.getFieldValue(rawRecord, this.fieldMapping.accountName) ||
+        this.getFieldValue(rawRecord, this.fieldMapping.opportunityName),
       opportunityName: this.getFieldValue(
         rawRecord,
         this.fieldMapping.opportunityName
@@ -254,7 +257,7 @@ export class CSVParser {
     // Billing Country
     "Billing_Country": ["Billing Country", "BillingCountry", "Account: Billing Country"],
     // Owner / Sales Rep
-    "Decision_Maker": ["Opportunity Owner", "Owner.Name", "Owner Full Name", "Owner: Full Name"],
+    "Opportunity_Owner": ["Opportunity Owner", "Owner", "Owner.Name", "Owner Full Name", "Owner: Full Name", "Opportunity: Owner", "Sales_Rep", "Sales Rep"],
     // Industry
     "Industry": ["Account: Industry", "Account.Industry"],
     // Dates
@@ -576,7 +579,7 @@ export class CSVParser {
 export function getDefaultSalesforceMapping(): FieldMapping {
   return {
     opportunityId: "Opportunity_ID",
-    accountName: "Opportunity_Name",
+    accountName: "Account_Name",
     opportunityName: "Opportunity_Name",
     stage: "Stage",
     amount: "Amount",
@@ -585,7 +588,7 @@ export function getDefaultSalesforceMapping(): FieldMapping {
     winLossReason: "Reason_for_Win",
     notes: "Why_They_Bought",
     dealReviewNotes: "Close_Plan",
-    salesRep: "Decision_Maker",
+    salesRep: "Opportunity_Owner",
     // New Tier 2 fields — column name alternatives handled by COLUMN_ALTERNATIVES
     lastActivityDate: "Last_Activity_Date",
     nextStep: "Next_Step",
