@@ -129,7 +129,11 @@ BQ_PROJECT_ID=<data-warehouse-project-id>
 BQ_DATASET=<dataset-name>
 BQ_TABLE=<table-name>
 BQ_LOCATION=US
+BQ_LIMIT=300
+BQ_CREATED_MONTHS=18
 ```
+
+BigQuery pulls (scheduled and manual) include only expected close dates in the current and next calendar quarter, calculated in UTC: quarter start inclusive, start of the quarter after next exclusive. Undated deals are excluded. For example, September 2026 runs cover 1 July–31 December 2026; October runs cover 1 October 2026–31 March 2027. This replaces the rolling close-date lookback; legacy `BQ_CLOSE_DAYS_PAST` values are ignored. Existing open/new-business, positive-value, creation-age and optional `sinceDate` filters still apply, followed by close-date ordering and `BQ_LIMIT`. The 300-row cap can still produce an incomplete selection. CSV uploads are unaffected.
 
 ### Frontend (`hosting/.env`)
 Uses Vite env vars prefixed with `VITE_FIREBASE_*` (apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId).

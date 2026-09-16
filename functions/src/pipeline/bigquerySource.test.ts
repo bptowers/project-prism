@@ -122,6 +122,48 @@ describe("BigQuerySource.mapRow with production column names", () => {
 });
 
 describe("BigQuerySource.buildQuery", () => {
+  afterEach(() => jest.useRealTimers());
+
+  it.each([
+    ["2026-09-16T12:00:00Z", "2026-07-01", "2027-01-01"],
+    ["2026-09-30T23:59:59.999Z", "2026-07-01", "2027-01-01"],
+    ["2026-10-01T00:00:00Z", "2026-10-01", "2027-04-01"],
+    ["2026-12-31T23:59:59.999Z", "2026-10-01", "2027-04-01"],
+    ["2027-01-01T00:00:00Z", "2027-01-01", "2027-07-01"],
+    ["2028-02-29T12:00:00Z", "2028-01-01", "2028-07-01"],
+    ["2026-04-01T00:00:00Z", "2026-04-01", "2026-10-01"],
+  ])("selects current and next UTC quarter at %s", (date, start, end) => {
+    jest.useFakeTimers().setSystemTime(new Date(date));
+    const source = new BigQuerySource(CONFIG);
+    const { query, params } = (
+      source as unknown as { buildQuery: () => { query: string; params: Record<string, unknown> } }
+    ).buildQuery();
+    expect(params.closeQuarterStart).toBe(start);
+    expect(params.closeQuarterEnd).toBe(end);
+    // SQL comparisons exclude NULLs and dates outside the half-open interval.
+    expect(query).toContain("close_date >= @closeQuarterStart AND close_date < @closeQuarterEnd");
+    expect(query).not.toContain("close_date IS NULL");
+    expect(query).not.toContain("@closeSince");
+    expect(query).toContain("ORDER BY close_date ASC LIMIT 300");
+  });
+
+  it("preserves all other eligibility filters and explicit source options", () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-09-16T12:00:00Z"));
+    const source = new BigQuerySource({ ...CONFIG, sinceDate: "2026-01-01", createdMonths: 12, limit: 125 });
+    const { query, params } = (
+      source as unknown as { buildQuery: () => { query: string; params: Record<string, unknown> } }
+    ).buildQuery();
+    expect(query).toContain("COALESCE(_fivetran_active, TRUE)");
+    expect(query).toContain("is_closed = FALSE");
+    expect(query).toContain("LOWER(COALESCE(type, '')) = 'new business'");
+    expect(query).toContain("amount IS NOT NULL AND SAFE_CAST(amount AS FLOAT64) > 0");
+    expect(query).toContain("created_date >= @sinceDate");
+    expect(params.sinceDate).toBe("2026-01-01");
+    expect(query).toContain("created_date >= @createdSince");
+    expect(params.createdSince).toBe(new Date(Date.now() - 12 * 30.44 * 86_400_000).toISOString().slice(0, 10));
+    expect(query).toContain("ORDER BY close_date ASC LIMIT 125");
+  });
+
   it("filters out inactive Fivetran row versions defensively", () => {
     const source = new BigQuerySource(CONFIG);
     const { query } = (

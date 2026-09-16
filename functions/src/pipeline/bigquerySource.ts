@@ -40,7 +40,6 @@ export interface BigQueryConfig {
   sinceDate?: string; // ISO date string for incremental pulls (e.g. "2026-02-18")
   limit?: number; // Max records to fetch (default 300)
   createdMonths?: number; // exclude deals created more than this many months ago (default 18)
-  closeDaysPast?: number; // exclude deals whose close date is more than this many days past (default 90)
 }
 
 /**
@@ -274,11 +273,13 @@ export class BigQuerySource {
     filters.push(`${orderCol} >= @createdSince`);
     params.createdSince = createdSince;
 
-    // Exclude deals with close dates far in the past (allow NULL — open-ended deals)
-    const closeDaysPast = this.config.closeDaysPast ?? 90;
-    const closeSince = new Date(Date.now() - closeDaysPast * 86_400_000).toISOString().slice(0, 10);
-    filters.push(`(${closeDateCol} >= @closeSince OR ${closeDateCol} IS NULL)`);
-    params.closeSince = closeSince;
+    // Current and next calendar quarter, based on expected close date (UTC).
+    // The exclusive upper bound handles year rollover and excludes undated deals.
+    const now = new Date();
+    const quarterMonth = Math.floor(now.getUTCMonth() / 3) * 3;
+    params.closeQuarterStart = new Date(Date.UTC(now.getUTCFullYear(), quarterMonth, 1)).toISOString().slice(0, 10);
+    params.closeQuarterEnd = new Date(Date.UTC(now.getUTCFullYear(), quarterMonth + 6, 1)).toISOString().slice(0, 10);
+    filters.push(`${closeDateCol} >= @closeQuarterStart AND ${closeDateCol} < @closeQuarterEnd`);
 
     // Exclude deals with no pipeline value — these are test records, admin placeholders,
     // or entries where MRR was never entered, all of which produce meaningless LLM output.
@@ -551,6 +552,5 @@ export function getBigQueryConfig(): BigQueryConfig {
     location: process.env.BQ_LOCATION || "US",
     limit: process.env.BQ_LIMIT ? parseInt(process.env.BQ_LIMIT, 10) : 300,
     createdMonths: process.env.BQ_CREATED_MONTHS ? parseInt(process.env.BQ_CREATED_MONTHS, 10) : 18,
-    closeDaysPast: process.env.BQ_CLOSE_DAYS_PAST ? parseInt(process.env.BQ_CLOSE_DAYS_PAST, 10) : 90,
   };
 }
