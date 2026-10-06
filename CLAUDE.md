@@ -10,7 +10,7 @@ Project Prism is a **Global Revenue Intelligence Engine** that ingests Salesforc
 
 The project has two independent sub-projects at the root:
 
-- **`functions/`** — Firebase Cloud Functions backend (TypeScript, Node 20)
+- **`functions/`** — Firebase Cloud Functions backend (TypeScript, Node 22)
 - **`hosting/`** — React dashboard frontend (Vite, React 18, TypeScript)
 - **`firebase.json`** — Firebase config linking both, with hosting rewrites to function endpoints
 - **`docs/`** — Architecture docs, deployment guide, presentation assets
