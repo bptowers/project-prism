@@ -269,3 +269,69 @@ describe("Aggregator.aggregate pipeline value basis", () => {
     expect(report.regions.uk.atRiskDeals[0]).toMatchObject({ amount: 18000, pipelineBasis: "amount" });
   });
 });
+
+describe("portfolio figures are computed in code, not by the LLM", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  function highRiskReport(): AggregatedReport {
+    const report = minimalReport();
+    const deals = [
+      riskDeal({ opportunityId: "A", riskLevel: "high", amount: 1000, velocityAssessment: "stalled" }),
+      riskDeal({ opportunityId: "B", riskLevel: "high", amount: 500 }),
+      riskDeal({ opportunityId: "C", riskLevel: "medium", amount: 200 }),
+    ];
+    report.regions.uk.allActiveDeals = deals;
+    report.regions.uk.atRiskDeals = deals;
+    report.global.highRiskCount = 2;
+    report.global.mediumRiskCount = 1;
+    return report;
+  }
+
+  it("gives every enrichment phase an authoritative figures block", () => {
+    const out = grounded(highRiskReport());
+    expect(out).toContain("AUTHORITATIVE FIGURES");
+    expect(out).toContain('"highRiskDeals":2');
+    expect(out).toContain('"highRiskMrr":"$1,500.00 MRR"');
+  });
+
+  it("overwrites the LLM's own portfolioRisk numbers with the computed ones", async () => {
+    jest.spyOn(LLMProviderFactory, "create").mockResolvedValue(
+      fakeProvider([JSON.stringify({
+        executiveBriefing: "2 deals representing $1,500.00 MRR are HIGH risk.",
+        recommendations: [],
+        forecastConfidence: { percentage: 50, assessment: "a", upside: "u", downside: "d" },
+        portfolioRisk: { totalAtRisk: "$9 MRR", highRiskDeals: 78, stalledRevenue: "$1 MRR", keyPattern: "Forecast fiction" },
+      })])
+    );
+    const report = await Aggregator.enrichWithLLM(highRiskReport(), fakeConfig);
+    expect(report.portfolioRisk).toEqual({
+      totalAtRisk: "$1,500.00 MRR",
+      highRiskDeals: 2,
+      stalledRevenue: "$1,000.00 MRR",
+      keyPattern: "Forecast fiction",
+    });
+  });
+
+  it("warns when the briefing does not quote the computed HIGH-risk count", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    jest.spyOn(LLMProviderFactory, "create").mockResolvedValue(
+      fakeProvider([JSON.stringify({
+        executiveBriefing: "78 deals are HIGH risk.",
+        recommendations: [],
+        portfolioRisk: { keyPattern: "x" },
+      })])
+    );
+    await Aggregator.enrichWithLLM(highRiskReport(), fakeConfig);
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/briefing does not mention the computed HIGH-risk count \(2\)/));
+  });
+});
+
+describe("report summary does not replay stored LLM risk counts", () => {
+  it("passes only the portfolio risk pattern, not its numbers", () => {
+    const report = minimalReport();
+    report.portfolioRisk = { totalAtRisk: "$9 MRR", highRiskDeals: 78, stalledRevenue: "$1 MRR", keyPattern: "Forecast fiction" };
+    const out = grounded(report);
+    expect(out).toContain('"portfolioRiskPattern":"Forecast fiction"');
+    expect(out).not.toContain("78");
+  });
+});

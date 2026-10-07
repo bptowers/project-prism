@@ -538,6 +538,9 @@ DATA GROUNDING RULES — these override every other instruction in this prompt:
    provided per-deal rows. State the deal count behind each aggregate.
 4. Be specific and unhedged ONLY where the data supports it. Confidence without
    data is fabrication — the one behaviour this system must never exhibit.
+5. The report summary's "authoritativeFigures" (deal counts by risk level,
+   HIGH-risk MRR, stalled MRR) are computed in code from every deal. Whenever you
+   state one of those figures, copy it exactly — never recount or re-sum it.
 `;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -577,7 +580,8 @@ ANALYSIS FRAMEWORK
 
 1. EXECUTIVE BRIEFING — PIPELINE HEALTH FIRST
    Three sentences maximum. Not a summary. A provocation.
-   Lead with: (1) how many deals are classified HIGH risk and what MRR they represent,
+   Lead with: (1) how many deals are classified HIGH risk and what MRR they represent
+   (quote authoritativeFigures.highRiskDeals and .highRiskMrr exactly),
    (2) where risk is concentrating — region, rep, or stage, (3) what requires
    immediate CRO attention before end of quarter.
 
@@ -721,9 +725,9 @@ Return ONLY valid JSON:
     "downside": "Specific deals most likely to slip, named"
   },
   "portfolioRisk": {
-    "totalAtRisk": "$X MRR",
-    "highRiskDeals": 5,
-    "stalledRevenue": "$X MRR",
+    "totalAtRisk": "authoritativeFigures.highRiskMrr, copied exactly",
+    "highRiskDeals": "authoritativeFigures.highRiskDeals, copied exactly",
+    "stalledRevenue": "authoritativeFigures.stalledMrr, copied exactly",
     "keyPattern": "The single most important systemic pattern in this pipeline"
   }
 }
