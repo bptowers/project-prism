@@ -83,4 +83,13 @@ describe('RiskRadar revenue confidence gauge', () => {
     // a 1 makes the arc loop below the baseline and out of the viewBox.
     expect(fg).toMatch(/A 60 60 0 0 1 /);
   });
+
+  it('keeps the /100 label inside the drawing area', () => {
+    render(<RiskRadar risks={[acme]} />);
+    const gauge = screen.getByLabelText(/Revenue confidence: \d+ out of 100/);
+    const viewBoxHeight = Number(gauge.getAttribute('viewBox')!.split(' ')[3]);
+    const label = Array.from(gauge.querySelectorAll('text')).find(t => t.textContent === '/100')!;
+    // fontSize 11: the glyphs descend ~3 units below the baseline y.
+    expect(Number(label.getAttribute('y')) + 3).toBeLessThanOrEqual(viewBoxHeight);
+  });
 });
