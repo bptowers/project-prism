@@ -69,3 +69,18 @@ describe('RiskRadar deal cards', () => {
     expect(within(legend).getByText('Green')).toBeInTheDocument();
   });
 });
+
+describe('RiskRadar revenue confidence gauge', () => {
+  function arcPaths() {
+    const gauge = screen.getByLabelText(/Revenue confidence: \d+ out of 100/);
+    return Array.from(gauge.querySelectorAll('path')).map(p => p.getAttribute('d') ?? '');
+  }
+
+  it.each([30, 54, 90])('draws the arc above the baseline at confidence %i', (health) => {
+    render(<RiskRadar risks={[{ ...acme, healthScore: health }]} />);
+    const fg = arcPaths()[1];
+    // A half-circle gauge never sweeps more than 180°, so the large-arc flag must be 0;
+    // a 1 makes the arc loop below the baseline and out of the viewBox.
+    expect(fg).toMatch(/A 60 60 0 0 1 /);
+  });
+});

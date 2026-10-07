@@ -720,8 +720,8 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
             const angle = Math.PI - (conf / 100) * Math.PI;
             const endX = cx + r * Math.cos(angle);
             const endY = cy - r * Math.sin(angle);
-            const largeArcFlag = conf > 50 ? 1 : 0;
-            const fgPath = `M ${cx - r} ${cy} A ${r} ${r} 0 ${largeArcFlag} 1 ${endX.toFixed(2)} ${endY.toFixed(2)}`;
+            // A half-circle gauge never sweeps more than 180°, so large-arc is always 0.
+            const fgPath = `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${endX.toFixed(2)} ${endY.toFixed(2)}`;
             return (
               <svg viewBox="0 0 160 90" style={{ width: '100%', maxWidth: 160, display: 'block' }} aria-label={`Revenue confidence: ${conf} out of 100`}>
                 {/* Background arc */}
