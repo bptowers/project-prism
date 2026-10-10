@@ -7,6 +7,7 @@
  * Represents a raw opportunity record from Salesforce CSV export
  */
 import type { PipelineBasis } from "./util/pipelineValue.js";
+import type { PortfolioFacts } from "./analysis/portfolioFacts.js";
 
 export interface OpportunityRecord {
   opportunityId: string;
@@ -275,6 +276,11 @@ export interface AggregatedReport {
     upside: string;
     downside: string;
   };
+  /**
+   * Code-computed headline figures, stored so a later run's delta comparison
+   * still has them after the per-deal lists are trimmed for Firestore.
+   */
+  portfolioFacts?: PortfolioFacts;
   portfolioRisk?: {
     totalAtRisk: string;
     highRiskDeals: number;

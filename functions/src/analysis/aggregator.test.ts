@@ -294,6 +294,14 @@ describe("portfolio figures are computed in code, not by the LLM", () => {
     expect(out).toContain('"highRiskMrr":"$1,500.00 MRR"');
   });
 
+  it("includes pipeline total and region, stage and rep breakdowns with display region names", () => {
+    const out = grounded(highRiskReport());
+    expect(out).toContain('"totalPipelineMrr":"$1,700.00 MRR"');
+    expect(out).toContain('"byRegion":[{"region":"United Kingdom","activeDeals":3,"highRiskDeals":2');
+    expect(out).toContain('"byStage":[{"stage":"Validation","activeDeals":3,"highRiskDeals":2');
+    expect(out).toContain('"byRep":[{"rep":"James Mitchell","activeDeals":3,"highRiskDeals":2');
+  });
+
   it("overwrites the LLM's own portfolioRisk numbers with the computed ones", async () => {
     jest.spyOn(LLMProviderFactory, "create").mockResolvedValue(
       fakeProvider([JSON.stringify({

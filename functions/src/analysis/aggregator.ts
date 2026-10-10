@@ -97,7 +97,7 @@ export class Aggregator {
     // Generate global summary
     const global = this.generateGlobalSummary(analyses, regions);
 
-    return {
+    const report: AggregatedReport = {
       reportId,
       reportDate,
       period: this.getPeriodLabel(new Date()),
@@ -113,6 +113,8 @@ export class Aggregator {
         totalPiiIssuesCaught,
       },
     };
+    report.portfolioFacts = computePortfolioFacts(report);
+    return report;
   }
 
   /**
@@ -678,6 +680,13 @@ ${dealTable}
         highRiskMrr: facts.totalAtRiskDisplay,
         stalledDeals: facts.stalledDeals,
         stalledMrr: facts.stalledRevenueDisplay,
+        totalPipelineMrr: facts.totalPipelineDisplay,
+        weightedPipelineMrr: facts.weightedPipelineMrr,
+        ghostStrippedWeightedMrr: facts.ghostStrippedWeightedMrr,
+        dealsWithoutProbability: facts.dealsWithoutProbability,
+        byRegion: facts.byRegion.map((r) => ({ ...r, region: regionDisplayName(r.region) })),
+        byStage: facts.byStage,
+        byRep: facts.byRep,
       },
       regions: Object.entries(report.regions).map(([name, r]) => ({
         name: regionDisplayName(name),

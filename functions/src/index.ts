@@ -24,6 +24,7 @@ import {
   OpportunityRecord,
 } from "./types.js";
 import { estimateCostUsd } from "./util/cost.js";
+import { writeDealsSubcollection } from "./storage/dealsSubcollection.js";
 import { isAllowedEmail } from "./util/allowedDomains.js";
 
 // Initialize Firebase Admin
@@ -436,33 +437,6 @@ function capJsonSize<T>(value: T, maxArrayLen: number, maxStrLen: number): T {
 }
 
 /**
- * Writes all active deals to the Firestore deals subcollection at
- * /reports/{date}/deals/{opportunityId}. This removes the 50-deals-per-region
- * cap that was needed to keep the main document under 1 MiB.
- * Uses batched writes (max 500 ops per batch).
- */
-async function writeDealsSubcollection(
-  reportDate: string,
-  deals: Array<Record<string, unknown>>
-): Promise<void> {
-  if (!deals.length) return;
-  const BATCH_SIZE = 500;
-  let written = 0;
-  for (let i = 0; i < deals.length; i += BATCH_SIZE) {
-    const batch = db.batch();
-    const chunk = deals.slice(i, i + BATCH_SIZE);
-    for (const deal of chunk) {
-      const dealId = String(deal.opportunityId || `deal-${deal.id ?? i + chunk.indexOf(deal)}`);
-      const docRef = db.collection("reports").doc(reportDate).collection("deals").doc(dealId);
-      batch.set(docRef, deal);
-    }
-    await batch.commit();
-    written += chunk.length;
-  }
-  console.log(`[writeDealsSubcollection] wrote ${written} deals to /reports/${reportDate}/deals`);
-}
-
-/**
  * Trims unbounded arrays before writing to Firestore.
  * Firestore has a hard 1 MiB document limit. At 500+ records the LLM enrichment
  * payloads (twentyQuestions / competitiveDisplacement / deltaIntelligence) and
@@ -762,7 +736,7 @@ async function processAndStoreReport(
 
   // Full uncapped deal set goes to the subcollection BEFORE trimming
   const allDealsForSubcollection = ((transformed as unknown as Record<string, { risks?: Record<string, unknown>[] }>)["all"]?.risks || []);
-  await writeDealsSubcollection(reportDate, allDealsForSubcollection);
+  await writeDealsSubcollection(db, reportDate, allDealsForSubcollection);
 
   const trimmedTransformed = trimTransformedForStorage(transformed as unknown as Record<string, unknown>);
   const docPayloadInitial = {

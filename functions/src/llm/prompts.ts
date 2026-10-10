@@ -538,9 +538,12 @@ DATA GROUNDING RULES — these override every other instruction in this prompt:
    provided per-deal rows. State the deal count behind each aggregate.
 4. Be specific and unhedged ONLY where the data supports it. Confidence without
    data is fabrication — the one behaviour this system must never exhibit.
-5. The report summary's "authoritativeFigures" (deal counts by risk level,
-   HIGH-risk MRR, stalled MRR) are computed in code from every deal. Whenever you
-   state one of those figures, copy it exactly — never recount or re-sum it.
+5. The report summary's "authoritativeFigures" are computed in code from every
+   deal: deal counts by risk level, HIGH-risk MRR, stalled MRR, total pipeline
+   MRR, probability-weighted and ghost-stripped pipeline, and the same counts and
+   MRR broken down by region (byRegion), stage (byStage) and rep (byRep).
+   Whenever you state one of those figures, copy it exactly — never recount or
+   re-sum it. Only compute a figure yourself when authoritativeFigures lacks it.
 `;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -582,7 +585,8 @@ ANALYSIS FRAMEWORK
    Three sentences maximum. Not a summary. A provocation.
    Lead with: (1) how many deals are classified HIGH risk and what MRR they represent
    (quote authoritativeFigures.highRiskDeals and .highRiskMrr exactly),
-   (2) where risk is concentrating — region, rep, or stage, (3) what requires
+   (2) where risk is concentrating — region, rep, or stage (counts and MRR from
+   authoritativeFigures.byRegion / .byStage / .byRep), (3) what requires
    immediate CRO attention before end of quarter.
 
    Every sentence must contain a number (deal count, MRR figure, or percentage)
@@ -604,8 +608,10 @@ ANALYSIS FRAMEWORK
    a) REPORTED vs. REALISTIC FORECAST
       Calculate three pipeline views:
       - Reported Pipeline: Sum of all active deal values × probability
+        (= authoritativeFigures.weightedPipelineMrr — quote it exactly)
       - Ghost-Stripped Pipeline: Remove deals where activityHealth = 'dark' or 'dormant'
         (no activity in 15+ days). These deals have no momentum and should not be forecasted.
+        (= authoritativeFigures.ghostStrippedWeightedMrr — quote it exactly)
       - Commit-Integrity Pipeline: From ghost-stripped, remove Commitment-stage deals
         without a documented economic buyer or verbal commit signal.
       - Realistic Forecast: what the data actually supports
@@ -784,6 +790,7 @@ Q3 — WHERE IS PIPELINE COVERAGE BELOW 3X FOR THIS QUARTER?
 Q4 — WHICH REPS HAVE THE HIGHEST CONCENTRATION OF HIGH-RISK DEALS?
   Not deal count. Not total pipeline value. Risk concentration.
   Rank reps by: (high-risk deals) / (total deals) AND by (high-risk MRR) / (total MRR).
+  Take each rep's deal counts and high-risk MRR from authoritativeFigures.byRep exactly.
   For the top 3 most at-risk reps: name them, name their region,
   quantify the MRR at risk, and identify the primary risk pattern.
   This is a coaching intervention map, not a performance review.
@@ -813,7 +820,9 @@ Q7 — WHICH DEALS HAVE THE WIDEST GAP BETWEEN STATED PROBABILITY AND DEAL HEALT
 Q8 — WHAT IS THE FORECAST-WEIGHTED RISK EXPOSURE BY REGION?
   For each region, calculate:
   — Total active pipeline MRR (sum of deal values × probability)
+    (= authoritativeFigures.byRegion[].weightedPipelineMrr)
   — High-risk MRR (deals with riskSignals.level = high)
+    (= authoritativeFigures.byRegion[].highRiskMrr)
   — Risk percentage (high-risk MRR / total pipeline MRR)
   — Primary risk driver for that region
   Rank regions by risk exposure. Where is the most forecast at risk? Why?
@@ -1110,7 +1119,9 @@ ANALYSIS FRAMEWORK
    Compare the two snapshots and determine: is this pipeline getting healthier or sicker?
 
    a) PIPELINE VALUE MOVEMENT
-      - Total pipeline MRR: increased, decreased, or flat?
+      - Total pipeline MRR: increased, decreased, or flat? (compare each
+        snapshot's authoritativeFigures.totalPipelineMrr — where a snapshot
+        says "Not available in source data.", say so rather than estimating)
       - Active deal count: growing or shrinking?
       - Win rate trajectory: improving or declining?
       - Average deal health score: trending up or down?
