@@ -1,5 +1,6 @@
 import React from 'react';
 import { RiskDeal } from '@/lib/types';
+import { formatCurrency } from '@/lib/format';
 
 interface Props {
   risks: RiskDeal[];
@@ -12,12 +13,6 @@ interface RepRow {
   atRiskCount: number;
   totalPipeline: number;
   highCount: number;
-}
-
-function formatPipeline(value: number): string {
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${Math.round(value / 1_000)}K`;
-  return `$${Math.round(value)}`;
 }
 
 function healthColor(score: number | null): string {
@@ -269,7 +264,7 @@ export function RepHeatmap({ risks }: Props) {
                     textAlign: 'right',
                   }}
                 >
-                  {row.totalPipeline > 0 ? formatPipeline(row.totalPipeline) : '—'}
+                  {row.totalPipeline > 0 ? formatCurrency(row.totalPipeline) : '—'}
                 </div>
               )}
 

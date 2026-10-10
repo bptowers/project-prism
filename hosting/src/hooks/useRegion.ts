@@ -1,6 +1,8 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { Region, RegionData, RiskDeal, StatData, TwentyQuestionsData, CompetitiveDisplacementData, DeltaIntelligenceData } from '@/lib/types';
 import { useLatestReport } from '@/hooks/useFirestore';
+import { countDealsByRegion } from '@/lib/injectDeals';
+import { formatDate } from '@/lib/format';
 
 function computeInFlightStats(risks: RiskDeal[]): { avgHealthScore: StatData; dealsAtRisk: StatData; velocity: StatData } {
   const withScore = risks.filter(r => typeof r.healthScore === 'number');
@@ -140,23 +142,47 @@ export function useRegion() {
 
   const displayBriefing = executiveBriefing ?? (isLive ? lastKnownBriefing : undefined);
 
-  // Per-region opportunity counts for RegionTabs — derived from transformed report
+  // Per-region deal counts for RegionTabs — counted from the deals actually
+  // loaded (per normalised key), so the badge matches what the tab shows.
   const regionCounts = useMemo<Record<string, number> | undefined>(() => {
-    if (!isLive || !report?.transformed) return undefined;
-    const counts: Record<string, number> = {};
-    for (const [key, regionData] of Object.entries(report.transformed as Record<string, { stats: { pipeline: { value: string } } }>)) {
-      if (key === 'all') continue; // skip global aggregate
-      const val = regionData?.stats?.pipeline?.value ?? '';
-      const match = val.match(/^(\d+)/);
-      if (match) counts[key] = parseInt(match[1], 10);
+    if (!isLive) return undefined;
+    return countDealsByRegion(allData.risks ?? []);
+  }, [isLive, allData]);
+
+  const dealsError = isLive ? report?.dealsError : undefined;
+
+  // createdAt arrives as a Firestore Timestamp; normalise to an ISO string once.
+  const reportCreatedAt = useMemo<string | undefined>(() => {
+    if (!isLive || !report) return undefined;
+    const createdAt = report.createdAt;
+    if (createdAt instanceof Date) return createdAt.toISOString();
+    if (typeof (createdAt as { toDate?: () => Date } | undefined)?.toDate === 'function') {
+      return (createdAt as { toDate: () => Date }).toDate().toISOString();
     }
-    return counts;
+    return undefined;
   }, [isLive, report]);
+
+  // Run metadata for the footer — read defensively, nothing is invented.
+  const reportMeta = useMemo(() => {
+    if (!isLive || !report) return undefined;
+    const createdIso = reportCreatedAt;
+    const quality = report.dataQuality?.averageQualityScore;
+    return {
+      recordsAnalyzed: typeof report.totalRecordsAnalyzed === 'number' ? report.totalRecordsAnalyzed : undefined,
+      provider: typeof report.analysisProvider === 'string' ? report.analysisProvider : undefined,
+      model: typeof report.analysisModel === 'string' ? report.analysisModel : undefined,
+      generatedAt: formatDate(report.reportDate || createdIso) || undefined,
+      dataQualityScore: typeof quality === 'number' ? quality : undefined,
+      sourceTruncated: report.pipelineMeta?.sourceTruncated,
+      sourceRowLimit: report.pipelineMeta?.sourceRowLimit,
+      rejectedCount: report.pipelineMeta?.rejectedCount,
+    };
+  }, [isLive, report, reportCreatedAt]);
 
   return {
     region, data, allData, selectRegion, loading, isLive, hasLiveData, showingContent,
     executiveBriefing: displayBriefing, totalOpportunities, reportPeriod, regionCounts,
-    reportDate,
+    reportDate, reportCreatedAt, dealsError, reportMeta,
     twentyQuestions, competitiveDisplacement, deltaIntelligence,
   };
 }

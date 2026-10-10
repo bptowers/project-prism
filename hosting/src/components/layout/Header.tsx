@@ -1,19 +1,26 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { itemVariants } from '@/theme/animations';
 import { Button } from '@/components/ui/Button';
 import { useTheme } from '@/theme/ThemeProvider';
-import { signOut } from 'firebase/auth';
+import { signOut, onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
 interface HeaderProps {
   onUploadClick?: () => void;
   period?: string;
   isLive?: boolean;
-  reportDate?: string;
+  /** ISO timestamp of when the report was generated (createdAt), used for "Nh ago". */
+  generatedAt?: string;
 }
 
-type RunState = 'idle' | 'loading' | 'success' | 'error';
+type RunState = 'idle' | 'confirming' | 'loading' | 'started' | 'success' | 'error' | 'unauthenticated';
+
+// The hosting rewrite to the function gives up after 60s and answers 504
+// while the function keeps running. Abort our own fetch just after that so
+// a hung connection also resolves to "started" rather than spinning forever.
+const RUN_FETCH_TIMEOUT_MS = 65_000;
+const STATUS_RESET_MS = 6_000;
 
 function getRelativeTime(isoString: string): string {
   const date = new Date(isoString);
@@ -28,48 +35,99 @@ function getRelativeTime(isoString: string): string {
   return `${diffD}d ago`;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive, reportDate }) => {
+const smallButton: React.CSSProperties = {
+  background: 'var(--bg-elevated)',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  padding: '0.5rem 1rem',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '0.75rem',
+  color: 'var(--text-primary)',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  transition: 'color 0.2s ease, opacity 0.2s ease',
+};
+
+export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive, generatedAt }) => {
   const { theme, toggleTheme } = useTheme();
   const [runState, setRunState] = useState<RunState>('idle');
+  const [runError, setRunError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
-  const handleRunAnalysis = useCallback(async () => {
-    if (runState === 'loading') return;
-    setRunState('loading');
+  // Subscribe to auth state instead of reading auth.currentUser during render,
+  // which is stale until something else re-renders the header.
+  useEffect(() => onAuthStateChanged(auth, setUser), []);
 
-    try {
-      let token: string | undefined;
-      try {
-        const user = auth.currentUser;
-        if (user) {
-          token = await user.getIdToken();
-        }
-      } catch {
-        // Fall through without token — may work in emulator mode
-      }
-
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/bigquery', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({}),
-      });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      setRunState('success');
-      setTimeout(() => setRunState('idle'), 4000);
-    } catch {
-      setRunState('error');
-      setTimeout(() => setRunState('idle'), 4000);
-    }
+  // Transient statuses fall back to idle after a few seconds.
+  useEffect(() => {
+    if (runState !== 'success' && runState !== 'error' && runState !== 'unauthenticated' && runState !== 'started') return;
+    const id = setTimeout(() => { setRunState('idle'); setRunError(null); }, STATUS_RESET_MS);
+    return () => clearTimeout(id);
   }, [runState]);
 
-  const runLabel = runState === 'loading' ? 'Running...' : runState === 'success' ? 'Done ✓' : runState === 'error' ? 'Failed ✗' : 'Run Analysis';
-  const runColor = runState === 'success' ? 'var(--success)' : runState === 'error' ? 'var(--error)' : 'var(--text-primary)';
+  const handleRunClick = useCallback(() => {
+    if (runState !== 'idle') return;
+    if (!user) {
+      setRunState('unauthenticated');
+      return;
+    }
+    setRunState('confirming');
+  }, [runState, user]);
 
-  const relativeTime = reportDate ? getRelativeTime(reportDate) : undefined;
+  const handleConfirmRun = useCallback(async () => {
+    if (!user) {
+      setRunState('unauthenticated');
+      return;
+    }
+    setRunState('loading');
+    setRunError(null);
+
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), RUN_FETCH_TIMEOUT_MS);
+
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/bigquery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+        signal: controller.signal,
+      });
+
+      if (res.ok) {
+        setRunState('success');
+      } else if (res.status === 504) {
+        // Hosting rewrite timed out; the function is still running.
+        setRunState('started');
+      } else {
+        setRunError(`HTTP ${res.status}`);
+        setRunState('error');
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setRunState('started');
+      } else {
+        setRunError(err instanceof Error ? err.message : String(err));
+        setRunState('error');
+      }
+    } finally {
+      clearTimeout(abortTimer);
+    }
+  }, [user]);
+
+  const runLabel =
+    runState === 'loading' ? 'Running...' :
+    runState === 'success' ? 'Done ✓' :
+    runState === 'started' ? 'Run started — results appear when the report updates' :
+    runState === 'error' ? `Failed (${runError ?? 'unknown error'})` :
+    runState === 'unauthenticated' ? 'Sign in required' :
+    'Run Analysis';
+  const runColor =
+    runState === 'success' || runState === 'started' ? 'var(--success)' :
+    runState === 'error' || runState === 'unauthenticated' ? 'var(--error)' :
+    'var(--text-primary)';
+
+  const relativeTime = generatedAt ? getRelativeTime(generatedAt) : undefined;
 
   return (
     <motion.header variants={itemVariants} style={{
@@ -104,28 +162,40 @@ export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive, r
               </span>
             )}
           </div>
-          {/* Run Analysis button */}
-          <button
-            onClick={handleRunAnalysis}
-            disabled={runState === 'loading'}
-            style={{
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              padding: '0.5rem 1rem',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.75rem',
-              color: runColor,
-              cursor: runState === 'loading' ? 'not-allowed' : 'pointer',
-              opacity: runState === 'loading' ? 0.6 : 1,
-              transition: 'color 0.2s ease, opacity 0.2s ease',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {runLabel}
-          </button>
-          <Button variant="export">Export PDF</Button>
-          <Button variant="export">Export Slides</Button>
+
+          {/* Run Analysis: two-click confirm */}
+          {runState === 'confirming' ? (
+            <div role="group" aria-label="Confirm run analysis" style={{
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              background: 'var(--bg-elevated)', border: '1px solid var(--warning)', borderRadius: 6,
+              padding: '0.35rem 0.5rem 0.35rem 0.85rem',
+            }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                Run full analysis? ~10 min, re-generates today's report.
+              </span>
+              <button onClick={handleConfirmRun} style={{ ...smallButton, padding: '0.35rem 0.75rem', background: 'var(--accent)', color: '#fff', border: 'none' }}>
+                Run
+              </button>
+              <button onClick={() => setRunState('idle')} style={{ ...smallButton, padding: '0.35rem 0.75rem', color: 'var(--text-secondary)' }}>
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleRunClick}
+              disabled={runState === 'loading'}
+              aria-live="polite"
+              style={{
+                ...smallButton,
+                color: runColor,
+                cursor: runState === 'loading' ? 'not-allowed' : runState === 'idle' ? 'pointer' : 'default',
+                opacity: runState === 'loading' ? 0.6 : 1,
+              }}
+            >
+              {runLabel}
+            </button>
+          )}
+
           <Button variant="primary" onClick={onUploadClick}>Upload CSV</Button>
           <button
             onClick={toggleTheme}
@@ -147,27 +217,17 @@ export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive, r
           >
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
-          {auth.currentUser?.email && (
+          {user?.email && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span
-                title={auth.currentUser.email}
+                title={user.email}
                 style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
               >
-                {auth.currentUser.email}
+                {user.email}
               </span>
               <button
                 onClick={() => signOut(auth).catch(() => undefined)}
-                style={{
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 6,
-                  padding: '0.5rem 0.75rem',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '0.7rem',
-                  color: 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
+                style={{ ...smallButton, padding: '0.5rem 0.75rem', fontSize: '0.7rem', color: 'var(--text-secondary)' }}
               >
                 Sign out
               </button>

@@ -4,24 +4,25 @@ import { itemVariants, cardHover } from '@/theme/animations';
 import { Badge } from '@/components/ui/Badge';
 import type { CompetitiveDisplacementData, LossMechanism, RegionalArbitrage, RewarmOpportunity, WinMechanism } from '@/lib/types';
 import { asArray, isRecord } from '@/lib/guards';
+import { NotGeneratedPanel } from '@/components/dashboard/NotGeneratedPanel';
 
-interface Props { data?: CompetitiveDisplacementData; }
+interface Props { data?: CompetitiveDisplacementData; isLive?: boolean; }
 
-export const CompetitiveDisplacement: React.FC<Props> = ({ data }) => {
-  if (!data) return null;
-
+export const CompetitiveDisplacement: React.FC<Props> = ({ data, isLive }) => {
   // LLM-authored payload: coerce every slot to the shape we iterate. Older
   // reports in Firestore may carry prose strings where arrays belong.
-  const regions = isRecord(data.winMechanisms)
+  const regions = isRecord(data?.winMechanisms)
     ? Object.entries(data.winMechanisms as Record<string, WinMechanism>).filter(([, m]) => isRecord(m))
     : [];
-  const lossMechanisms = asArray<LossMechanism>(data.lossMechanisms);
-  const regionalArbitrage = asArray<RegionalArbitrage>(data.regionalArbitrage);
-  const rewarmOpportunities = asArray<RewarmOpportunity>(data.rewarmOpportunities);
-  const whyHaventTheyBought = isRecord(data.whyHaventTheyBought) ? data.whyHaventTheyBought : undefined;
+  const lossMechanisms = asArray<LossMechanism>(data?.lossMechanisms);
+  const regionalArbitrage = asArray<RegionalArbitrage>(data?.regionalArbitrage);
+  const rewarmOpportunities = asArray<RewarmOpportunity>(data?.rewarmOpportunities);
+  const whyHaventTheyBought = isRecord(data?.whyHaventTheyBought) ? data.whyHaventTheyBought : undefined;
 
   const hasContent = regions.length > 0 || lossMechanisms.length > 0;
-  if (!hasContent) return null;
+  if (!hasContent) {
+    return isLive ? <NotGeneratedPanel title="Competitive Displacement" /> : null;
+  }
 
   return (
     <motion.div variants={itemVariants} style={{ marginBottom: '2rem' }}>

@@ -8,6 +8,7 @@ import {
   LLMConfig,
   OpportunityAnalysis,
   OpportunityRecord,
+  ValidationReport,
 } from "../types.js";
 import { DataValidator } from "../pipeline/validator.js";
 import {
@@ -76,10 +77,15 @@ export class Analyzer {
   /**
    * Analyzes a batch of opportunity records
    * Handles validation, batching, LLM processing, and error recovery
+   *
+   * @param opts.validationReport A report already produced by DataValidator
+   *   for exactly these `records` (same order). When supplied, the analyzer
+   *   filters on it instead of validating again — the pipeline validates once.
    */
   async analyze(
     records: OpportunityRecord[],
-    executionContext: ExecutionContext
+    executionContext: ExecutionContext,
+    opts?: { validationReport?: ValidationReport }
   ): Promise<OpportunityAnalysis[]> {
     const startTime = Date.now();
 
@@ -88,9 +94,20 @@ export class Analyzer {
         `[${executionContext.executionId}] Starting analysis of ${records.length} records`
       );
 
-      // Step 1: Validate records
-      console.log(`[${executionContext.executionId}] Validating records...`);
-      const validationReport = this.validator.validateBatch(records);
+      // Step 1: Validate records (or reuse the pipeline's single pass). The
+      // supplied report is filtered by index, so it must cover exactly these
+      // records; if it does not, re-validate rather than misalign.
+      let validationReport = opts?.validationReport;
+      if (validationReport && validationReport.totalRecords !== records.length) {
+        console.warn(
+          `[${executionContext.executionId}] Supplied validation report covers ${validationReport.totalRecords} records but ${records.length} were passed — re-validating`
+        );
+        validationReport = undefined;
+      }
+      if (!validationReport) {
+        console.log(`[${executionContext.executionId}] Validating records...`);
+        validationReport = this.validator.validateBatch(records);
+      }
 
       console.log(
         `[${executionContext.executionId}] Validation complete: ${validationReport.validRecords}/${validationReport.totalRecords} valid (avg quality: ${validationReport.averageQualityScore})`

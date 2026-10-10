@@ -5,7 +5,7 @@
  * field-map change, the scheduled BigQuery pipeline is likely mapping fields
  * to empty strings in production.
  */
-import { BigQuerySource, BigQueryConfig } from "./bigquerySource";
+import { BigQuerySource, BigQueryConfig, describeFetch } from "./bigquerySource";
 
 const CONFIG: BigQueryConfig = {
   projectId: "test-project",
@@ -122,6 +122,48 @@ describe("BigQuerySource.mapRow with production column names", () => {
 });
 
 describe("BigQuerySource.buildQuery", () => {
+  afterEach(() => jest.useRealTimers());
+
+  it.each([
+    ["2026-09-16T12:00:00Z", "2026-07-01", "2027-01-01"],
+    ["2026-09-30T23:59:59.999Z", "2026-07-01", "2027-01-01"],
+    ["2026-10-01T00:00:00Z", "2026-10-01", "2027-04-01"],
+    ["2026-12-31T23:59:59.999Z", "2026-10-01", "2027-04-01"],
+    ["2027-01-01T00:00:00Z", "2027-01-01", "2027-07-01"],
+    ["2028-02-29T12:00:00Z", "2028-01-01", "2028-07-01"],
+    ["2026-04-01T00:00:00Z", "2026-04-01", "2026-10-01"],
+  ])("selects current and next UTC quarter at %s", (date, start, end) => {
+    jest.useFakeTimers().setSystemTime(new Date(date));
+    const source = new BigQuerySource(CONFIG);
+    const { query, params } = (
+      source as unknown as { buildQuery: () => { query: string; params: Record<string, unknown> } }
+    ).buildQuery();
+    expect(params.closeQuarterStart).toBe(start);
+    expect(params.closeQuarterEnd).toBe(end);
+    // SQL comparisons exclude NULLs and dates outside the half-open interval.
+    expect(query).toContain("close_date >= @closeQuarterStart AND close_date < @closeQuarterEnd");
+    expect(query).not.toContain("close_date IS NULL");
+    expect(query).not.toContain("@closeSince");
+    expect(query).toContain("ORDER BY close_date ASC LIMIT 300");
+  });
+
+  it("preserves all other eligibility filters and explicit source options", () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-09-16T12:00:00Z"));
+    const source = new BigQuerySource({ ...CONFIG, sinceDate: "2026-01-01", createdMonths: 12, limit: 125 });
+    const { query, params } = (
+      source as unknown as { buildQuery: () => { query: string; params: Record<string, unknown> } }
+    ).buildQuery();
+    expect(query).toContain("COALESCE(_fivetran_active, TRUE)");
+    expect(query).toContain("is_closed = FALSE");
+    expect(query).toContain("LOWER(COALESCE(type, '')) = 'new business'");
+    expect(query).toContain("amount IS NOT NULL AND SAFE_CAST(amount AS FLOAT64) > 0");
+    expect(query).toContain("created_date >= @sinceDate");
+    expect(params.sinceDate).toBe("2026-01-01");
+    expect(query).toContain("created_date >= @createdSince");
+    expect(params.createdSince).toBe(new Date(Date.now() - 12 * 30.44 * 86_400_000).toISOString().slice(0, 10));
+    expect(query).toContain("ORDER BY close_date ASC LIMIT 125");
+  });
+
   it("filters out inactive Fivetran row versions defensively", () => {
     const source = new BigQuerySource(CONFIG);
     const { query } = (
@@ -129,5 +171,66 @@ describe("BigQuerySource.buildQuery", () => {
     ).buildQuery();
     expect(query).toContain("COALESCE(_fivetran_active, TRUE)");
     expect(query).toContain("is_closed = FALSE");
+  });
+});
+
+describe("BigQuerySource row-cap telemetry", () => {
+  it("describeFetch flags truncation only when the row count hits the limit", () => {
+    expect(describeFetch(300, 300)).toEqual({ truncated: true, rowLimit: 300, rowCount: 300 });
+    expect(describeFetch(299, 300)).toEqual({ truncated: false, rowLimit: 300, rowCount: 299 });
+    expect(describeFetch(0, 300)).toEqual({ truncated: false, rowLimit: 300, rowCount: 0 });
+  });
+
+  it("exposes the effective row limit (default 300, config override)", () => {
+    expect(new BigQuerySource(CONFIG).rowLimit).toBe(300);
+    expect(new BigQuerySource({ ...CONFIG, limit: 50 }).rowLimit).toBe(50);
+  });
+
+  it("fetchRecordsWithMeta reports truncation and warns naming the cap", async () => {
+    const source = new BigQuerySource({ ...CONFIG, limit: 2 });
+    const rows = [productionRow({ id: "A" }), productionRow({ id: "B" })];
+    (source as unknown as { client: unknown }).client = {
+      query: async () => [rows],
+    };
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const result = await source.fetchRecordsWithMeta();
+      expect(result.records.map((r) => r.opportunityId)).toEqual(["A", "B"]);
+      expect(result.truncated).toBe(true);
+      expect(result.rowLimit).toBe(2);
+      expect(result.rowCount).toBe(2);
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/LIMIT 2\b|cap of 2\b|limit of 2\b/));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("fetchRecordsWithMeta does not warn when under the cap", async () => {
+    const source = new BigQuerySource({ ...CONFIG, limit: 5 });
+    (source as unknown as { client: unknown }).client = {
+      query: async () => [[productionRow()]],
+    };
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const result = await source.fetchRecordsWithMeta();
+      expect(result.truncated).toBe(false);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe("BigQuerySource.mapRow pipeline value basis", () => {
+  it("keeps expectedMRR and amount as separate fields", () => {
+    const record = mapRow(productionRow({ expected_mrr_c: 1500, amount: 18000 }));
+    expect(record.expectedMRR).toBe(1500);
+    expect(record.amount).toBe(18000);
+  });
+
+  it("leaves expectedMRR undefined when the column is null", () => {
+    const record = mapRow(productionRow({ expected_mrr_c: null, amount: 18000 }));
+    expect(record.expectedMRR).toBeUndefined();
+    expect(record.amount).toBe(18000);
   });
 });

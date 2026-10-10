@@ -1,5 +1,5 @@
 import { Aggregator, getEnrichmentJson } from "./aggregator.js";
-import { AggregatedReport, RiskDeal } from "../types.js";
+import { AggregatedReport, OpportunityAnalysis, RiskDeal } from "../types.js";
 import { ILLMProvider, LLMCompletionOutput } from "../llm/provider.js";
 
 function riskDeal(overrides: Partial<RiskDeal> = {}): RiskDeal {
@@ -10,6 +10,7 @@ function riskDeal(overrides: Partial<RiskDeal> = {}): RiskDeal {
     stage: "Validation",
     salesRep: "James Mitchell",
     amount: 1200,
+    pipelineBasis: "mrr",
     probability: 60,
     dealHealthScore: 55,
     activityHealth: "cooling",
@@ -89,7 +90,10 @@ describe("Aggregator.buildGroundedSummary", () => {
     expect(out).toContain("[END_USER_DATA]");
     expect(out).toContain('"deal":"Acme Platform Deal"');
     expect(out).toContain('"rep":"James Mitchell"');
-    expect(out).toContain('"mrr":1200');
+    expect(out).toContain('"pipelineValue":1200');
+    expect(out).toContain('"basis":"mrr"');
+    expect(out).not.toContain('"mrr":');
+    expect(out).toMatch(/pipelineValue is Expected MRR when basis is "mrr"/);
     expect(out).toContain('"daysSinceLastActivity":9');
   });
 
@@ -208,5 +212,126 @@ describe("enrichment phases normalise LLM payload shapes before storing", () => 
     );
     const report = await Aggregator.enrichWithTwentyQuestions(minimalReport(), fakeConfig);
     expect(report.twentyQuestions?.question2).toEqual({ label: "Slip", answer: "…", deals: [] });
+  });
+});
+
+describe("Aggregator.aggregate dataQuality", () => {
+  it("records the PII issue count supplied by the pipeline", () => {
+    const report = Aggregator.aggregate([], "2026-09-10T00:00:00Z", "test", "test-1", 88, 7);
+    expect(report.dataQuality).toEqual({ averageQualityScore: 88, totalPiiIssuesCaught: 7 });
+  });
+});
+
+describe("Aggregator.aggregate pipeline value basis", () => {
+  function analysis(overrides: Partial<OpportunityAnalysis>): OpportunityAnalysis {
+    return {
+      opportunityId: "OPP-1",
+      accountName: "Acme",
+      opportunityName: "Acme Deal",
+      region: "uk",
+      stage: "Validation",
+      winLossStatus: "active",
+      analysisDate: "2026-09-10T00:00:00Z",
+      dealHealthScore: 70,
+      velocityAssessment: "on-track",
+      activityHealth: "active",
+      stakeholderCoverage: "multi-threaded",
+      competitorThreat: "none",
+      riskSignals: { level: "low", signals: [], summary: "" },
+      narrativeGap: { detected: false, description: "" },
+      regionalIntelligence: { matchesRegionalPattern: true, deviation: "" },
+      competitors: { mentioned: [], context: [] },
+      marketSignals: [],
+      sentiment: { score: 0, label: "neutral" },
+      recommendedAction: { priority: "P3", action: "Keep going", owner: "AE", deadline: "This week" },
+      confidence: 0.8,
+      processingTimeMs: 0,
+      ...overrides,
+    };
+  }
+
+  it("marks a deal with expected MRR as mrr-basis and uses MRR as its amount", () => {
+    const report = Aggregator.aggregate(
+      [analysis({ expectedMRR: 1500, amount: 18000 })],
+      "2026-09-10T00:00:00Z", "test", "test-1", 100
+    );
+    const deal = report.regions.uk.allActiveDeals[0];
+    expect(deal.amount).toBe(1500);
+    expect(deal.pipelineBasis).toBe("mrr");
+  });
+
+  it("marks a deal with only a contract amount as amount-basis", () => {
+    const report = Aggregator.aggregate(
+      [analysis({ amount: 18000, dealHealthScore: 30, riskSignals: { level: "high", signals: [], summary: "" } })],
+      "2026-09-10T00:00:00Z", "test", "test-1", 100
+    );
+    expect(report.regions.uk.allActiveDeals[0]).toMatchObject({ amount: 18000, pipelineBasis: "amount" });
+    expect(report.regions.uk.atRiskDeals[0]).toMatchObject({ amount: 18000, pipelineBasis: "amount" });
+  });
+});
+
+describe("portfolio figures are computed in code, not by the LLM", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  function highRiskReport(): AggregatedReport {
+    const report = minimalReport();
+    const deals = [
+      riskDeal({ opportunityId: "A", riskLevel: "high", amount: 1000, velocityAssessment: "stalled" }),
+      riskDeal({ opportunityId: "B", riskLevel: "high", amount: 500 }),
+      riskDeal({ opportunityId: "C", riskLevel: "medium", amount: 200 }),
+    ];
+    report.regions.uk.allActiveDeals = deals;
+    report.regions.uk.atRiskDeals = deals;
+    report.global.highRiskCount = 2;
+    report.global.mediumRiskCount = 1;
+    return report;
+  }
+
+  it("gives every enrichment phase an authoritative figures block", () => {
+    const out = grounded(highRiskReport());
+    expect(out).toContain("AUTHORITATIVE FIGURES");
+    expect(out).toContain('"highRiskDeals":2');
+    expect(out).toContain('"highRiskMrr":"$1,500.00 MRR"');
+  });
+
+  it("overwrites the LLM's own portfolioRisk numbers with the computed ones", async () => {
+    jest.spyOn(LLMProviderFactory, "create").mockResolvedValue(
+      fakeProvider([JSON.stringify({
+        executiveBriefing: "2 deals representing $1,500.00 MRR are HIGH risk.",
+        recommendations: [],
+        forecastConfidence: { percentage: 50, assessment: "a", upside: "u", downside: "d" },
+        portfolioRisk: { totalAtRisk: "$9 MRR", highRiskDeals: 78, stalledRevenue: "$1 MRR", keyPattern: "Forecast fiction" },
+      })])
+    );
+    const report = await Aggregator.enrichWithLLM(highRiskReport(), fakeConfig);
+    expect(report.portfolioRisk).toEqual({
+      totalAtRisk: "$1,500.00 MRR",
+      highRiskDeals: 2,
+      stalledRevenue: "$1,000.00 MRR",
+      keyPattern: "Forecast fiction",
+    });
+  });
+
+  it("warns when the briefing does not quote the computed HIGH-risk count", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    jest.spyOn(LLMProviderFactory, "create").mockResolvedValue(
+      fakeProvider([JSON.stringify({
+        executiveBriefing: "78 deals are HIGH risk.",
+        recommendations: [],
+        portfolioRisk: { keyPattern: "x" },
+      })])
+    );
+    await Aggregator.enrichWithLLM(highRiskReport(), fakeConfig);
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/briefing does not mention the computed HIGH-risk count \(2\)/));
+  });
+});
+
+describe("report summary does not replay stored LLM risk counts", () => {
+  it("passes only the portfolio risk pattern, not its numbers", () => {
+    const report = minimalReport();
+    report.portfolioRisk = { totalAtRisk: "$9 MRR", highRiskDeals: 78, stalledRevenue: "$1 MRR", keyPattern: "Forecast fiction" };
+    const out = grounded(report);
+    expect(out).toContain('"portfolioRiskPattern":"Forecast fiction"');
+    expect(out).not.toContain("78");
   });
 });

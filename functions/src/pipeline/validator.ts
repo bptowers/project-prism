@@ -6,6 +6,7 @@
 import {
   OpportunityRecord,
   RecordValidation,
+  RejectedRecord,
   ValidationReport,
 } from "../types.js";
 
@@ -54,6 +55,15 @@ export class DataValidator {
       0
     );
 
+    // A dropped record must be visible in the logs and in the report — a
+    // silent rejection every run is indistinguishable from a data bug.
+    const rejected: RejectedRecord[] = recordValidations
+      .filter((v) => !v.isValid)
+      .map((v) => ({ opportunityId: v.recordId, reasons: [...v.errors] }));
+    for (const r of rejected) {
+      console.warn(`[DataValidator] Rejected ${r.opportunityId}: ${r.reasons.join("; ")}`);
+    }
+
     return {
       totalRecords: records.length,
       validRecords,
@@ -61,6 +71,7 @@ export class DataValidator {
       averageQualityScore: Math.round(averageQualityScore * 100) / 100,
       totalPiiIssues,
       recordValidations,
+      rejected,
       timestamp: new Date(),
     };
   }

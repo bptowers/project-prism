@@ -68,6 +68,7 @@ export class ClaudeProvider implements ILLMProvider {
           opportunityName: opportunity.opportunityName,
           stage: opportunity.stage,
           amount: opportunity.amount,
+          expectedMRR: opportunity.expectedMRR,
           winLossStatus: opportunity.winLossStatus,
           notes: opportunity.notes,
           dealReviewNotes: opportunity.dealReviewNotes,

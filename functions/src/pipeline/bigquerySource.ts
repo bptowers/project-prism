@@ -6,6 +6,29 @@
 import { BigQuery, BigQueryOptions } from "@google-cloud/bigquery";
 import { OpportunityRecord } from "../types.js";
 
+/** Default LIMIT applied to the BigQuery pull when config.limit is unset. */
+export const DEFAULT_ROW_LIMIT = 300;
+
+/** Telemetry about a single fetch, independent of the mapped records. */
+export interface FetchTelemetry {
+  /** True when the query returned exactly `rowLimit` rows — the cap was hit. */
+  truncated: boolean;
+  rowLimit: number;
+  rowCount: number;
+}
+
+export interface FetchResult extends FetchTelemetry {
+  records: OpportunityRecord[];
+}
+
+/**
+ * Pure helper: a result set that fills the LIMIT (rowCount >= rowLimit)
+ * almost certainly means more rows exist upstream, so report it as truncated.
+ */
+export function describeFetch(rowCount: number, rowLimit: number): FetchTelemetry {
+  return { truncated: rowCount >= rowLimit, rowLimit, rowCount };
+}
+
 /**
  * Configuration for BigQuery data source
  */
@@ -17,7 +40,6 @@ export interface BigQueryConfig {
   sinceDate?: string; // ISO date string for incremental pulls (e.g. "2026-02-18")
   limit?: number; // Max records to fetch (default 300)
   createdMonths?: number; // exclude deals created more than this many months ago (default 18)
-  closeDaysPast?: number; // exclude deals whose close date is more than this many days past (default 90)
 }
 
 /**
@@ -159,10 +181,25 @@ export class BigQuerySource {
     this.fieldMap = fieldMap || DEFAULT_BQ_FIELD_MAP;
   }
 
+  /** Effective LIMIT for this source (config override or DEFAULT_ROW_LIMIT). */
+  get rowLimit(): number {
+    return this.config.limit ?? DEFAULT_ROW_LIMIT;
+  }
+
   /**
-   * Fetches opportunity records from BigQuery
+   * Fetches opportunity records from BigQuery. Kept for callers that only
+   * want records; prefer fetchRecordsWithMeta() so the row cap is observable.
    */
   async fetchRecords(): Promise<OpportunityRecord[]> {
+    return (await this.fetchRecordsWithMeta()).records;
+  }
+
+  /**
+   * Fetches opportunity records plus telemetry about whether the query's
+   * LIMIT was hit. A silently-capped pull looks identical to a complete one
+   * downstream, so the cap must be surfaced here.
+   */
+  async fetchRecordsWithMeta(): Promise<FetchResult> {
     const { query, params } = this.buildQuery();
     console.log(
       `[BigQuerySource] Executing query against ${this.config.dataset}.${this.config.table}`
@@ -176,6 +213,14 @@ export class BigQuerySource {
 
     console.log(`[BigQuerySource] Fetched ${rows.length} rows from BigQuery`);
 
+    const telemetry = describeFetch(rows.length, this.rowLimit);
+    if (telemetry.truncated) {
+      console.warn(
+        `[BigQuerySource] Result set hit the query cap of ${telemetry.rowLimit} rows (LIMIT ${telemetry.rowLimit}) — ` +
+        `more open opportunities likely exist upstream. Raise BigQueryConfig.limit to include them.`
+      );
+    }
+
     if (rows.length > 0) {
       console.log(`[BigQuerySource] Columns found: ${Object.keys(rows[0]).join(", ")}`);
 
@@ -188,7 +233,10 @@ export class BigQuerySource {
       console.log(`[BigQuerySource] Region distribution: ${JSON.stringify(regionCounts)}`);
     }
 
-    return rows.map((row: Record<string, unknown>) => this.mapRow(row));
+    return {
+      ...telemetry,
+      records: rows.map((row: Record<string, unknown>) => this.mapRow(row)),
+    };
   }
 
   /**
@@ -202,7 +250,7 @@ export class BigQuerySource {
     const orderCol = orderCandidates[0];
     const closeDateCandidates = this.fieldMap["closedDate"] || ["close_date"];
     const closeDateCol = closeDateCandidates[0];
-    const limit = this.config.limit ?? 300;
+    const limit = this.rowLimit;
 
     // _fivetran_active guards against Fivetran history mode ever retaining
     // superseded row versions (currently all rows are active, but the columns
@@ -225,11 +273,13 @@ export class BigQuerySource {
     filters.push(`${orderCol} >= @createdSince`);
     params.createdSince = createdSince;
 
-    // Exclude deals with close dates far in the past (allow NULL — open-ended deals)
-    const closeDaysPast = this.config.closeDaysPast ?? 90;
-    const closeSince = new Date(Date.now() - closeDaysPast * 86_400_000).toISOString().slice(0, 10);
-    filters.push(`(${closeDateCol} >= @closeSince OR ${closeDateCol} IS NULL)`);
-    params.closeSince = closeSince;
+    // Current and next calendar quarter, based on expected close date (UTC).
+    // The exclusive upper bound handles year rollover and excludes undated deals.
+    const now = new Date();
+    const quarterMonth = Math.floor(now.getUTCMonth() / 3) * 3;
+    params.closeQuarterStart = new Date(Date.UTC(now.getUTCFullYear(), quarterMonth, 1)).toISOString().slice(0, 10);
+    params.closeQuarterEnd = new Date(Date.UTC(now.getUTCFullYear(), quarterMonth + 6, 1)).toISOString().slice(0, 10);
+    filters.push(`${closeDateCol} >= @closeQuarterStart AND ${closeDateCol} < @closeQuarterEnd`);
 
     // Exclude deals with no pipeline value — these are test records, admin placeholders,
     // or entries where MRR was never entered, all of which produce meaningless LLM output.
@@ -291,9 +341,11 @@ export class BigQuerySource {
     const stage = this.getString(row, "stage");
     const winLossStatus = this.deriveWinLossStatus(stage, row);
 
-    // Revenue: prefer Expected MRR over Amount (per Simpro data spec)
+    // Revenue: Expected MRR and Amount (total contract value) are different
+    // quantities, so both are kept. Consumers that want the blended
+    // "pipeline value" use util/pipelineValue.ts (MRR preferred, Amount fallback).
     const expectedMRR = this.getNumber(row, "expectedMRR");
-    const amount = expectedMRR ?? this.getNumber(row, "amount");
+    const amount = this.getNumber(row, "amount");
 
     const record: OpportunityRecord = {
       opportunityId: this.getString(row, "opportunityId"),
@@ -500,6 +552,5 @@ export function getBigQueryConfig(): BigQueryConfig {
     location: process.env.BQ_LOCATION || "US",
     limit: process.env.BQ_LIMIT ? parseInt(process.env.BQ_LIMIT, 10) : 300,
     createdMonths: process.env.BQ_CREATED_MONTHS ? parseInt(process.env.BQ_CREATED_MONTHS, 10) : 18,
-    closeDaysPast: process.env.BQ_CLOSE_DAYS_PAST ? parseInt(process.env.BQ_CLOSE_DAYS_PAST, 10) : 90,
   };
 }

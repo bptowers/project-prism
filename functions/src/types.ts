@@ -6,6 +6,8 @@
 /**
  * Represents a raw opportunity record from Salesforce CSV export
  */
+import type { PipelineBasis } from "./util/pipelineValue.js";
+
 export interface OpportunityRecord {
   opportunityId: string;
   accountName: string;
@@ -57,7 +59,33 @@ export interface ValidationReport {
   averageQualityScore: number;
   totalPiiIssues: number;
   recordValidations: RecordValidation[];
+  /** Records dropped by validation, with the reasons — never silently discarded. */
+  rejected: RejectedRecord[];
   timestamp: Date;
+}
+
+/** A record the validator refused to pass on to analysis. */
+export interface RejectedRecord {
+  opportunityId: string;
+  reasons: string[];
+}
+
+/**
+ * Where the records came from and what happened to them before analysis.
+ * Written to both /executions/{id} and the top level of /reports/{date} so
+ * the dashboard can show "300 of ? rows (capped)" and "1 record rejected".
+ */
+export interface PipelineMeta {
+  /** True when the source returned exactly its row cap — more rows likely exist. */
+  sourceTruncated: boolean;
+  /** The source's row cap, or null for uncapped sources such as CSV uploads. */
+  sourceRowLimit: number | null;
+  /** Rows received from the source before validation. */
+  sourceRowCount: number;
+  /** Total records rejected — survives capping of rejectedRecords on stored docs. */
+  rejectedCount: number;
+  /** May be capped when stored (100 on the report doc, 500 on the execution doc). */
+  rejectedRecords: RejectedRecord[];
 }
 
 /**
@@ -80,7 +108,10 @@ export interface RiskDeal {
   stage: string;
   salesRep?: string;
   segment?: string;
+  /** Pipeline value: expectedMRR when present, else Amount — see pipelineBasis. */
   amount?: number;
+  /** Which source field `amount` came from ("mrr" = Expected MRR, "amount" = contract Amount). */
+  pipelineBasis?: PipelineBasis;
   probability?: number;
   dealHealthScore: number;
   activityHealth: "active" | "cooling" | "dormant" | "dark";
@@ -131,7 +162,10 @@ export interface OpportunityAnalysis {
   stakeholderCoverage: "multi-threaded" | "single-threaded" | "unknown";
   competitorThreat: "none" | "present" | "active-displacement";
   riskSignals: {
+    /** Derived deterministically from dealHealthScore (<40 high, 40-59 medium, >=60 low). */
     level: "high" | "medium" | "low" | "none";
+    /** The model's own risk call, kept for comparison; `level` is the source of truth. */
+    llmLevel?: "high" | "medium" | "low" | "none";
     signals: string[];
     summary: string;
   };
@@ -227,6 +261,7 @@ export interface AggregatedReport {
     averageQualityScore: number;
     totalPiiIssuesCaught: number;
   };
+  pipelineMeta?: PipelineMeta;
   executiveBriefing?: string;
   recommendations?: Array<{
     priority: "P1" | "P2" | "P3";
@@ -362,4 +397,5 @@ export interface ExecutionContext {
   tokenUsage: { input: number; output: number };
   /** Rough USD estimate from tokenUsage — approximate, for observability only. */
   estimatedCostUsd?: number;
+  pipelineMeta?: PipelineMeta;
 }

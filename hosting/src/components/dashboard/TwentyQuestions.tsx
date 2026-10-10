@@ -13,8 +13,10 @@ import type {
   TQGapDeal,
 } from '@/lib/types';
 import { asArray } from '@/lib/guards';
+import { formatDate } from '@/lib/format';
+import { NotGeneratedPanel } from '@/components/dashboard/NotGeneratedPanel';
 
-interface Props { data?: TwentyQuestionsData; }
+interface Props { data?: TwentyQuestionsData; isLive?: boolean; }
 
 // All ten CRO questions the backend answers (see TWENTY_QUESTIONS_PROMPT).
 // Previously only question1–7 were listed here, so questions 8–10 never
@@ -125,7 +127,7 @@ function QuestionDetail({ qKey, question }: { qKey: string; question: TQQuestion
               { header: 'Rep', cell: (d) => d.rep },
               { header: 'Region', cell: (d) => regionCell(d.region) },
               { header: 'MRR', align: 'right', cell: (d) => mrrCell(d.mrr) },
-              { header: 'Close Date', cell: (d) => d.currentCloseDate || '—' },
+              { header: 'Close Date', cell: (d) => formatDate(d.currentCloseDate) || '—' },
               { header: 'Signal', cell: (d) => d.slippageSignal || '—' },
               { header: 'Likely Cause', cell: (d) => d.likelyCause || '—' },
             ]}
@@ -241,7 +243,7 @@ function QuestionDetail({ qKey, question }: { qKey: string; question: TQQuestion
               { header: 'Health', align: 'right', cell: (d) => d.healthScore ?? '—' },
               { header: 'Urgency', cell: (d) => d.urgencySignal || '—' },
               { header: 'CRO Action', cell: (d) => d.croAction || '—' },
-              { header: 'By', cell: (d) => (d.deadline ? <Badge variant="high">{d.deadline}</Badge> : '—') },
+              { header: 'By', cell: (d) => (d.deadline ? <Badge variant="high">{formatDate(d.deadline)}</Badge> : '—') },
             ]}
             rows={question.deals}
           />
@@ -268,18 +270,20 @@ function hasDetail(q: TQQuestion): boolean {
   );
 }
 
-export const TwentyQuestions: React.FC<Props> = ({ data }) => {
+export const TwentyQuestions: React.FC<Props> = ({ data, isLive }) => {
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  if (!data) return null;
-
   const questions: { key: string; question: TQQuestion }[] = [];
-  for (const key of QUESTION_KEYS) {
-    const question = data[key];
-    if (question) questions.push({ key, question });
+  if (data) {
+    for (const key of QUESTION_KEYS) {
+      const question = data[key];
+      if (question) questions.push({ key, question });
+    }
   }
 
-  if (questions.length === 0) return null;
+  if (questions.length === 0) {
+    return isLive ? <NotGeneratedPanel title="CRO Intelligence" /> : null;
+  }
 
   return (
     <motion.div variants={itemVariants} style={{ marginBottom: '2rem' }}>
@@ -293,38 +297,67 @@ export const TwentyQuestions: React.FC<Props> = ({ data }) => {
       </div>
       {questions.map(({ key, question }) => {
         const expandable = hasDetail(question);
+        const isOpen = expanded === key;
+        const detailId = `tq-${key}-detail`;
+        const headerStyle: React.CSSProperties = {
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem',
+        };
+        const headerContent = (
+          <>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Badge variant="info">{QUESTION_BADGES[key] || key}</Badge>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {question.label}
+              </span>
+            </span>
+            {expandable && (
+              <span aria-hidden="true" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                {isOpen ? '▼' : '▶'}
+              </span>
+            )}
+          </>
+        );
         return (
           <div
             key={key}
-            onClick={() => expandable && setExpanded(expanded === key ? null : key)}
             style={{
               padding: '1rem',
               border: '1px solid var(--border)',
               borderRadius: 8,
               marginBottom: '0.75rem',
               background: 'var(--bg-elevated)',
-              cursor: expandable ? 'pointer' : 'default',
               borderLeft: '3px solid var(--prism-blue)',
               transition: 'all 0.15s ease',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Badge variant="info">{QUESTION_BADGES[key] || key}</Badge>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {question.label}
-                </span>
-              </div>
-              {expandable && (
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-                  {expanded === key ? '▼' : '▶'}
-                </span>
-              )}
-            </div>
+            {expandable ? (
+              // Real button so the accordion is keyboard-operable and announces state.
+              <button
+                type="button"
+                aria-expanded={isOpen}
+                aria-controls={detailId}
+                onClick={() => setExpanded(isOpen ? null : key)}
+                style={{
+                  ...headerStyle,
+                  width: '100%',
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  font: 'inherit',
+                  color: 'inherit',
+                }}
+              >
+                {headerContent}
+              </button>
+            ) : (
+              <div style={headerStyle}>{headerContent}</div>
+            )}
             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               {question.answer}
             </div>
-            {expanded === key && <QuestionDetail qKey={key} question={question} />}
+            {isOpen && <div id={detailId}><QuestionDetail qKey={key} question={question} /></div>}
           </div>
         );
       })}

@@ -4,8 +4,10 @@ import { itemVariants, cardHover } from '@/theme/animations';
 import { Badge } from '@/components/ui/Badge';
 import type { DeltaIntelligenceData, DeltaDeal, EarlyWarning } from '@/lib/types';
 import { asArray, isRecord } from '@/lib/guards';
+import { formatDate } from '@/lib/format';
+import { NotGeneratedPanel } from '@/components/dashboard/NotGeneratedPanel';
 
-interface Props { data?: DeltaIntelligenceData; }
+interface Props { data?: DeltaIntelligenceData; isLive?: boolean; }
 
 /** Safe uppercase for LLM-authored enum-ish strings that may be missing or non-string. */
 const upper = (v: unknown): string => String(v ?? '').toUpperCase();
@@ -23,22 +25,20 @@ const SEVERITY_BADGE: Record<string, 'high' | 'medium' | 'low'> = {
   watch: 'low',
 };
 
-export const DeltaIntelligence: React.FC<Props> = ({ data }) => {
-  if (!data) return null;
-
+export const DeltaIntelligence: React.FC<Props> = ({ data, isLive }) => {
   // LLM-authored payload: coerce every slot to the shape we iterate. Older
   // reports in Firestore may carry prose strings where arrays belong.
-  const trajectory = isRecord(data.pipelineTrajectory) ? data.pipelineTrajectory : undefined;
-  const forecastDrift = isRecord(data.forecastDrift) ? data.forecastDrift : undefined;
-  const regionalTrajectory = asArray<NonNullable<DeltaIntelligenceData['regionalTrajectory']>[number]>(data.regionalTrajectory);
-  const earlyWarnings = asArray<EarlyWarning>(data.earlyWarnings);
-  const dealChanges = isRecord(data.significantDealChanges)
+  const trajectory = isRecord(data?.pipelineTrajectory) ? data.pipelineTrajectory : undefined;
+  const forecastDrift = isRecord(data?.forecastDrift) ? data.forecastDrift : undefined;
+  const regionalTrajectory = asArray<NonNullable<DeltaIntelligenceData['regionalTrajectory']>[number]>(data?.regionalTrajectory);
+  const earlyWarnings = asArray<EarlyWarning>(data?.earlyWarnings);
+  const dealChanges = isRecord(data?.significantDealChanges)
     ? {
         improved: asArray<DeltaDeal>(data.significantDealChanges.improved),
         deteriorated: asArray<DeltaDeal>(data.significantDealChanges.deteriorated),
       }
     : undefined;
-  const momentum = isRecord(data.competitiveMomentumShift)
+  const momentum = isRecord(data?.competitiveMomentumShift)
     ? {
         gaining: asArray<{ competitor: string; evidence: string }>(data.competitiveMomentumShift.gaining),
         losing: asArray<{ competitor: string; evidence: string }>(data.competitiveMomentumShift.losing),
@@ -46,7 +46,9 @@ export const DeltaIntelligence: React.FC<Props> = ({ data }) => {
     : undefined;
 
   const hasContent = trajectory || earlyWarnings.length || forecastDrift;
-  if (!hasContent) return null;
+  if (!data || !hasContent) {
+    return isLive ? <NotGeneratedPanel title="Delta Intelligence" /> : null;
+  }
 
   return (
     <motion.div variants={itemVariants} style={{ marginBottom: '2rem' }}>
@@ -56,7 +58,7 @@ export const DeltaIntelligence: React.FC<Props> = ({ data }) => {
         </h3>
         {data.comparedTo && (
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-            vs {data.comparedTo}{data.daysBetween ? ` (${data.daysBetween}d)` : ''}
+            vs {formatDate(data.comparedTo)}{data.daysBetween ? ` (${data.daysBetween}d)` : ''}
           </span>
         )}
       </div>

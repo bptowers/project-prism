@@ -3,7 +3,14 @@
  * Converts backend AggregatedReport into frontend RegionData shape
  */
 
-import { AggregatedReport, RegionReport, RiskDeal } from "../types.js";
+import {
+  AggregatedReport,
+  CompetitorActivity,
+  RegionReport,
+  RiskDeal,
+  ThemeCount,
+} from "../types.js";
+import type { PipelineBasis } from "../util/pipelineValue.js";
 
 /**
  * Days-stalled shown on the dashboard. Uses the real computed
@@ -58,7 +65,10 @@ interface FrontendRiskDeal {
   region: string;
   level: "HIGH" | "MEDIUM" | "LOW";
   value: string;
+  /** expectedMRR when the deal has one, else contract Amount — see pipelineBasis */
   pipelineValue: number;
+  /** "mrr" | "amount"; undefined on reports written before the field existed */
+  pipelineBasis?: PipelineBasis;
   healthScore: number;
   confidence: number;
   summary: string;
@@ -108,6 +118,11 @@ interface RegionData {
   trendData: TrendData;
 }
 
+/** Same ranking the aggregator applies to atRiskDeals (high first). */
+const RISK_LEVEL_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+/** Aggregator.extractAndRankThemes default limit. */
+const THEME_LIMIT = 8;
+
 const FUNNEL_COLORS = [
   "var(--prism-blue)",
   "var(--accent)",
@@ -135,13 +150,113 @@ export class ReportTransformer {
     // Transform "all" (global view)
     result["all"] = this.transformGlobal(report);
 
-    // Transform each region
+    // Group raw regions by their dashboard key first. Several raw regions can
+    // normalise to the same key (csv "au" + "nz" → "au"); writing them one
+    // after another used to let the last one silently overwrite the rest.
+    const byKey: Record<string, RegionReport[]> = {};
     for (const [regionKey, regionReport] of Object.entries(report.regions)) {
       const normalizedKey = this.normalizeRegionKey(regionKey);
+      (byKey[normalizedKey] ??= []).push(regionReport);
+    }
+    for (const [normalizedKey, group] of Object.entries(byKey)) {
+      const regionReport = group.length === 1 ? group[0] : this.mergeRegionReports(normalizedKey, group);
       result[normalizedKey] = this.transformRegion(regionReport, report);
     }
 
     return result;
+  }
+
+  /**
+   * Merges raw RegionReports that share one dashboard key into a single
+   * RegionReport. Counts are summed, deal arrays concatenated, win rate and
+   * sentiment recomputed weighted by deals, and keyed arrays (competitors,
+   * themes, funnel stages) merged by their key.
+   */
+  static mergeRegionReports(regionKey: string, reports: RegionReport[]): RegionReport {
+    const sum = (pick: (r: RegionReport) => number) => reports.reduce((n, r) => n + pick(r), 0);
+    const wins = sum((r) => r.wins);
+    const losses = sum((r) => r.losses);
+    const totalOpportunities = sum((r) => r.totalOpportunities);
+
+    const sentimentWeighted = totalOpportunities > 0
+      ? sum((r) => r.sentimentTrend.average * r.totalOpportunities) / totalOpportunities
+      : 0;
+    const sentimentAverage = Math.round(sentimentWeighted * 100) / 100;
+
+    return {
+      region: regionKey,
+      totalOpportunities,
+      wins,
+      losses,
+      active: sum((r) => r.active),
+      winRate: wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) / 100 : 0,
+      // Same denominators as Aggregator.generateRegionReport: win themes are a
+      // share of wins, loss themes a share of losses.
+      topWinThemes: this.mergeThemes(reports.map((r) => r.topWinThemes), wins),
+      topLossThemes: this.mergeThemes(reports.map((r) => r.topLossThemes), losses),
+      atRiskDeals: reports
+        .flatMap((r) => r.atRiskDeals)
+        .sort((a, b) => RISK_LEVEL_ORDER[a.riskLevel] - RISK_LEVEL_ORDER[b.riskLevel]),
+      allActiveDeals: reports.flatMap((r) => r.allActiveDeals ?? []),
+      competitorActivity: this.mergeCompetitors(reports.map((r) => r.competitorActivity)),
+      marketSignals: [...new Set(reports.flatMap((r) => r.marketSignals))],
+      sentimentTrend: {
+        average: sentimentAverage,
+        label: sentimentAverage > 0.2 ? "positive" : sentimentAverage < -0.2 ? "negative" : "neutral",
+      },
+      stageDistribution: this.mergeStages(reports.map((r) => r.stageDistribution ?? [])),
+    };
+  }
+
+  /** Mirrors Aggregator.extractAndRankThemes: % of `denominator`, top 8 by count. */
+  private static mergeThemes(lists: ThemeCount[][], denominator: number): ThemeCount[] {
+    const byTheme: Record<string, ThemeCount> = {};
+    for (const t of lists.flat()) {
+      const cur = byTheme[t.theme];
+      if (!cur) {
+        byTheme[t.theme] = { ...t, examples: [...t.examples] };
+      } else {
+        cur.count += t.count;
+        cur.examples = [...new Set([...cur.examples, ...t.examples])].slice(0, 3);
+      }
+    }
+    return Object.values(byTheme)
+      .map((t) => ({
+        ...t,
+        percentage: denominator > 0 ? Math.round((t.count / denominator) * 100) : 0,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, THEME_LIMIT);
+  }
+
+  private static mergeCompetitors(lists: CompetitorActivity[][]): CompetitorActivity[] {
+    const byName: Record<string, CompetitorActivity> = {};
+    for (const c of lists.flat()) {
+      const cur = byName[c.competitor];
+      if (!cur) {
+        byName[c.competitor] = { ...c, contexts: [...c.contexts], regions: [...c.regions] };
+      } else {
+        cur.mentionCount += c.mentionCount;
+        cur.contexts = [...new Set([...cur.contexts, ...c.contexts])].slice(0, 3);
+        cur.regions = [...new Set([...cur.regions, ...c.regions])];
+      }
+    }
+    return Object.values(byName).sort((a, b) => b.mentionCount - a.mentionCount);
+  }
+
+  private static mergeStages(
+    lists: RegionReport["stageDistribution"][]
+  ): RegionReport["stageDistribution"] {
+    const byStage: Record<string, { stage: string; count: number; revenue: number }> = {};
+    for (const s of lists.flat()) {
+      const cur = byStage[s.stage];
+      if (!cur) byStage[s.stage] = { ...s };
+      else {
+        cur.count += s.count;
+        cur.revenue += s.revenue;
+      }
+    }
+    return Object.values(byStage);
   }
 
   private static transformGlobal(report: AggregatedReport): RegionData {
@@ -231,10 +346,11 @@ export class ReportTransformer {
           stage: deal.stage,
           rep: deal.salesRep || "Unassigned",
           segment: deal.segment || "Unknown",
-          region: regionReport.region,
+          region: this.normalizeRegionKey(regionReport.region),
           level: deal.riskLevel.toUpperCase() as "HIGH" | "MEDIUM" | "LOW",
           value: deal.opportunityName || deal.opportunityId || "—",
           pipelineValue: deal.amount || 0,
+          pipelineBasis: deal.pipelineBasis,
           healthScore: deal.dealHealthScore,
           confidence: deal.probability ?? 50,
           summary: deal.summary,
@@ -370,10 +486,11 @@ export class ReportTransformer {
       stage: d.stage,
       rep: d.salesRep || "Unassigned",
       segment: d.segment || "Unknown",
-      region: region.region,
+      region: this.normalizeRegionKey(region.region),
       level: d.riskLevel.toUpperCase() as "HIGH" | "MEDIUM" | "LOW",
       value: d.opportunityName || d.opportunityId || "—",
       pipelineValue: d.amount || 0,
+      pipelineBasis: d.pipelineBasis,
       healthScore: d.dealHealthScore,
       confidence: d.probability ?? 50,
       summary: d.summary,
