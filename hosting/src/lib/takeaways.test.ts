@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { makeDeal } from '@/test/fixtures';
+import type { DeltaDeal } from './types';
 import {
   riskMapTakeaway, driversTakeaway, regionTakeaway, queueTakeaway, stageTakeaway,
   activityTakeaway, forecastTakeaway, funnelTakeaway, repTakeaway, interventionsTakeaway,
@@ -114,6 +115,15 @@ describe('panel takeaways', () => {
     const d = (deal: string, urgency: string | undefined, mrr: string) => ({ deal, rep: 'Jo', region: 'UK', change: 'x', urgency, mrr });
     const worse = [d('Small', 'P3', '$50K'), d('Unranked', undefined, '$900K'), d('Big', 'P1', '$20K'), d('Bigger', 'P1', '$30K')];
     expect(changeTakeaway(worse, [])).toBe('4 deals got worse and 0 improved. Biggest concern: Bigger.');
+  });
+
+  it('changeTakeaway survives malformed LLM rows', () => {
+    const malformed = [
+      { rep: 'Jo', region: 'UK', change: 'x', urgency: 1, mrr: 5000 },
+      { deal: 'Acme', rep: 'Jo', region: 'UK', change: 'x', urgency: 'P2' },
+    ] as unknown as DeltaDeal[];
+    expect(changeTakeaway(malformed, [])).toBe('2 deals got worse and 0 improved. Biggest concern: Acme.');
+    expect(changeTakeaway(malformed.slice(0, 1), [])).toBe('1 deal got worse and 0 improved.');
   });
 
   it('changeTakeaway breaks a full tie by deal name', () => {

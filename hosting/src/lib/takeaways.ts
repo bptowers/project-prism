@@ -108,11 +108,13 @@ export function interventionsTakeaway(rows: { mrr?: string }[]): string {
 }
 
 const URGENCY_RANK: Record<string, number> = { P1: 0, P2: 1, P3: 2 };
-const urgencyRank = (deal: DeltaDeal) => URGENCY_RANK[deal.urgency?.trim().toUpperCase() ?? ''] ?? 3;
+// Delta rows are unvalidated LLM JSON, so fields are coerced rather than trusted to be strings.
+const urgencyRank = (deal: DeltaDeal) => URGENCY_RANK[String(deal.urgency ?? '').trim().toUpperCase()] ?? 3;
+const dealName = (deal: DeltaDeal) => String(deal.deal ?? '').trim();
 
 /** Most urgent first, then highest MRR, then name, so the pick never depends on the LLM's ordering. */
 function byConcern(a: DeltaDeal, b: DeltaDeal): number {
-  return urgencyRank(a) - urgencyRank(b) || parseMoney(b.mrr) - parseMoney(a.mrr) || a.deal.localeCompare(b.deal);
+  return urgencyRank(a) - urgencyRank(b) || parseMoney(b.mrr) - parseMoney(a.mrr) || dealName(a).localeCompare(dealName(b));
 }
 
 export function changeTakeaway(worse: DeltaDeal[], better: DeltaDeal[]): string {
@@ -121,7 +123,8 @@ export function changeTakeaway(worse: DeltaDeal[], better: DeltaDeal[]): string 
       ? `${plural(better.length, 'deal')} improved and nothing got worse since the last run.`
       : 'No deal-level changes in this view since the last run.';
   }
-  return `${plural(worse.length, 'deal')} got worse and ${better.length} improved. Biggest concern: ${[...worse].sort(byConcern)[0].deal}.`;
+  const concern = dealName([...worse].sort(byConcern)[0]);
+  return `${plural(worse.length, 'deal')} got worse and ${better.length} improved.${concern ? ` Biggest concern: ${concern}.` : ''}`;
 }
 
 export function competitorTakeaway(cards: { name: string; deals: number; value: number }[]): string {
