@@ -1,13 +1,16 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { containerVariants } from '@/theme/animations';
 import { useRegion } from '@/hooks/useRegion';
+import { useDashboardView } from '@/hooks/useDashboardView';
+import { useSharedReviews } from '@/hooks/useSharedReviews';
+import { ReviewsContext } from '@/components/reviews/ReviewsContext';
 import { Header } from '@/components/layout/Header';
 import { PrismBar } from '@/components/layout/PrismBar';
+import { DashboardNav } from '@/components/layout/DashboardNav';
 import { ProcessingFooter } from '@/components/layout/ProcessingFooter';
 import { AIBriefing } from '@/components/dashboard/AIBriefing';
 import { StatsRow } from '@/components/dashboard/StatsRow';
-import { RegionTabs } from '@/components/dashboard/RegionTabs';
 import { PipelineFunnel } from '@/components/dashboard/PipelineFunnel';
 import { RiskRadar } from '@/components/dashboard/RiskRadar';
 import { RiskByStage } from '@/components/dashboard/RiskByStage';
@@ -18,20 +21,23 @@ import { Recommendations } from '@/components/dashboard/Recommendations';
 import { TwentyQuestions } from '@/components/dashboard/TwentyQuestions';
 import { CompetitiveDisplacement } from '@/components/dashboard/CompetitiveDisplacement';
 import { DeltaIntelligence } from '@/components/dashboard/DeltaIntelligence';
+import { UploadModal } from '@/components/dashboard/UploadModal';
 import { Panel } from '@/components/ui/Panel';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
-import { UploadModal } from '@/components/dashboard/UploadModal';
-import type { RegionData, RiskDeal } from '@/lib/types';
-import { formatCurrency, formatDate } from '@/lib/format';
+import type { RegionData } from '@/lib/types';
+import { formatDate } from '@/lib/format';
 import { regionLabel } from '@/lib/regions';
+import { inRegion } from '@/lib/dealFilters';
+import { TABS } from '@/lib/dashboardView';
+import { nextScheduledRun } from '@/lib/schedule';
 import { isDormant, isDark, isMisaligned } from '@/lib/dealClassifiers';
 
-function formatReportDate(reportDate?: string, period?: string): string | undefined {
+function dataAsOfLabel(reportDate?: string, period?: string): string | undefined {
   if (!reportDate) return period;
   const formatted = formatDate(reportDate);
-  // formatDate hands back unparseable input unchanged; only prefix a real date.
+  // formatDate hands back unparseable input unchanged; only label a real date.
   if (formatted === reportDate) return period || reportDate;
-  return `Run ${formatted}`;
+  return `Data as of ${formatted}`;
 }
 
 function buildFallbackBriefing(data: RegionData, totalOpportunities?: number): string {
@@ -55,204 +61,157 @@ function buildFallbackBriefing(data: RegionData, totalOpportunities?: number): s
   return `${total} open opportunities were analysed; ${flagged.length} are currently flagged by the risk engine, including ${high} high-priority deals and ${medium} medium-priority deals. Risk is most concentrated in ${topRegion?.[0] || 'the active pipeline'} (${topRegion?.[1] || flagged.length} flagged deals), with the top immediate intervention being ${topRisk?.value || 'the highest-risk active deal'}: ${topRisk?.summary || 'review required'}. The detailed AI briefing is still being enriched, but the base signal is already clear: leadership should inspect the highest-risk deals before relying on the current forecast.`;
 }
 
+const grid: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))',
+  gap: '1.25rem',
+};
+const stack: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '1.25rem' };
+const visuallyHidden: React.CSSProperties = {
+  position: 'absolute', width: 1, height: 1, padding: 0, margin: -1,
+  overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0,
+};
+
 export default function App() {
-  const { region, data, allData, selectRegion, loading, isLive, showingContent, executiveBriefing, totalOpportunities, reportPeriod, reportDate, reportCreatedAt, regionCounts, dealsError, reportMeta, twentyQuestions, competitiveDisplacement, deltaIntelligence } = useRegion();
+  const { view, selectTab, selectRegion, setFilters, goToDeals } = useDashboardView();
+  const reviews = useSharedReviews();
+  const {
+    data, allData, loading, isLive, showingContent, executiveBriefing, totalOpportunities, reportPeriod,
+    reportDate, reportCreatedAt, regionCounts, dealsError, reportMeta, twentyQuestions,
+    competitiveDisplacement, deltaIntelligence,
+  } = useRegion(view.region);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [activeRisks, setActiveRisks] = useState<RiskDeal[]>([]);
-  const [radarFiltered, setRadarFiltered] = useState(false);
 
-  const riskRadarRef = useRef<HTMLDivElement>(null);
-
-  const handleFilteredRisksChange = useCallback((risks: RiskDeal[], isFiltered: boolean) => {
-    setActiveRisks(risks);
-    setRadarFiltered(isFiltered);
-  }, []);
-
-  const handleStatClick = useCallback((key: string) => {
-    if (key === 'atRisk' || key === 'dealsAtRisk') {
-      riskRadarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, []);
-
-  const activeStats = useMemo(() => {
-    if (!radarFiltered) return data.stats;
-    const risks = activeRisks;
-    if (!risks.length) return data.stats;
-    const totalPipeline = risks.reduce((sum, r) => sum + (r.pipelineValue || 0), 0);
-    const withScore = risks.filter(r => typeof r.healthScore === 'number');
-    const avgScore = withScore.length ? Math.round(withScore.reduce((sum, r) => sum + (r.healthScore ?? 0), 0) / withScore.length) : null;
-    const highCount = risks.filter(r => r.level === 'HIGH').length;
-    const atRiskCount = risks.filter(r => r.level === 'HIGH' || r.level === 'MEDIUM').length;
-    const atRiskPct = Math.round((atRiskCount / risks.length) * 100);
-    const avgDaysStalled = risks.length > 0
-      ? Math.round(risks.reduce((sum, r) => sum + (r.daysStalled || 0), 0) / risks.length)
-      : null;
-    return {
-      ...data.stats,
-      pipeline: { value: formatCurrency(totalPipeline), change: `${risks.length} deals`, dir: 'flat' as const, sub: 'Active pipeline value' },
-      avgHealthScore: { value: avgScore !== null ? `${avgScore}` : '—', change: avgScore !== null ? (avgScore >= 70 ? 'Healthy' : avgScore >= 40 ? 'Caution' : 'At Risk') : '—', dir: (avgScore !== null ? (avgScore >= 70 ? 'up' : 'down') : 'flat') as 'up' | 'down' | 'flat', sub: 'avg deal health score' },
-      atRisk: { value: `${atRiskCount}`, change: `${highCount} high`, dir: highCount > 0 ? 'down' as const : 'flat' as const, sub: `${atRiskCount} deals flagged` },
-      dealsAtRisk: { value: `${atRiskPct}%`, change: `${atRiskCount} deals`, dir: atRiskPct > 50 ? 'up' as const : 'flat' as const, sub: 'HIGH or MEDIUM risk' },
-      velocity: {
-        value: avgDaysStalled !== null ? `${avgDaysStalled}d` : '—',
-        change: avgDaysStalled !== null ? (avgDaysStalled <= 7 ? 'Healthy' : avgDaysStalled <= 21 ? 'Slowing' : 'Stalled') : '—',
-        dir: (avgDaysStalled !== null ? (avgDaysStalled <= 7 ? 'up' : 'down') : 'flat') as 'up' | 'down' | 'flat',
-        sub: 'avg days since last activity',
-      },
-    };
-  }, [radarFiltered, activeRisks, data.stats]);
-
-  const gridRisks = radarFiltered ? activeRisks : (data.risks ?? []);
-
-  const displayPeriod = formatReportDate(reportDate, reportPeriod);
+  // Every tab reads the same region-filtered deals: one region control, no disagreement.
+  const regionDeals = useMemo(() => inRegion(allData.risks ?? [], view.region), [allData, view.region]);
   const fallbackBriefing = isLive && !executiveBriefing ? buildFallbackBriefing(data, totalOpportunities) : undefined;
+  const dataAsOf = dataAsOfLabel(reportDate, reportPeriod);
+  const nextRefresh = formatDate(nextScheduledRun(new Date()).toISOString());
+  const tabLabel = TABS.find(t => t.key === view.tab)?.label ?? 'Overview';
+
+  const renderTab = () => {
+    switch (view.tab) {
+      case 'overview':
+        return (
+          <div style={stack}>
+            <AIBriefing briefing={executiveBriefing} fallbackBriefing={fallbackBriefing} totalOpportunities={totalOpportunities} period={dataAsOf} isLive={isLive} />
+            <StatsRow stats={data.stats} sparklines={data.sparklines} />
+          </div>
+        );
+      case 'cro':
+        return (
+          <div style={stack}>
+            <Recommendations items={data.recommendations} />
+            <TwentyQuestions data={twentyQuestions} isLive={isLive} />
+          </div>
+        );
+      case 'deals':
+        return (
+          <Panel title="Deals" accent="amber" meta={`${regionDeals.length} deals · ${view.region === 'all' ? 'All regions' : regionLabel(view.region)}`} maxHeight="none">
+            <RiskRadar risks={regionDeals} deltaIntelligence={deltaIntelligence} dealsError={dealsError} />
+          </Panel>
+        );
+      case 'health':
+        return (
+          <div style={stack}>
+            <div style={grid}>
+              <Panel title="Risk by Stage" accent="amber" meta={`${regionDeals.length} deals`}><RiskByStage risks={regionDeals} /></Panel>
+              <Panel title="Activity Health" accent="red" meta={`${regionDeals.filter(isDormant).length} dormant · ${regionDeals.filter(isDark).length} dark`}><ActivityHealth risks={regionDeals} /></Panel>
+              <Panel title="Forecast Integrity" accent="blue" meta={`${regionDeals.filter(isMisaligned).length} misaligned`}><ForecastIntegrity risks={regionDeals} forecastStat={data.stats.forecast} /></Panel>
+            </div>
+            <PipelineFunnel stages={data.funnel} />
+            <RepHeatmap risks={regionDeals} />
+          </div>
+        );
+      case 'comp':
+        return (
+          <div style={stack}>
+            <DeltaIntelligence data={deltaIntelligence} isLive={isLive} />
+            <CompetitiveDisplacement data={competitiveDisplacement} isLive={isLive} />
+          </div>
+        );
+    }
+  };
 
   return (
-    <div style={{ maxWidth: 1920, margin: '0 auto', padding: '0 2rem' }}>
-      <Header onUploadClick={() => setUploadOpen(true)} period={displayPeriod} isLive={isLive} generatedAt={reportCreatedAt ?? reportDate} />
-      <UploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
-      <PrismBar style={{ marginBottom: '2rem' }} />
+    <ReviewsContext.Provider value={reviews}>
+      <div style={{ maxWidth: 1920, margin: '0 auto', padding: '0 clamp(1rem, 3vw, 2rem)' }}>
+        {/* The visible PRISM wordmark is styled text; this gives the page its one h1. */}
+        <h1 style={visuallyHidden}>Prism revenue intelligence</h1>
+        <Header onUploadClick={() => setUploadOpen(true)} period={dataAsOf} nextRefresh={isLive ? nextRefresh : undefined} isLive={isLive} generatedAt={reportCreatedAt ?? reportDate} />
+        <UploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
+        <PrismBar style={{ marginBottom: '1rem' }} />
 
-      {/* Data source indicator */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: '1rem',
-        fontSize: '0.75rem',
-        fontFamily: 'var(--font-mono)',
-      }}>
-        <span style={{
-          display: 'inline-block',
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          backgroundColor: isLive ? 'var(--success)' : 'var(--text-muted)',
-        }} />
-        <span style={{ color: isLive ? 'var(--success)' : 'var(--text-muted)' }}>
-          {loading ? 'Loading...' : isLive ? 'Live Data' : 'No Live Data'}
-        </span>
-      </div>
-
-      {loading && !showingContent && (
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          padding: '6rem 2rem',
-          fontFamily: 'var(--font-mono)',
-          fontSize: '0.85rem',
-          color: 'var(--text-muted)',
-        }}>
-          Loading…
-        </div>
-      )}
-
-      {!loading && !showingContent && (
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '6rem 2rem',
-          textAlign: 'center',
-          gap: '1.5rem',
-        }}>
-          <div style={{ fontSize: '3rem', opacity: 0.3 }}>◈</div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--text-primary)' }}>
-            No live data yet
+        {loading && !showingContent && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '6rem 2rem', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            Loading…
           </div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: 420, lineHeight: 1.6 }}>
-            Upload a Salesforce CSV export to run your first analysis. The intelligence engine will process your pipeline and populate this dashboard with live data.
-          </div>
-          <button
-            onClick={() => setUploadOpen(true)}
-            style={{
-              padding: '10px 28px',
-              fontSize: '0.85rem',
-              fontFamily: 'var(--font-mono)',
-              background: 'var(--accent)',
-              border: 'none',
-              borderRadius: 6,
-              color: '#fff',
-              cursor: 'pointer',
-              marginTop: '0.5rem',
-            }}
-          >
-            Upload CSV →
-          </button>
-        </div>
-      )}
+        )}
 
-      <motion.div variants={containerVariants} initial="hidden" animate={showingContent ? 'visible' : 'hidden'} style={{ display: showingContent ? 'block' : 'none' }}>
-        {/* Every section sits behind its own ErrorBoundary: an unexpected
-            payload shape in one widget must never blank the whole page. */}
-        <ErrorBoundary section="AI Briefing">
-          <AIBriefing
-            briefing={executiveBriefing}
-            fallbackBriefing={fallbackBriefing}
-            totalOpportunities={totalOpportunities}
-            period={displayPeriod}
-            isLive={isLive}
-          />
-        </ErrorBoundary>
-
-        {/* Risk Radar — hero position: first widget after briefing */}
-        <div ref={riskRadarRef} style={{ marginBottom: '2rem' }}>
-          <ErrorBoundary section="Risk Radar">
-            <Panel title="Risk Radar" accent="amber" meta={`${allData.risks.filter(r => r.level === 'HIGH' || r.level === 'MEDIUM').length} of ${allData.risks.length} deals at risk`} maxHeight="none">
-              <RiskRadar risks={allData.risks} onFilteredRisksChange={handleFilteredRisksChange} deltaIntelligence={deltaIntelligence} dealsError={dealsError} />
-            </Panel>
-          </ErrorBoundary>
-        </div>
-
-        <ErrorBoundary section="Pipeline Stats">
-          <StatsRow stats={activeStats} sparklines={data.sparklines} onStatClick={handleStatClick} />
-          <RegionTabs region={region} onSelect={selectRegion} regionCounts={regionCounts} isLive={isLive} />
-          <PipelineFunnel stages={data.funnel} />
-        </ErrorBoundary>
-
-        {/* 3-col Grid: in-flight pipeline intelligence */}
-        <ErrorBoundary section="Pipeline Intelligence">
+        {!loading && !showingContent && (
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '6rem 2rem',
+            textAlign: 'center',
             gap: '1.5rem',
-            marginBottom: '2rem',
           }}>
-            <Panel title="Risk by Stage" accent="amber" meta={`${gridRisks.length} deals`}>
-              <RiskByStage risks={gridRisks} />
-            </Panel>
-            <Panel title="Activity Health" accent="red" meta={`${gridRisks.filter(isDormant).length} dormant · ${gridRisks.filter(isDark).length} dark`}>
-              <ActivityHealth risks={gridRisks} />
-            </Panel>
-            <Panel title="Forecast Integrity" accent="blue" meta={`${gridRisks.filter(isMisaligned).length} misaligned`}>
-              <ForecastIntegrity risks={gridRisks} forecastStat={data.stats.forecast} />
-            </Panel>
+            <div style={{ fontSize: '3rem', opacity: 0.3 }}>◈</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--text-primary)' }}>
+              No live data yet
+            </div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: 420, lineHeight: 1.6 }}>
+              Upload a Salesforce CSV export to run your first analysis. The intelligence engine will process your pipeline and populate this dashboard with live data.
+            </div>
+            <button
+              onClick={() => setUploadOpen(true)}
+              style={{
+                padding: '10px 28px',
+                fontSize: '0.85rem',
+                fontFamily: 'var(--font-mono)',
+                background: 'var(--accent)',
+                border: 'none',
+                borderRadius: 6,
+                color: '#fff',
+                cursor: 'pointer',
+                marginTop: '0.5rem',
+              }}
+            >
+              Upload CSV →
+            </button>
           </div>
-        </ErrorBoundary>
+        )}
 
-        <ErrorBoundary section="Rep Heatmap">
-          <div style={{ marginBottom: '2rem' }}>
-            <RepHeatmap risks={gridRisks} />
-          </div>
-        </ErrorBoundary>
-
-        <ErrorBoundary section="AI Recommended Actions">
-          <Recommendations items={data.recommendations} />
-        </ErrorBoundary>
-        <ErrorBoundary section="CRO Intelligence">
-          <TwentyQuestions data={twentyQuestions} isLive={isLive} />
-        </ErrorBoundary>
-        <ErrorBoundary section="Competitive Displacement">
-          <CompetitiveDisplacement data={competitiveDisplacement} isLive={isLive} />
-        </ErrorBoundary>
-        <ErrorBoundary section="Delta Intelligence">
-          <DeltaIntelligence data={deltaIntelligence} isLive={isLive} />
-        </ErrorBoundary>
-        <ErrorBoundary section="Processing Footer">
-          <ProcessingFooter {...reportMeta} />
-        </ErrorBoundary>
-      </motion.div>
-    </div>
+        {showingContent && (
+          <>
+            <DashboardNav tab={view.tab} region={view.region} regionCounts={regionCounts} onSelectTab={selectTab} onSelectRegion={selectRegion} />
+            {reviews.error && (
+              <div role="alert" style={{ marginTop: '0.75rem', padding: '0.6rem 0.85rem', borderRadius: 6, border: '1px solid var(--warning)', background: 'var(--warning-subtle)', color: 'var(--warning-text)', fontSize: '0.8rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem 1rem' }}>
+                {/* The hook's messages already say what failed ("Couldn't save the review: …"). */}
+                <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{reviews.error}</span>
+                {reviews.clearError && (
+                  <button type="button" onClick={() => reviews.clearError?.()} style={{ minHeight: 32, padding: '0 0.75rem', borderRadius: 6, border: '1px solid var(--warning)', background: 'transparent', color: 'var(--warning-text)', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
+                    Dismiss
+                  </button>
+                )}
+              </div>
+            )}
+            <main style={{ padding: '1.5rem 0 2rem' }}>
+              <div id="dashboard-tabpanel" role="tabpanel" aria-labelledby={`tab-${view.tab}`}>
+                <motion.div key={view.tab} variants={containerVariants} initial="hidden" animate="visible">
+                  {/* Each tab sits behind its own ErrorBoundary so one bad payload never blanks the dashboard. */}
+                  <ErrorBoundary key={view.tab} section={tabLabel}>{renderTab()}</ErrorBoundary>
+                </motion.div>
+              </div>
+            </main>
+            <ErrorBoundary section="Processing Footer">
+              <ProcessingFooter {...reportMeta} />
+            </ErrorBoundary>
+          </>
+        )}
+      </div>
+    </ReviewsContext.Provider>
   );
 }

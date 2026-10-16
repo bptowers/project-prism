@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { Region, RegionData, RiskDeal, StatData, TwentyQuestionsData, CompetitiveDisplacementData, DeltaIntelligenceData } from '@/lib/types';
 import { useLatestReport } from '@/hooks/useFirestore';
 import { countDealsByRegion } from '@/lib/injectDeals';
@@ -66,8 +66,7 @@ const EMPTY_REGION_DATA: RegionData = {
   trendData: { weeks: [], all: [], na: [], uk: [], au: [] },
 };
 
-export function useRegion() {
-  const [region, setRegion] = useState<Region>('all');
+export function useRegion(region: Region) {
   const { report, loading } = useLatestReport();
 
   const hasLiveData = useMemo(() => {
@@ -120,8 +119,6 @@ export function useRegion() {
     return EMPTY_REGION_DATA;
   }, [report]);
 
-  const selectRegion = useCallback((r: Region) => setRegion(r), []);
-
   const executiveBriefing = isLive ? (report?.executiveBriefing as string | undefined) : undefined;
   const totalOpportunities = isLive ? (report?.totalRecordsAnalyzed as number | undefined) : undefined;
   const reportPeriod = isLive ? (report?.period as string | undefined) : undefined;
@@ -142,7 +139,7 @@ export function useRegion() {
 
   const displayBriefing = executiveBriefing ?? (isLive ? lastKnownBriefing : undefined);
 
-  // Per-region deal counts for RegionTabs — counted from the deals actually
+  // Per-region deal counts for the DashboardNav region pills — counted from the deals actually
   // loaded (per normalised key), so the badge matches what the tab shows.
   const regionCounts = useMemo<Record<string, number> | undefined>(() => {
     if (!isLive) return undefined;
@@ -180,7 +177,7 @@ export function useRegion() {
   }, [isLive, report, reportCreatedAt]);
 
   return {
-    region, data, allData, selectRegion, loading, isLive, hasLiveData, showingContent,
+    data, allData, loading, isLive, hasLiveData, showingContent,
     executiveBriefing: displayBriefing, totalOpportunities, reportPeriod, regionCounts,
     reportDate, reportCreatedAt, dealsError, reportMeta,
     twentyQuestions, competitiveDisplacement, deltaIntelligence,

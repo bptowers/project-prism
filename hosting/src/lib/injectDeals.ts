@@ -33,7 +33,7 @@ export function injectDeals(report: ReportDocument, deals: RiskDeal[]): ReportDo
   return { ...report, transformed };
 }
 
-/** Deal counts per normalised region key — drives the RegionTabs badges. */
+/** Deal counts per normalised region key — drives the DashboardNav region pill counts. */
 export function countDealsByRegion(deals: RiskDeal[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const deal of deals) {

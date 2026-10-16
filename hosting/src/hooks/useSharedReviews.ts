@@ -99,7 +99,11 @@ export function useSharedReviews(): ReviewsApi {
         save: (deal) => void save(deal),
         remove: (deal) => void remove(deal),
       }, writeError ?? listenError),
-      clearError: () => setWriteError(undefined),
+      // The user has seen it: dismissing a listener error hides it until reload, the listener stays ended.
+      clearError: () => {
+        setWriteError(undefined);
+        setListenError(undefined);
+      },
     };
   }, [reviews, writeError, listenError]);
 }

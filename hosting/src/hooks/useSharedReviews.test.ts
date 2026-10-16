@@ -241,4 +241,13 @@ describe('useSharedReviews', () => {
     expect(result.current.error).toMatch(/reload/i);
     expect(result.current.isDone(deal)).toBe(true);
   });
+
+  it('clearError() also dismisses a listener error', () => {
+    const { result } = renderHook(() => useSharedReviews());
+    act(() => fail(new Error('permission-denied')));
+    expect(result.current.error).toMatch(/permission-denied/);
+
+    act(() => result.current.clearError?.());
+    expect(result.current.error).toBeUndefined();
+  });
 });
