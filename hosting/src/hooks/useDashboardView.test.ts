@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { useDashboardView, LAST_REGION_KEY } from './useDashboardView';
 
 beforeEach(() => {
   localStorage.clear();
-  window.history.replaceState(null, '', '/');
+  // Push (not replace) so each test starts at the end of the stack: a test that
+  // goes back leaves forward entries, which would make history.length checks vacuous.
+  window.history.pushState(null, '', '/');
 });
 
 describe('useDashboardView', () => {
@@ -64,5 +66,56 @@ describe('useDashboardView', () => {
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     });
     expect(result.current.view).toEqual({ tab: 'cro', region: 'na' });
+  });
+
+  it('follows popstate on its own', () => {
+    const { result } = renderHook(() => useDashboardView());
+    act(() => {
+      window.history.replaceState(null, '', '/#health?region=au');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    expect(result.current.view).toEqual({ tab: 'health', region: 'au' });
+  });
+
+  it('goes back to the previous tab with the browser back button', async () => {
+    const { result } = renderHook(() => useDashboardView());
+    act(() => result.current.selectTab('cro'));
+    act(() => result.current.selectTab('deals'));
+    expect(result.current.view.tab).toBe('deals');
+    act(() => window.history.back());
+    await waitFor(() => expect(result.current.view.tab).toBe('cro'));
+    expect(window.location.hash).toBe('#cro?region=all');
+  });
+
+  it('renders once when the browser fires both popstate and hashchange', () => {
+    let renders = 0;
+    renderHook(() => {
+      renders++;
+      return useDashboardView();
+    });
+    act(() => {
+      window.history.replaceState(null, '', '/#cro?region=na');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    const afterPop = renders;
+    act(() => window.dispatchEvent(new HashChangeEvent('hashchange')));
+    expect(renders).toBe(afterPop);
+  });
+
+  it('does not add a history entry on mount', () => {
+    const before = window.history.length;
+    renderHook(() => useDashboardView());
+    expect(window.history.length).toBe(before);
+  });
+
+  it('does not add a history entry when navigating to the current view', () => {
+    window.history.replaceState(null, '', '/#deals?region=uk');
+    const { result } = renderHook(() => useDashboardView());
+    const before = window.history.length;
+    act(() => result.current.selectTab('deals'));
+    act(() => result.current.selectRegion('uk'));
+    expect(window.history.length).toBe(before);
+    act(() => result.current.selectTab('cro'));
+    expect(window.history.length).toBe(before + 1);
   });
 });

@@ -43,7 +43,13 @@ export function useDashboardView() {
   }, []);
 
   useEffect(() => {
-    const sync = () => setView(viewFromHash(window.location.hash));
+    // Back/forward fires both popstate and hashchange; only the first changes anything.
+    const sync = () => {
+      const next = viewFromHash(window.location.hash);
+      if (toHash(next) === toHash(viewRef.current)) return;
+      viewRef.current = next;
+      setView(next);
+    };
     window.addEventListener('hashchange', sync);
     window.addEventListener('popstate', sync);
     return () => {
