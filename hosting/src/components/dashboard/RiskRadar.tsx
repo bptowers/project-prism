@@ -5,7 +5,7 @@ import { DealDetailModal } from '@/components/dashboard/DealDetailModal';
 import { useDealReviews } from '@/hooks/useDealReviews';
 import { formatCurrency, normalizeStage, isLateStage, STAGE_ORDER } from '@/lib/format';
 import { regionLabel, REGION_LABEL_ORDER } from '@/lib/regions';
-import { dimensionSignals, RISK_DIMENSION_LABELS } from '@/lib/riskSignals';
+import { riskScore, riskBand, dealValue, weightedValue, buildRiskDimensions, revenueConfidence, type RiskBand, type RiskDimension } from '@/lib/dealMetrics';
 
 interface Props {
   risks: RiskDeal[];
@@ -15,10 +15,8 @@ interface Props {
   dealsError?: string;
 }
 
-type RiskBand = 'Green' | 'Yellow' | 'Red';
 type FilterGroup = 'stages' | 'reps' | 'regions' | 'bands';
 type ActiveFilters = Record<FilterGroup, string[]>;
-type RiskDimension = { label: string; value: number; pipeline: number };
 
 const MAX_DEALS = 12;
 
@@ -27,23 +25,6 @@ const bandColor: Record<RiskBand, string> = {
   Yellow: 'var(--warning)',
   Red: 'var(--error)',
 };
-
-function riskScore(risk: RiskDeal): number {
-  if (typeof risk.healthScore === 'number') return Math.max(0, Math.min(100, 100 - risk.healthScore));
-  const stalledPressure = Math.min(18, Math.max(0, risk.daysStalled || 0) * 2);
-  return risk.level === 'HIGH' ? 68 + stalledPressure : 36 + stalledPressure;
-}
-
-function riskBand(risk: RiskDeal): RiskBand {
-  if (typeof risk.healthScore === 'number') {
-    if (risk.healthScore >= 70) return 'Green';
-    if (risk.healthScore >= 40) return 'Yellow';
-    return 'Red';
-  }
-  if (risk.level === 'HIGH') return 'Red';
-  if (risk.level === 'MEDIUM') return 'Yellow';
-  return 'Green';
-}
 
 function matchesFilters(
   risk: RiskDeal,
@@ -60,15 +41,6 @@ function matchesFilters(
   return true;
 }
 
-function dealValue(risk: RiskDeal): number {
-  return Math.max(0, risk.pipelineValue || 0);
-}
-
-function weightedValue(risk: RiskDeal): number {
-  const value = dealValue(risk);
-  return value > 0 ? value : 1;
-}
-
 function percent(value: number, total: number): number {
   if (!total) return 0;
   return Math.round((value / total) * 100);
@@ -76,33 +48,6 @@ function percent(value: number, total: number): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
-}
-
-function buildRiskDimensions(risks: RiskDeal[]): RiskDimension[] {
-  const labels = RISK_DIMENSION_LABELS;
-  const totals = labels.reduce<Record<string, RiskDimension>>((acc, label) => {
-    acc[label] = { label, value: 0, pipeline: 0 };
-    return acc;
-  }, {});
-
-  for (const risk of risks) {
-    const dimensions = dimensionSignals(risk);
-    const pipeline = dealValue(risk);
-    const weight = weightedValue(risk);
-    const severity = Math.max(0.25, riskScore(risk) / 100);
-    const contribution = weight * severity;
-
-    for (const label of dimensions) {
-      totals[label].value += contribution;
-      totals[label].pipeline += pipeline / dimensions.length;
-    }
-  }
-
-  const max = Math.max(...Object.values(totals).map(item => item.value), 1);
-  return labels.map(label => ({
-    ...totals[label],
-    value: Math.round((totals[label].value / max) * 100),
-  }));
 }
 
 function toggleList(list: string[], value: string): string[] {
@@ -634,9 +579,7 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
       const pipeline = filteredRisks.filter(r => riskBand(r) === label).reduce((sum, r) => sum + dealValue(r), 0);
       return { label, value, pipeline, pct: percent(value, totalWeight) };
     });
-    const confidence = totalWeight
-      ? Math.round(filteredRisks.reduce((sum, r) => sum + (100 - riskScore(r)) * weightedValue(r), 0) / totalWeight)
-      : 0;
+    const confidence = revenueConfidence(filteredRisks);
     const dimensions = buildRiskDimensions(filteredRisks);
     return { totalWeight, valueTotal, distribution, confidence, dimensions };
   }, [filteredRisks]);
