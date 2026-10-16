@@ -41,6 +41,7 @@ service cloud.firestore {
         && request.resource.data.reviewedBy == request.auth.token.email
         && request.resource.data.reviewedByName is string
         && request.resource.data.reviewedByName.size() <= 200
+        && request.resource.data.reviewedByName == request.auth.token.get('name', request.auth.token.email)
         && request.resource.data.reviewedAt == request.time
         && request.resource.data.riskAtReview is number
         && request.resource.data.riskAtReview >= 0
