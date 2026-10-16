@@ -5,6 +5,8 @@ import { makeDeal } from '@/test/fixtures';
 type SnapDoc = { id: string; data: () => Record<string, unknown> };
 let emit: (docs: SnapDoc[]) => void = () => undefined;
 let fail: (err: Error) => void = () => undefined;
+let listenedTo: unknown;
+const unsubscribe = vi.fn();
 const setDoc = vi.fn((..._args: unknown[]) => Promise.resolve());
 const deleteDoc = vi.fn((..._args: unknown[]) => Promise.resolve());
 const getIdTokenResult = vi.fn(() => Promise.resolve({ claims: { name: 'Brad Towers' } as Record<string, unknown> }));
@@ -22,13 +24,14 @@ vi.mock('firebase/firestore', () => ({
   setDoc: (...args: unknown[]) => setDoc(...args),
   deleteDoc: (...args: unknown[]) => deleteDoc(...args),
   onSnapshot: (
-    _ref: unknown,
+    ref: unknown,
     next: (snap: { forEach: (cb: (d: SnapDoc) => void) => void }) => void,
     error: (err: Error) => void,
   ) => {
+    listenedTo = ref;
     emit = (docs) => next({ forEach: (cb) => docs.forEach(cb) });
     fail = error;
-    return () => undefined;
+    return unsubscribe;
   },
 }));
 
@@ -39,11 +42,21 @@ beforeEach(() => {
   deleteDoc.mockReset().mockImplementation(() => Promise.resolve());
   getIdTokenResult.mockReset().mockImplementation(() => Promise.resolve({ claims: { name: 'Brad Towers' } }));
   auth.currentUser = currentUser;
+  unsubscribe.mockReset();
+  listenedTo = undefined;
 });
 
 const reviewDoc = (id: string, data: Record<string, unknown>): SnapDoc => ({ id, data: () => data });
 
 describe('useSharedReviews', () => {
+  it('listens to the dealReviews collection and unsubscribes on unmount', () => {
+    const { unmount } = renderHook(() => useSharedReviews());
+    expect(listenedTo).toEqual({ path: 'dealReviews' });
+    expect(unsubscribe).not.toHaveBeenCalled();
+    unmount();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
   it('saves a review stamped with the signed-in user and current risk', async () => {
     const { result } = renderHook(() => useSharedReviews());
     const deal = makeDeal({ opportunityId: 'OPP-9', healthScore: 30 });
