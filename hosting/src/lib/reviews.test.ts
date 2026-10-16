@@ -43,7 +43,8 @@ describe('isWorseSinceReview', () => {
   });
 
   it('is true when risk rose by the threshold or crossed into a worse band', () => {
-    expect(isWorseSinceReview(atRisk(70), review(60))).toBe(true);  // +10
+    expect(isWorseSinceReview(atRisk(71), review(61))).toBe(true);  // Red → Red, +10
+    expect(isWorseSinceReview(atRisk(75), review(65))).toBe(true);  // Red → Red, +10
     expect(isWorseSinceReview(atRisk(62), review(58))).toBe(true);  // Yellow → Red
     expect(isWorseSinceReview(atRisk(31), review(30))).toBe(true);  // Green → Yellow
   });
