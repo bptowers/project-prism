@@ -137,8 +137,9 @@ export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive, g
       borderBottom: '1px solid var(--border)',
       marginBottom: '0.5rem',
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+      {/* Rows wrap rather than overflow so the page never scrolls sideways on a phone. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem 1rem', minWidth: 0 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.25rem 1rem', minWidth: 0 }}>
           <div>
             <div style={{ fontSize: '2.25rem', fontFamily: 'var(--font-display)', fontWeight: 700, letterSpacing: '-0.02em' }}>PRISM</div>
             <div style={{
@@ -150,7 +151,7 @@ export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive, g
             Global Revenue Intelligence
           </span>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem 0.75rem', alignItems: 'center', minWidth: 0 }}>
           {/* Period pill with optional relative time */}
           <div style={{
             background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)',
@@ -173,11 +174,11 @@ export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive, g
           {/* Run Analysis: two-click confirm */}
           {runState === 'confirming' ? (
             <div role="group" aria-label="Confirm run analysis" style={{
-              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem', maxWidth: '100%',
               background: 'var(--bg-elevated)', border: '1px solid var(--warning)', borderRadius: 6,
               padding: '0.35rem 0.5rem 0.35rem 0.85rem',
             }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-secondary)', minWidth: 0 }}>
                 Run full analysis? ~10 min, re-generates today's report.
               </span>
               <button onClick={handleConfirmRun} style={{ ...smallButton, padding: '0.35rem 0.75rem', background: 'var(--accent)', color: '#fff', border: 'none' }}>
@@ -194,6 +195,9 @@ export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive, g
               aria-live="polite"
               style={{
                 ...smallButton,
+                // "Run started — results appear…" is wider than a phone; let it wrap.
+                whiteSpace: 'normal',
+                maxWidth: '100%',
                 color: runColor,
                 cursor: runState === 'loading' ? 'not-allowed' : runState === 'idle' ? 'pointer' : 'default',
                 opacity: runState === 'loading' ? 0.6 : 1,

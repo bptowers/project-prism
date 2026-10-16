@@ -96,3 +96,32 @@ describe('Header run analysis', () => {
     expect(screen.getByText('Next scheduled refresh 16 Oct 2026')).toBeInTheDocument();
   });
 });
+
+// jsdom has no layout; this only checks the rows are allowed to wrap at phone width.
+describe('Header narrow screens', () => {
+  beforeEach(() => {
+    authUser = signedIn;
+  });
+
+  it('lets the brand and control rows wrap instead of overflowing', () => {
+    const { container } = render(<Header isLive period="Data as of 14 Oct 2026" />);
+    const row = container.querySelector('header > div') as HTMLElement;
+    const brand = row.children[0] as HTMLElement;
+    const controls = screen.getByRole('button', { name: 'Upload CSV' }).parentElement as HTMLElement;
+    for (const el of [row, brand, controls]) {
+      expect(el.style.flexWrap).toBe('wrap');
+      expect(el.style.minWidth).toBe('0px');
+    }
+  });
+
+  it('lets the long run-status and confirm text wrap', () => {
+    render(<Header />);
+    fireEvent.click(screen.getByRole('button', { name: 'Run Analysis' }));
+    const confirm = screen.getByRole('group', { name: 'Confirm run analysis' });
+    expect(confirm.style.flexWrap).toBe('wrap');
+    expect(screen.getByText(/Run full analysis\?/).style.whiteSpace).not.toBe('nowrap');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByRole('button', { name: 'Run Analysis' }).style.whiteSpace).toBe('normal');
+  });
+});
