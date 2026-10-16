@@ -30,11 +30,34 @@ describe('ThemeProvider', () => {
   });
 
   it('respects and persists an explicit choice', () => {
-    localStorage.setItem('prism-theme', 'dark');
+    localStorage.setItem('prism-theme-choice', 'dark');
     render(<ThemeProvider><Probe /></ThemeProvider>);
     expect(screen.getByRole('button')).toHaveTextContent('dark');
     fireEvent.click(screen.getByRole('button'));
-    expect(localStorage.getItem('prism-theme')).toBe('light');
+    expect(localStorage.getItem('prism-theme-choice')).toBe('light');
+  });
+
+  it('ignores the legacy auto-saved key and leaves it alone', () => {
+    // The old provider wrote the OS theme here on every first visit, so it is not a choice.
+    localStorage.setItem('prism-theme', 'dark');
+    render(<ThemeProvider><Probe /></ThemeProvider>);
+    expect(screen.getByRole('button')).toHaveTextContent('light');
+    expect(localStorage.getItem('prism-theme')).toBe('dark');
+  });
+
+  it('writes nothing to storage until the user toggles', () => {
+    render(<ThemeProvider><Probe /></ThemeProvider>);
+    expect(localStorage.length).toBe(0);
+  });
+
+  it('remembers a toggle across a remount', () => {
+    const { unmount } = render(<ThemeProvider><Probe /></ThemeProvider>);
+    fireEvent.click(screen.getByRole('button'));
+    expect(localStorage.getItem('prism-theme-choice')).toBe('dark');
+    unmount();
+    render(<ThemeProvider><Probe /></ThemeProvider>);
+    expect(screen.getByRole('button')).toHaveTextContent('dark');
+    expect(document.documentElement.dataset.theme).toBe('dark');
   });
 
   it('still renders and toggles when storage is blocked', () => {

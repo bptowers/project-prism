@@ -14,7 +14,9 @@ const ThemeContext = createContext<ThemeContextValue>({
 
 export const useTheme = () => useContext(ThemeContext);
 
-const STORAGE_KEY = 'prism-theme';
+// Only written by an explicit toggle. The legacy 'prism-theme' key is deliberately ignored:
+// the old provider auto-saved the OS theme there on first visit, so it isn't a real choice.
+const STORAGE_KEY = 'prism-theme-choice';
 
 /** Light unless this browser has explicitly chosen dark. The OS setting is deliberately ignored. */
 function getInitialTheme(): Theme {
@@ -32,14 +34,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
+  const toggleTheme = () => {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
     try {
-      localStorage.setItem(STORAGE_KEY, theme);
+      localStorage.setItem(STORAGE_KEY, next);
     } catch {
       // Storage blocked: the theme still applies for this session.
     }
-  }, [theme]);
-
-  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
