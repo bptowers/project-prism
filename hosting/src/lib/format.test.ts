@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatCurrency, formatDate, normalizeStage, isLateStage } from './format';
+import { formatCurrency, formatDate, normalizeStage, isLateStage, parseMoney } from './format';
 
 describe('formatCurrency', () => {
   it('renders $0 for zero, negatives and NaN', () => {
@@ -69,5 +69,24 @@ describe('isLateStage', () => {
     expect(isLateStage('Awaiting Signature')).toBe(true);
     expect(isLateStage('Discovery')).toBe(false);
     expect(isLateStage(undefined)).toBe(false);
+  });
+});
+
+describe('parseMoney', () => {
+  it.each([
+    ['$12,400', 12_400],
+    ['$1.2M', 1_200_000],
+    ['$40K', 40_000],
+    ['£3.5k MRR', 3_500],
+    ['$12,000 MRR', 12_000],
+    ['n/a', 0],
+    ['', 0],
+  ])('parses %s', (input, expected) => {
+    expect(parseMoney(input)).toBe(expected);
+  });
+
+  it('passes finite numbers through and treats undefined as 0', () => {
+    expect(parseMoney(250)).toBe(250);
+    expect(parseMoney(undefined)).toBe(0);
   });
 });

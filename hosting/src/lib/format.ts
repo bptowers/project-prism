@@ -63,3 +63,21 @@ export function normalizeStage(stage?: string): string {
 export function isLateStage(stage?: string): boolean {
   return LATE_STAGES.has(normalizeStage(stage));
 }
+
+// The suffix must not run into a word, so "$12,000 MRR" is 12,000, not 12,000 × 1M.
+const MONEY = /(-?\d[\d,]*(?:\.\d+)?|-?\.\d+)\s*(?:([kKmMbB])(?![a-zA-Z]))?/;
+const MULTIPLIER: Record<string, number> = { k: 1e3, m: 1e6, b: 1e9 };
+
+/**
+ * Parse an LLM-authored money string ("$12,400", "$1.2M", "£40K MRR") to a
+ * number. Anything unparseable is 0 so a takeaway never shows NaN.
+ */
+export function parseMoney(input?: string | number): number {
+  if (typeof input === 'number') return Number.isFinite(input) ? input : 0;
+  if (!input) return 0;
+  const match = MONEY.exec(input);
+  if (!match) return 0;
+  const n = Number(match[1].replace(/,/g, ''));
+  const mult = MULTIPLIER[(match[2] ?? '').toLowerCase()] ?? 1;
+  return Number.isFinite(n) ? n * mult : 0;
+}
