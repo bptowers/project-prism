@@ -15,6 +15,9 @@ export function plural(count: number, noun: string): string {
 
 const pick = (count: number, one: string, many: string) => (count === 1 ? one : many);
 
+/** " worth $X", or nothing when there is no value: pipelineValue is often 0, and "$0" misleads. */
+const worth = (value: number) => (value > 0 ? ` worth ${formatCurrency(value)}` : '');
+
 export function riskMapTakeaway(deals: RiskDeal[]): string {
   const atRisk = deals.filter(isAtRisk);
   if (!atRisk.length) return 'No deals are flagged at risk in this view.';
@@ -27,7 +30,8 @@ export function riskMapTakeaway(deals: RiskDeal[]): string {
   return `${plural(high.length, 'HIGH-risk deal')} ${pick(high.length, 'holds', 'hold')} ${share}% of the ${formatCurrency(atRiskValue)} at risk.`;
 }
 
-export function driversTakeaway(confidence: number, dimensions: RiskDimension[]): string {
+export function driversTakeaway(dealCount: number, confidence: number, dimensions: RiskDimension[]): string {
+  if (!dealCount) return 'No deals in this view.';
   const ranked = [...dimensions].filter(d => d.value > 0).sort((a, b) => b.value - a.value);
   if (!ranked.length) return `Revenue confidence is ${confidence}/100. No single risk driver stands out.`;
   const then = ranked[1] ? `, then ${ranked[1].label.toLowerCase()}` : '';
@@ -45,7 +49,7 @@ export function queueTakeaway(queue: RiskDeal[], isDone: (deal: RiskDeal) => boo
   if (!queue.length) return 'No late-stage deals in this view.';
   const todo = queue.filter(d => !isDone(d));
   if (!todo.length) return 'All done: every deal in this queue has been reviewed.';
-  return `${plural(todo.length, 'deal')} worth ${formatCurrency(sumValue(todo))} still ${pick(todo.length, 'needs', 'need')} a look.`;
+  return `${plural(todo.length, 'deal')}${worth(sumValue(todo))} still ${pick(todo.length, 'needs', 'need')} a look.`;
 }
 
 export function stageTakeaway(deals: RiskDeal[]): string {
@@ -57,20 +61,20 @@ export function stageTakeaway(deals: RiskDeal[]): string {
   if (!byStage.size) return 'No HIGH-risk deals in this view.';
   const [stage, list] = [...byStage.entries()]
     .sort((a, b) => sumValue(b[1]) - sumValue(a[1]) || b[1].length - a[1].length)[0];
-  return `${stage} holds ${plural(list.length, 'HIGH-risk deal')} worth ${formatCurrency(sumValue(list))}.`;
+  return `${stage} holds ${plural(list.length, 'HIGH-risk deal')}${worth(sumValue(list))}.`;
 }
 
 export function activityTakeaway(deals: RiskDeal[]): string {
   const quiet = deals.filter(d => d.daysStalled >= 14);
   if (!quiet.length) return 'Every deal has had activity in the last two weeks.';
-  return `${plural(quiet.length, 'deal')} worth ${formatCurrency(sumValue(quiet))} ${pick(quiet.length, 'has', 'have')} had no activity for 14+ days.`;
+  return `${plural(quiet.length, 'deal')}${worth(sumValue(quiet))} ${pick(quiet.length, 'has', 'have')} had no activity for 14+ days.`;
 }
 
 export function forecastTakeaway(deals: RiskDeal[]): string {
   const misaligned = deals.filter(isMisaligned);
   if (!misaligned.length) return 'Rep confidence and deal health line up across this view.';
   const n = misaligned.length;
-  return `${plural(n, 'deal')} worth ${formatCurrency(sumValue(misaligned))} ${pick(n, 'looks', 'look')} stronger in the forecast than ${pick(n, 'its', 'their')} health suggests.`;
+  return `${plural(n, 'deal')}${worth(sumValue(misaligned))} ${pick(n, 'looks', 'look')} stronger in the forecast than ${pick(n, 'its', 'their')} health suggests.`;
 }
 
 const EARLY_STAGES = new Set(['Discovery', 'Qualification', 'Solution']);
@@ -93,14 +97,22 @@ export function repTakeaway(deals: RiskDeal[]): string {
     atRisk: sumValue(list.filter(isAtRisk)),
   }));
   const lowest = rows.sort((a, b) => a.confidence - b.confidence)[0];
-  return `${lowest.rep} has the lowest revenue confidence (${lowest.confidence}/100) with ${formatCurrency(lowest.atRisk)} at risk.`;
+  const atRisk = lowest.atRisk > 0 ? ` with ${formatCurrency(lowest.atRisk)} at risk` : '';
+  return `${lowest.rep} has the lowest revenue confidence (${lowest.confidence}/100)${atRisk}.`;
 }
 
 export function interventionsTakeaway(rows: { mrr?: string }[]): string {
   if (!rows.length) return 'Nothing in this view needs CRO intervention.';
   const value = rows.reduce((sum, r) => sum + parseMoney(r.mrr), 0);
-  const worth = value > 0 ? ` worth ${formatCurrency(value)}` : '';
-  return `${plural(rows.length, 'deal')}${worth} ${pick(rows.length, 'needs', 'need')} you personally.`;
+  return `${plural(rows.length, 'deal')}${worth(value)} ${pick(rows.length, 'needs', 'need')} you personally.`;
+}
+
+const URGENCY_RANK: Record<string, number> = { P1: 0, P2: 1, P3: 2 };
+const urgencyRank = (deal: DeltaDeal) => URGENCY_RANK[deal.urgency?.trim().toUpperCase() ?? ''] ?? 3;
+
+/** Most urgent first, then highest MRR, then name, so the pick never depends on the LLM's ordering. */
+function byConcern(a: DeltaDeal, b: DeltaDeal): number {
+  return urgencyRank(a) - urgencyRank(b) || parseMoney(b.mrr) - parseMoney(a.mrr) || a.deal.localeCompare(b.deal);
 }
 
 export function changeTakeaway(worse: DeltaDeal[], better: DeltaDeal[]): string {
@@ -109,12 +121,11 @@ export function changeTakeaway(worse: DeltaDeal[], better: DeltaDeal[]): string 
       ? `${plural(better.length, 'deal')} improved and nothing got worse since the last run.`
       : 'No deal-level changes in this view since the last run.';
   }
-  return `${plural(worse.length, 'deal')} got worse and ${better.length} improved. Biggest concern: ${worse[0].deal}.`;
+  return `${plural(worse.length, 'deal')} got worse and ${better.length} improved. Biggest concern: ${[...worse].sort(byConcern)[0].deal}.`;
 }
 
 export function competitorTakeaway(cards: { name: string; deals: number; value: number }[]): string {
   if (!cards.length) return 'No competitor threats recorded for this view.';
   const top = [...cards].sort((a, b) => b.value - a.value || b.deals - a.deals)[0];
-  const worth = top.value > 0 ? ` worth ${formatCurrency(top.value)}` : '';
-  return `${top.name} is the biggest threat here: ${plural(top.deals, 'deal')}${worth}.`;
+  return `${top.name} is the biggest threat here: ${plural(top.deals, 'deal')}${worth(top.value)}.`;
 }

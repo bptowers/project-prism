@@ -28,11 +28,15 @@ describe('driversTakeaway', () => {
       { label: 'Stakeholders', value: 80, pipeline: 0 },
       { label: 'Process', value: 10, pipeline: 0 },
     ];
-    expect(driversTakeaway(62, dims)).toBe('Revenue confidence is 62/100. Engagement is the biggest risk driver, then stakeholders.');
+    expect(driversTakeaway(4, 62, dims)).toBe('Revenue confidence is 62/100. Engagement is the biggest risk driver, then stakeholders.');
   });
 
   it('copes with no drivers', () => {
-    expect(driversTakeaway(90, [{ label: 'Process', value: 0, pipeline: 0 }])).toBe('Revenue confidence is 90/100. No single risk driver stands out.');
+    expect(driversTakeaway(2, 90, [{ label: 'Process', value: 0, pipeline: 0 }])).toBe('Revenue confidence is 90/100. No single risk driver stands out.');
+  });
+
+  it('does not report a confidence for an empty view', () => {
+    expect(driversTakeaway(0, 0, [{ label: 'Process', value: 0, pipeline: 0 }])).toBe('No deals in this view.');
   });
 });
 
@@ -106,10 +110,38 @@ describe('panel takeaways', () => {
     expect(changeTakeaway([], [])).toBe('No deal-level changes in this view since the last run.');
   });
 
+  it('changeTakeaway ranks the biggest concern by urgency, then MRR, not by input order', () => {
+    const d = (deal: string, urgency: string | undefined, mrr: string) => ({ deal, rep: 'Jo', region: 'UK', change: 'x', urgency, mrr });
+    const worse = [d('Small', 'P3', '$50K'), d('Unranked', undefined, '$900K'), d('Big', 'P1', '$20K'), d('Bigger', 'P1', '$30K')];
+    expect(changeTakeaway(worse, [])).toBe('4 deals got worse and 0 improved. Biggest concern: Bigger.');
+  });
+
+  it('changeTakeaway breaks a full tie by deal name', () => {
+    const d = (deal: string) => ({ deal, rep: 'Jo', region: 'UK', change: 'x', urgency: 'P2', mrr: '$5K' });
+    expect(changeTakeaway([d('Zeta'), d('Alpha')], [])).toBe('2 deals got worse and 0 improved. Biggest concern: Alpha.');
+  });
+
   it('competitorTakeaway picks the biggest threat by value', () => {
     expect(competitorTakeaway([
       { name: 'JobLogic', deals: 3, value: 20_000 },
       { name: 'ServiceM8', deals: 5, value: 9_000 },
     ])).toBe('JobLogic is the biggest threat here: 3 deals worth $20K.');
+  });
+});
+
+describe('zero-value deals never show $0', () => {
+  it('drops the worth clause when there is no value', () => {
+    expect(queueTakeaway([makeDeal({ pipelineValue: 0 })], () => false)).toBe('1 deal still needs a look.');
+    expect(stageTakeaway([makeDeal({ level: 'HIGH', stage: 'Commit', pipelineValue: 0 })])).toBe('Commit holds 1 HIGH-risk deal.');
+    expect(activityTakeaway([makeDeal({ daysStalled: 20, pipelineValue: 0 })])).toBe('1 deal has had no activity for 14+ days.');
+    expect(forecastTakeaway([makeDeal({ confidence: 85, healthScore: 20, pipelineValue: 0 })]))
+      .toBe('1 deal looks stronger in the forecast than its health suggests.');
+    expect(interventionsTakeaway([{ mrr: 'n/a' }])).toBe('1 deal needs you personally.');
+    expect(competitorTakeaway([{ name: 'JobLogic', deals: 2, value: 0 }])).toBe('JobLogic is the biggest threat here: 2 deals.');
+  });
+
+  it('repTakeaway omits the at-risk clause when nothing is at risk', () => {
+    expect(repTakeaway([makeDeal({ rep: 'Jo', healthScore: 20, level: 'LOW', pipelineValue: 0 })]))
+      .toBe('Jo has the lowest revenue confidence (20/100).');
   });
 });
