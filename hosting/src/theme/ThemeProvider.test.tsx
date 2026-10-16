@@ -61,12 +61,15 @@ describe('ThemeProvider', () => {
   });
 
   it('still renders and toggles when storage is blocked', () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
     render(<ThemeProvider><Probe /></ThemeProvider>);
     expect(screen.getByRole('button')).toHaveTextContent('light');
     fireEvent.click(screen.getByRole('button'));
     expect(screen.getByRole('button')).toHaveTextContent('dark');
     expect(document.documentElement.dataset.theme).toBe('dark');
+    // Prove the throwing paths actually ran, not just that nothing crashed.
+    expect(getItem).toHaveBeenCalledWith('prism-theme-choice');
+    expect(setItem).toHaveBeenCalledWith('prism-theme-choice', 'dark');
   });
 });
