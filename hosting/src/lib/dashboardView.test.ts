@@ -34,6 +34,11 @@ describe('toHash / parseHash', () => {
     expect(parseHash('#cro')).toEqual({ tab: 'cro' });
   });
 
+  it('ignores blank rep / stage from a mangled link and trims padding', () => {
+    expect(parseHash('#deals?region=uk&rep=%20&stage=+')).toEqual({ tab: 'deals', region: 'uk' });
+    expect(parseHash('#deals?region=uk&rep=+Jo+')).toEqual({ tab: 'deals', region: 'uk', rep: 'Jo' });
+  });
+
   it('does not throw on malformed percent-encoding', () => {
     expect(() => parseHash('#deals?rep=%E0%A4%A&stage=%&region=uk')).not.toThrow();
     expect(parseHash('#deals?rep=%E0%A4%A&region=uk')).toMatchObject({ tab: 'deals', region: 'uk' });

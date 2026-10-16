@@ -34,9 +34,10 @@ export function parseHash(hash: string): Partial<DashboardView> {
   if (TAB_KEYS.has(path)) view.tab = path as TabKey;
   const region = params.get('region');
   if (region && REGIONS.has(region)) view.region = region as Region;
-  const rep = params.get('rep');
+  // Blank values (e.g. rep=%20 from a mangled link) would filter to zero deals, so drop them.
+  const rep = params.get('rep')?.trim();
   if (rep) view.rep = rep;
-  const stage = params.get('stage');
+  const stage = params.get('stage')?.trim();
   if (stage) view.stage = stage;
   const band = params.get('band');
   if (band && BANDS.has(band)) view.band = band as RiskBand;
