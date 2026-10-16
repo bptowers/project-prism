@@ -29,3 +29,6 @@
 - T9: each snapshot -> new API object -> all useReviews consumers re-render (2 per toggle). Revisit if Deals tab sluggish.
 - T9: reviewedByName > 200 chars can never save (rule exact-match + cap).
 - T10: app has no h1 (only AuthGate); give Header an h1 (visible or sr-only) so panel h2s nest correctly.
+- T11->T13: use <main><div id="dashboard-tabpanel" role="tabpanel" aria-labelledby=...> (not <main role="tabpanel">, which drops the main landmark). Set scroll-padding-top on html if targets hide under the sticky nav.
+- T11->T13: check on a real phone: sticky nav ~145px tall at 375px (pills wrap to 2 rows); last tab starts off-screen. Option: pills nowrap + horizontal scroll on narrow screens.
+- T11: region pills use aria-pressed in role=group (acceptable; radiogroup would be more precise).
