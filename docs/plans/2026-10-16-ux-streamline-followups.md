@@ -1,0 +1,30 @@
+# Follow-ups for Task 20 clean-up (from reviews)
+- T1: isAtRisk (level) vs riskBand (healthScore) can disagree; takeaways should state which "at risk" means.
+- T1: riskScore/riskBand don't guard NaN healthScore (Number.isFinite would fix).
+- T2: activity thresholds defined 3x (dealFilters.activityBucket, dealClassifiers isDormant/isDark, ActivityHealth range labels) — unify on activityBucket/ACTIVITY_BUCKETS.
+- T2: stagesIn sorts unknown stages with case-sensitive .sort(); use localeCompare.
+- T3: parseMoney misses word suffixes (million/bn) and "Q3: $40K" -> 3; anchor to currency symbol if it bites.
+- T3: interventionsTakeaway "worth" understates if some mrr rows don't parse.
+- T3: riskMapTakeaway rounding extremes (100%/0%) and "0 HIGH-risk deals hold 0%" wording.
+- T3 FIX IN PROGRESS: driversTakeaway gains dealCount first param -> tell Task 15+ implementers.
+- T4: dashboardView BUCKETS/REGIONS/BANDS duplicate unions; derive from shared constants.
+- T4: add tests: rep with &#=% round-trip, risk=true ignored, region=UK dropped.
+- T4: param naming risk/late vs hideReviewed (cosmetic; decide before links are shared).
+- T5: sync doesn't replaceState hand-typed hashes missing region (address bar shows #deals while view uses stored region).
+- T6: optional: set data-theme before first paint (inline script reading 'prism-theme-choice' or useLayoutEffect) to remove flash for explicit-dark users.
+- T7->T9: useSharedReviews snapshot mapper must validate riskAtReview is finite number (else deal is "done" forever, never "worse"); skip malformed docs.
+- T7: dealKey falls back to deal.value when no opportunityId (collision risk for same-named deals).
+- T7: optional aria-describedby linking "Worse since review"/reviewer text to ReviewButton.
+- T7->T16: DealCard is div role=button containing ReviewButton -> nested interactive; screen readers may skip inner button. Make card non-button with separate open control.
+- T7: ReviewButton label changes with aria-pressed (APG says keep label fixed). Optional.
+- T7: dealKey doesn't enforce 1500-byte limit (CSV names unbounded).
+- T7: tests: un-review via UI; keyboard propagation.
+- ASK BRAD at T9 checkpoint: "worse since review" default = band worsened OR risk +10 points (WORSE_SINCE_REVIEW_POINTS).
+- T8: dealReviews doc ids unbounded / write amplification by insiders; consider dealKey size cap (but name-fallback keys can be long).
+- T8: document test:rules needs global firebase CLI + JDK 21 (JAVA_HOME=/opt/homebrew/opt/openjdk@21) in CLAUDE.md.
+- T8: tsconfig only includes src, so rules-tests/ and vitest.rules.config.ts aren't type-checked by tsc --noEmit.
+- T8->T9: rule now binds reviewedByName == token.name ?? email; Task 9 client writes displayName || email — writes should surface errors if a mismatch ever happens.
+- T9->T13: render useReviews().error (write/listen failures) somewhere visible in the App shell.
+- T9: dealReviews grows forever (closed/exited deals never pruned); every page load reads whole collection. Backend prune of keys not in latest report, or listener with reviewedAt cutoff.
+- T9: each snapshot -> new API object -> all useReviews consumers re-render (2 per toggle). Revisit if Deals tab sluggish.
+- T9: reviewedByName > 200 chars can never save (rule exact-match + cap).
