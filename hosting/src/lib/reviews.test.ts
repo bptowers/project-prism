@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { makeDeal } from '@/test/fixtures';
-import { dealKey, isWorseSinceReview, reviewsApiFromMap, type DealReview } from './reviews';
+import { dealKey, isWorseSinceReview, reviewsApiFromMap, WORSE_SINCE_REVIEW_POINTS, type DealReview } from './reviews';
 
 const review = (riskAtReview: number): DealReview => ({
   reviewedBy: 'brad.towers@simprogroup.com', reviewedByName: 'Brad Towers', reviewedAt: new Date('2026-10-15T09:00:00Z'), riskAtReview,
@@ -16,13 +16,42 @@ describe('dealKey', () => {
     expect(dealKey(makeDeal({ opportunityId: '..' }))).toBe('k_..');
     expect(dealKey(makeDeal({ opportunityId: '__x__' }))).toBe('k___x__');
   });
+
+  it('never throws on a lone surrogate', () => {
+    expect(() => dealKey(makeDeal({ opportunityId: '\uD800Acme' }))).not.toThrow();
+    expect(dealKey(makeDeal({ opportunityId: '\uD800Acme' }))).toBe('%EF%BF%BDAcme');
+    expect(dealKey(makeDeal({ opportunityId: 'Acme\uDC00' }))).toBe('Acme%EF%BF%BD');
+    expect(dealKey(makeDeal({ opportunityId: '\uD83D\uDE00' }))).toBe('%F0%9F%98%80'); // a valid pair is kept
+  });
+
+  it('handles empty and whitespace-only ids', () => {
+    expect(dealKey(makeDeal({ opportunityId: '', value: '' }))).toBe('k_');
+    expect(dealKey(makeDeal({ opportunityId: '   ', value: '  ' }))).toBe('k_');
+    expect(dealKey(makeDeal({ opportunityId: '   ', value: 'Acme' }))).toBe('Acme');
+  });
 });
 
 describe('isWorseSinceReview', () => {
-  it('is true only when risk rose after the review', () => {
-    const deal = makeDeal({ healthScore: 30 }); // risk 70
-    expect(isWorseSinceReview(deal, review(60))).toBe(true);
-    expect(isWorseSinceReview(deal, review(70))).toBe(false);
+  const atRisk = (risk: number) => makeDeal({ healthScore: 100 - risk });
+
+  it('ignores run-to-run drift within a band', () => {
+    expect(WORSE_SINCE_REVIEW_POINTS).toBe(10);
+    expect(isWorseSinceReview(atRisk(70), review(70))).toBe(false);
+    expect(isWorseSinceReview(atRisk(66), review(62))).toBe(false); // Red → Red, +4
+    expect(isWorseSinceReview(atRisk(59), review(50))).toBe(false); // Yellow → Yellow, +9
+    expect(isWorseSinceReview(atRisk(40), review(60))).toBe(false); // improved
+  });
+
+  it('is true when risk rose by the threshold or crossed into a worse band', () => {
+    expect(isWorseSinceReview(atRisk(70), review(60))).toBe(true);  // +10
+    expect(isWorseSinceReview(atRisk(62), review(58))).toBe(true);  // Yellow → Red
+    expect(isWorseSinceReview(atRisk(31), review(30))).toBe(true);  // Green → Yellow
+  });
+
+  it('treats a malformed riskAtReview as worse so it re-enters the queue', () => {
+    expect(isWorseSinceReview(atRisk(10), review(Number.NaN))).toBe(true);
+    expect(isWorseSinceReview(atRisk(10), { ...review(0), riskAtReview: undefined as unknown as number })).toBe(true);
+    expect(isWorseSinceReview(atRisk(10), review(Number.POSITIVE_INFINITY))).toBe(true);
   });
 });
 

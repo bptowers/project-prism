@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { makeDeal } from '@/test/fixtures';
-import { riskScore, riskBand, revenueConfidence, sumValue, isAtRisk, buildRiskDimensions } from './dealMetrics';
+import { riskScore, riskBand, bandForRisk, revenueConfidence, sumValue, isAtRisk, buildRiskDimensions } from './dealMetrics';
 
 describe('riskScore', () => {
   it('is 100 minus the health score when one exists', () => {
@@ -22,6 +22,18 @@ describe('riskBand', () => {
 
   it('bands by level without a health score', () => {
     expect(riskBand(makeDeal({ healthScore: undefined, level: 'HIGH' }))).toBe('Red');
+  });
+});
+
+describe('bandForRisk', () => {
+  it('uses the same thresholds as riskBand (risk = 100 - health)', () => {
+    expect(bandForRisk(30)).toBe('Green');
+    expect(bandForRisk(31)).toBe('Yellow');
+    expect(bandForRisk(60)).toBe('Yellow');
+    expect(bandForRisk(61)).toBe('Red');
+    for (const health of [0, 39, 40, 69, 70, 100]) {
+      expect(bandForRisk(100 - health)).toBe(riskBand(makeDeal({ healthScore: health })));
+    }
   });
 });
 

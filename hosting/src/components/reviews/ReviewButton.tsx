@@ -3,7 +3,7 @@ import type { RiskDeal } from '@/lib/types';
 import { formatDate } from '@/lib/format';
 import { useReviews } from './ReviewsContext';
 
-/** Shared "Mark reviewed" toggle. Stops propagation so it can sit inside a clickable card. */
+/** Shared "Mark reviewed" toggle. Stops click/Enter/Space propagation so it can sit inside a clickable card. */
 export const ReviewButton: React.FC<{ deal: RiskDeal }> = ({ deal }) => {
   const reviews = useReviews();
   const review = reviews.getReview(deal);
@@ -19,7 +19,8 @@ export const ReviewButton: React.FC<{ deal: RiskDeal }> = ({ deal }) => {
         aria-pressed={done}
         aria-label={`${label}: ${deal.value}`}
         onClick={(e) => { e.stopPropagation(); reviews.toggle(deal); }}
-        onKeyDown={(e) => e.stopPropagation()}
+        // Keep the button's own activation keys from reaching a card; let Escape etc. through to modals.
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}
         style={{
           minHeight: 32,
           padding: '0 0.7rem',

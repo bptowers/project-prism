@@ -15,15 +15,22 @@ export function riskScore(risk: RiskDeal): number {
   return risk.level === 'HIGH' ? 68 + stalledPressure : 36 + stalledPressure;
 }
 
+function bandForHealth(health: number): RiskBand {
+  if (health >= 70) return 'Green';
+  if (health >= 40) return 'Yellow';
+  return 'Red';
+}
+
 export function riskBand(risk: RiskDeal): RiskBand {
-  if (typeof risk.healthScore === 'number') {
-    if (risk.healthScore >= 70) return 'Green';
-    if (risk.healthScore >= 40) return 'Yellow';
-    return 'Red';
-  }
+  if (typeof risk.healthScore === 'number') return bandForHealth(risk.healthScore);
   if (risk.level === 'HIGH') return 'Red';
   if (risk.level === 'MEDIUM') return 'Yellow';
   return 'Green';
+}
+
+/** Band for a bare riskScore, on riskBand's health thresholds (risk = 100 - health). */
+export function bandForRisk(risk: number): RiskBand {
+  return bandForHealth(100 - risk);
 }
 
 export function dealValue(risk: RiskDeal): number {

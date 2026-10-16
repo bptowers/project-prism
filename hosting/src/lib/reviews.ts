@@ -1,5 +1,5 @@
 import type { RiskDeal } from './types';
-import { riskScore } from './dealMetrics';
+import { bandForRisk, riskScore, type RiskBand } from './dealMetrics';
 
 /** One shared review, stored at /dealReviews/{dealKey}. */
 export interface DealReview {
@@ -24,15 +24,37 @@ export interface ReviewWriter {
   remove(deal: RiskDeal): void;
 }
 
+/** encodeURIComponent throws on a lone surrogate; on failure, retry with each one swapped for U+FFFD. */
+function safeEncode(raw: string): string {
+  try {
+    return encodeURIComponent(raw);
+  } catch {
+    return encodeURIComponent(raw.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '\uFFFD'));
+  }
+}
+
 /** Firestore-safe document id: '/' is encoded and reserved ids are prefixed. */
 export function dealKey(deal: Pick<RiskDeal, 'opportunityId' | 'value'>): string {
-  const encoded = encodeURIComponent((deal.opportunityId || deal.value || '').trim());
+  const encoded = safeEncode(deal.opportunityId?.trim() || deal.value?.trim() || '');
   const reserved = encoded === '' || encoded === '.' || encoded === '..' || /^__.*__$/.test(encoded);
   return reserved ? `k_${encoded}` : encoded;
 }
 
+/**
+ * How far risk must rise before a reviewed deal re-enters the queue. The LLM
+ * health score drifts a few points run to run, and deals without one gain 2
+ * risk per stalled day, so any rise at all would undo most reviews each run.
+ */
+export const WORSE_SINCE_REVIEW_POINTS = 10;
+
+const BAND_RANK: Record<RiskBand, number> = { Green: 0, Yellow: 1, Red: 2 };
+
+/** Risk rose by WORSE_SINCE_REVIEW_POINTS or crossed into a worse band. A malformed riskAtReview counts as worse. */
 export function isWorseSinceReview(deal: RiskDeal, review: DealReview): boolean {
-  return riskScore(deal) > review.riskAtReview;
+  if (!Number.isFinite(review.riskAtReview)) return true;
+  const risk = riskScore(deal);
+  return risk - review.riskAtReview >= WORSE_SINCE_REVIEW_POINTS
+    || BAND_RANK[bandForRisk(risk)] > BAND_RANK[bandForRisk(review.riskAtReview)];
 }
 
 export function reviewsApiFromMap(reviews: Map<string, DealReview>, writer: ReviewWriter, error?: string): ReviewsApi {

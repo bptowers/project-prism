@@ -37,4 +37,21 @@ describe('ReviewButton', () => {
     fireEvent.click(screen.getByRole('button'));
     expect(onCard).not.toHaveBeenCalled();
   });
+
+  it('keeps Enter and Space inside the button but lets Escape reach document handlers', () => {
+    const onDocKey = vi.fn();
+    document.addEventListener('keydown', onDocKey);
+    try {
+      render(<MemoryReviewsProvider><ReviewButton deal={makeDeal({ value: 'Acme' })} /></MemoryReviewsProvider>);
+      const button = screen.getByRole('button');
+      fireEvent.keyDown(button, { key: 'Enter' });
+      fireEvent.keyDown(button, { key: ' ' });
+      expect(onDocKey).not.toHaveBeenCalled();
+      fireEvent.keyDown(button, { key: 'Escape' });
+      expect(onDocKey).toHaveBeenCalledTimes(1);
+      expect(onDocKey.mock.calls[0][0].key).toBe('Escape');
+    } finally {
+      document.removeEventListener('keydown', onDocKey);
+    }
+  });
 });
