@@ -63,7 +63,6 @@ describe('useSharedReviews', () => {
 
   it.each([
     ['missing', {}],
-    ['empty', { name: '' }],
     ['not a string', { name: 42 }],
   ])('falls back to the email when the token name is %s', async (_label, claims) => {
     getIdTokenResult.mockImplementation(() => Promise.resolve({ claims }));
@@ -73,15 +72,34 @@ describe('useSharedReviews', () => {
     expect(setDoc.mock.calls[0][1]).toMatchObject({ reviewedByName: 'brad.towers@simprogroup.com' });
   });
 
+  it('writes an empty token name as-is, matching the rule', async () => {
+    getIdTokenResult.mockImplementation(() => Promise.resolve({ claims: { name: '' } }));
+    const { result } = renderHook(() => useSharedReviews());
+    act(() => result.current.toggle(makeDeal({ opportunityId: 'OPP-9' })));
+    await waitFor(() => expect(setDoc).toHaveBeenCalled());
+    expect(setDoc.mock.calls[0][1]).toMatchObject({ reviewedByName: '' });
+  });
+
   it.each([
     [-12.4, 100],
-    [0.6, 99],
-    [87.6, 12],
-  ])('writes an integer risk in 0-100 (healthScore %s -> risk %s)', async (healthScore, risk) => {
+    [0.6, 99.4],
+    [87.6, 12.4],
+  ])('writes the risk clamped to 0-100 and unrounded (healthScore %s -> risk %s)', async (healthScore, risk) => {
     const { result } = renderHook(() => useSharedReviews());
     act(() => result.current.toggle(makeDeal({ opportunityId: 'OPP-9', healthScore })));
     await waitFor(() => expect(setDoc).toHaveBeenCalled());
-    expect(setDoc.mock.calls[0][1]).toMatchObject({ riskAtReview: risk });
+    expect((setDoc.mock.calls[0][1] as { riskAtReview: number }).riskAtReview).toBeCloseTo(risk, 10);
+  });
+
+  it('does not show a deal with fractional health as worse right after review', async () => {
+    const { result } = renderHook(() => useSharedReviews());
+    const deal = makeDeal({ opportunityId: 'OPP-9', healthScore: 69.6 });
+    act(() => result.current.toggle(deal));
+    await waitFor(() => expect(setDoc).toHaveBeenCalled());
+    const written = setDoc.mock.calls[0][1] as Record<string, unknown>;
+    act(() => emit([reviewDoc('OPP-9', { ...written, reviewedAt: null })]));
+    expect(result.current.isWorse(deal)).toBe(false);
+    expect(result.current.isDone(deal)).toBe(true);
   });
 
   it('writes the maximum risk when the score is not a number', async () => {
@@ -155,31 +173,59 @@ describe('useSharedReviews', () => {
     expect(setDoc).not.toHaveBeenCalled();
   });
 
-  it('clears a write error once a later write succeeds', async () => {
+  it('clears a write error as soon as the next write starts', async () => {
     setDoc.mockImplementationOnce(() => Promise.reject(new Error('offline')));
     const { result } = renderHook(() => useSharedReviews());
     const deal = makeDeal({ opportunityId: 'OPP-9' });
     act(() => result.current.toggle(deal));
     await waitFor(() => expect(result.current.error).toMatch(/offline/));
 
+    setDoc.mockImplementationOnce(() => new Promise(() => undefined)); // never settles
     act(() => result.current.toggle(deal));
-    await waitFor(() => expect(result.current.error).toBeUndefined());
-    expect(setDoc).toHaveBeenCalledTimes(2);
+    expect(result.current.error).toBeUndefined();
   });
 
-  it('asks the user to sign in again when there is no signed-in email', () => {
+  it('clearError() dismisses a write error', async () => {
+    setDoc.mockImplementationOnce(() => Promise.reject(new Error('offline')));
+    const { result } = renderHook(() => useSharedReviews());
+    act(() => result.current.toggle(makeDeal({ opportunityId: 'OPP-9' })));
+    await waitFor(() => expect(result.current.error).toMatch(/offline/));
+
+    act(() => result.current.clearError?.());
+    expect(result.current.error).toBeUndefined();
+  });
+
+  it('ignores an earlier failing write that settles after a later successful one', async () => {
+    let rejectFirst: (err: Error) => void = () => undefined;
+    setDoc
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectFirst = reject; }))
+      .mockImplementationOnce(() => Promise.resolve());
+    const { result } = renderHook(() => useSharedReviews());
+    act(() => result.current.toggle(makeDeal({ opportunityId: 'OPP-1' })));
+    await waitFor(() => expect(setDoc).toHaveBeenCalledTimes(1));
+    act(() => result.current.toggle(makeDeal({ opportunityId: 'OPP-2' })));
+    await waitFor(() => expect(setDoc).toHaveBeenCalledTimes(2));
+
+    await act(async () => rejectFirst(new Error('offline')));
+    expect(result.current.error).toBeUndefined();
+  });
+
+  it('asks the user to sign in again when there is no signed-in email', async () => {
     auth.currentUser = null;
     const { result } = renderHook(() => useSharedReviews());
     act(() => result.current.toggle(makeDeal({ opportunityId: 'OPP-9' })));
-    expect(result.current.error).toMatch(/sign in again/i);
+    await waitFor(() => expect(result.current.error).toMatch(/sign in again/i));
     expect(setDoc).not.toHaveBeenCalled();
   });
 
-  it('surfaces a listener error, and clears it on the next snapshot', () => {
+  // Firestore ends a listener after its error callback, so no further snapshots arrive.
+  it('surfaces a listener error and keeps the last good reviews', () => {
     const { result } = renderHook(() => useSharedReviews());
+    const deal = makeDeal({ opportunityId: 'OPP-9', healthScore: 30 });
+    act(() => emit([reviewDoc('OPP-9', { reviewedBy: 'ann@simpro.au', riskAtReview: 70 })]));
     act(() => fail(new Error('permission-denied')));
     expect(result.current.error).toMatch(/permission-denied/);
-    act(() => emit([]));
-    expect(result.current.error).toBeUndefined();
+    expect(result.current.error).toMatch(/reload/i);
+    expect(result.current.isDone(deal)).toBe(true);
   });
 });

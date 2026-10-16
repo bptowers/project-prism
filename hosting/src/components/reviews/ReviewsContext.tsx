@@ -7,6 +7,7 @@ const NOOP_REVIEWS: ReviewsApi = {
   isDone: () => false,
   isWorse: () => false,
   toggle: () => undefined,
+  clearError: () => undefined,
 };
 
 /** App provides the Firestore-backed store (useSharedReviews); the default is inert. */

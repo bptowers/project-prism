@@ -17,6 +17,8 @@ export interface ReviewsApi {
   isWorse(deal: RiskDeal): boolean;
   toggle(deal: RiskDeal): void;
   error?: string;
+  /** Dismiss the last write error. */
+  clearError?(): void;
 }
 
 export interface ReviewWriter {

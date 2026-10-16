@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
@@ -32,16 +32,19 @@ function toReview(data: Record<string, unknown> | undefined): DealReview | undef
   };
 }
 
-/** The rule needs a number in 0-100; an unscoreable deal is recorded at maximum risk. */
+/**
+ * The rule needs a number in 0-100; an unscoreable deal is recorded at maximum risk.
+ * Not rounded: 30.4 -> 30 would cross the Green/Yellow line and read as worse at once.
+ */
 function riskForRule(deal: RiskDeal): number {
   const risk = riskScore(deal);
-  return Number.isFinite(risk) ? Math.round(Math.min(100, Math.max(0, risk))) : 100;
+  return Number.isFinite(risk) ? Math.min(100, Math.max(0, risk)) : 100;
 }
 
-/** The rule compares against the token's name claim, which user.displayName can lag behind. */
+/** Mirrors the rule's token.get('name', email); user.displayName can lag behind the token. */
 async function reviewerName(user: User & { email: string }): Promise<string> {
   const { claims } = await user.getIdTokenResult();
-  return typeof claims.name === 'string' && claims.name ? claims.name : user.email;
+  return typeof claims.name === 'string' ? claims.name : user.email;
 }
 
 /**
@@ -53,7 +56,10 @@ export function useSharedReviews(): ReviewsApi {
   // Kept apart so a snapshot (which follows a rejected write's rollback) can't wipe a write error.
   const [listenError, setListenError] = useState<string | undefined>();
   const [writeError, setWriteError] = useState<string | undefined>();
+  // Only the latest write may set writeError, so an older one settling late can't leave a stale error.
+  const writeSeq = useRef(0);
 
+  // Firestore ends the listener after its error callback: keep the last good map and the error until reload.
   useEffect(() => onSnapshot(
     collection(db, COLLECTION),
     (snapshot) => {
@@ -63,41 +69,37 @@ export function useSharedReviews(): ReviewsApi {
         if (review) next.set(d.id, review);
       });
       setReviews(next);
-      setListenError(undefined);
     },
-    (err) => setListenError(`Couldn't load reviews: ${err.message}`),
+    (err) => setListenError(`Couldn't load reviews: ${err.message}. Reload the page to try again.`),
   ), []);
 
   return useMemo(() => {
-    const save = async (deal: RiskDeal) => {
+    const write = async (failure: string, op: () => Promise<void>) => {
+      const seq = ++writeSeq.current;
+      setWriteError(undefined);
+      try {
+        await op();
+      } catch (err) {
+        if (seq === writeSeq.current) setWriteError(`${failure}: ${messageOf(err)}`);
+      }
+    };
+    const save = (deal: RiskDeal) => write("Couldn't save the review", async () => {
       const user = auth.currentUser;
-      if (!user?.email) {
-        setWriteError('Sign in again to mark deals as reviewed.');
-        return;
-      }
-      try {
-        await setDoc(doc(db, COLLECTION, dealKey(deal)), {
-          reviewedBy: user.email,
-          reviewedByName: await reviewerName(user as User & { email: string }),
-          reviewedAt: serverTimestamp(),
-          riskAtReview: riskForRule(deal),
-        });
-        setWriteError(undefined);
-      } catch (err) {
-        setWriteError(`Couldn't save the review: ${messageOf(err)}`);
-      }
+      if (!user?.email) throw new Error('sign in again to mark deals as reviewed.');
+      await setDoc(doc(db, COLLECTION, dealKey(deal)), {
+        reviewedBy: user.email,
+        reviewedByName: await reviewerName(user as User & { email: string }),
+        reviewedAt: serverTimestamp(),
+        riskAtReview: riskForRule(deal),
+      });
+    });
+    const remove = (deal: RiskDeal) => write("Couldn't remove the review", () => deleteDoc(doc(db, COLLECTION, dealKey(deal))));
+    return {
+      ...reviewsApiFromMap(reviews, {
+        save: (deal) => void save(deal),
+        remove: (deal) => void remove(deal),
+      }, writeError ?? listenError),
+      clearError: () => setWriteError(undefined),
     };
-    const remove = async (deal: RiskDeal) => {
-      try {
-        await deleteDoc(doc(db, COLLECTION, dealKey(deal)));
-        setWriteError(undefined);
-      } catch (err) {
-        setWriteError(`Couldn't remove the review: ${messageOf(err)}`);
-      }
-    };
-    return reviewsApiFromMap(reviews, {
-      save: (deal) => void save(deal),
-      remove: (deal) => void remove(deal),
-    }, writeError ?? listenError);
   }, [reviews, writeError, listenError]);
 }
