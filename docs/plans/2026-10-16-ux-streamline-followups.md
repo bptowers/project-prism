@@ -32,3 +32,5 @@
 - T11->T13: use <main><div id="dashboard-tabpanel" role="tabpanel" aria-labelledby=...> (not <main role="tabpanel">, which drops the main landmark). Set scroll-padding-top on html if targets hide under the sticky nav.
 - T11->T13: check on a real phone: sticky nav ~145px tall at 375px (pills wrap to 2 rows); last tab starts off-screen. Option: pills nowrap + horizontal scroll on narrow screens.
 - T11: region pills use aria-pressed in role=group (acceptable; radiogroup would be more precise).
+- T12: cron duplicated in hosting/src/lib/schedule.ts; add "mirrored in hosting/src/lib/schedule.ts" comment at functions/src/index.ts:173 (+ CLAUDE.md note).
+- T12: next refresh shows in viewer local time (US Pacific sees previous day); dataAsOf is UTC date key — acceptable, note only.
