@@ -19,7 +19,7 @@
 - T7: ReviewButton label changes with aria-pressed (APG says keep label fixed). Optional.
 - T7: dealKey doesn't enforce 1500-byte limit (CSV names unbounded).
 - T7: tests: un-review via UI; keyboard propagation.
-- ASK BRAD at T9 checkpoint: "worse since review" default = band worsened OR risk +10 points (WORSE_SINCE_REVIEW_POINTS).
+- DECIDED (Brad, 16 Oct): worse since review = band worsened OR risk +10 points.
 - T8: dealReviews doc ids unbounded / write amplification by insiders; consider dealKey size cap (but name-fallback keys can be long).
 - T8: document test:rules needs global firebase CLI + JDK 21 (JAVA_HOME=/opt/homebrew/opt/openjdk@21) in CLAUDE.md.
 - T8: tsconfig only includes src, so rules-tests/ and vitest.rules.config.ts aren't type-checked by tsc --noEmit.
