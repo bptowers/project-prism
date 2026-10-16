@@ -89,4 +89,10 @@ describe('Header run analysis', () => {
     render(<Header isLive period="Run 9 Sep 2026" generatedAt={twoHoursAgo} />);
     expect(screen.getByText('2h ago')).toBeInTheDocument();
   });
+
+  it('shows when the next scheduled refresh is', () => {
+    render(<Header isLive period="Data as of 14 Oct 2026" nextRefresh="16 Oct 2026" />);
+    expect(screen.getByText('Data as of 14 Oct 2026')).toBeInTheDocument();
+    expect(screen.getByText('Next scheduled refresh 16 Oct 2026')).toBeInTheDocument();
+  });
 });

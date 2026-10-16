@@ -12,6 +12,8 @@ interface HeaderProps {
   isLive?: boolean;
   /** ISO timestamp of when the report was generated (createdAt), used for "Nh ago". */
   generatedAt?: string;
+  /** e.g. "16 Oct 2026", next scheduled data refresh. */
+  nextRefresh?: string;
 }
 
 type RunState = 'idle' | 'confirming' | 'loading' | 'started' | 'success' | 'error' | 'unauthenticated';
@@ -48,7 +50,7 @@ const smallButton: React.CSSProperties = {
   transition: 'color 0.2s ease, opacity 0.2s ease',
 };
 
-export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive, generatedAt }) => {
+export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive, generatedAt, nextRefresh }) => {
   const { theme, toggleTheme } = useTheme();
   const [runState, setRunState] = useState<RunState>('idle');
   const [runError, setRunError] = useState<string | null>(null);
@@ -159,6 +161,11 @@ export const Header: React.FC<HeaderProps> = ({ onUploadClick, period, isLive, g
             {relativeTime && (
               <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
                 {relativeTime}
+              </span>
+            )}
+            {isLive && nextRefresh && (
+              <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
+                Next scheduled refresh {nextRefresh}
               </span>
             )}
           </div>
