@@ -128,6 +128,8 @@ code, pre { font-family: var(--font-mono); font-size: 0.9em; }
 
 /* Focus */
 :focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--accent); }
+/* Tabs sit in an overflow-x strip that clips the outset ring, so draw it inside instead. */
+[role="tab"]:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
