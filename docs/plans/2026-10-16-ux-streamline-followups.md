@@ -34,3 +34,9 @@
 - T11: region pills use aria-pressed in role=group (acceptable; radiogroup would be more precise).
 - T12: cron duplicated in hosting/src/lib/schedule.ts; add "mirrored in hosting/src/lib/schedule.ts" comment at functions/src/index.ts:173 (+ CLAUDE.md note).
 - T12: next refresh shows in viewer local time (US Pacific sees previous day); dataAsOf is UTC date key — acceptable, note only.
+- T13->T15/17: dealsError banner only on Deals tab; Pipeline Health can show capped deal data with no warning. Add banner to Health (T15 adds Overview).
+- T13: sticky nav ~140px on phones (pills wrap); consider non-sticky/compact below ~600px.
+- T13: useSharedReviews in App re-renders the active tab on every review snapshot; move to a small ReviewsProvider({children}).
+- T13: RiskRadar leftovers until T16: own Region chip block; "deteriorated" badge ignores nav region.
+- T13: clearError clears both write+listen errors; coexisting listen error never seen (rare).
+- T13: bundle 880 kB (was 862 kB pre-T13); Vite >500 kB warning pre-existing. Consider code-splitting tabs (React.lazy) later.
