@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useMemo, useRef, useState } from 'react';
+import { MotionConfig, motion } from 'framer-motion';
 import { containerVariants } from '@/theme/animations';
 import { useRegion } from '@/hooks/useRegion';
 import { useDashboardView } from '@/hooks/useDashboardView';
@@ -28,7 +28,7 @@ import type { RegionData } from '@/lib/types';
 import { formatDate } from '@/lib/format';
 import { regionLabel } from '@/lib/regions';
 import { inRegion } from '@/lib/dealFilters';
-import { TABS } from '@/lib/dashboardView';
+import { TABS, type TabKey } from '@/lib/dashboardView';
 import { nextScheduledRun } from '@/lib/schedule';
 import { isDormant, isDark, isMisaligned } from '@/lib/dealClassifiers';
 
@@ -88,21 +88,43 @@ export default function App() {
   const dataAsOf = dataAsOfLabel(reportDate, reportPeriod);
   const nextRefresh = formatDate(nextScheduledRun(new Date()).toISOString());
   const tabLabel = TABS.find(t => t.key === view.tab)?.label ?? 'Overview';
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Picking a tab from far down the previous one starts the new tab at its top, just under the sticky nav.
+  // Back/forward goes through the hash listener instead, so the browser's own scroll restoration applies.
+  const onSelectTab = (tab: TabKey) => {
+    const panel = panelRef.current;
+    const navHeight = document.getElementById('dashboard-nav')?.getBoundingClientRect().height ?? 0;
+    const panelTop = panel?.getBoundingClientRect().top;
+    if (panelTop !== undefined && panelTop < navHeight) {
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({ top: window.scrollY + panelTop - navHeight, behavior: reduce ? 'auto' : 'smooth' });
+    }
+    selectTab(tab);
+  };
 
   const renderTab = () => {
     switch (view.tab) {
       case 'overview':
         return (
           <div style={stack}>
-            <AIBriefing briefing={executiveBriefing} fallbackBriefing={fallbackBriefing} totalOpportunities={totalOpportunities} period={dataAsOf} isLive={isLive} />
-            <StatsRow stats={data.stats} sparklines={data.sparklines} />
+            <ErrorBoundary section="AI Briefing">
+              <AIBriefing briefing={executiveBriefing} fallbackBriefing={fallbackBriefing} totalOpportunities={totalOpportunities} period={dataAsOf} isLive={isLive} />
+            </ErrorBoundary>
+            <ErrorBoundary section="Pipeline Stats">
+              <StatsRow stats={data.stats} sparklines={data.sparklines} />
+            </ErrorBoundary>
           </div>
         );
       case 'cro':
         return (
           <div style={stack}>
-            <Recommendations items={data.recommendations} />
-            <TwentyQuestions data={twentyQuestions} isLive={isLive} />
+            <ErrorBoundary section="AI Recommended Actions">
+              <Recommendations items={data.recommendations} />
+            </ErrorBoundary>
+            <ErrorBoundary section="CRO Intelligence">
+              <TwentyQuestions data={twentyQuestions} isLive={isLive} />
+            </ErrorBoundary>
           </div>
         );
       case 'deals':
@@ -114,104 +136,117 @@ export default function App() {
       case 'health':
         return (
           <div style={stack}>
-            <div style={grid}>
-              <Panel title="Risk by Stage" accent="amber" meta={`${regionDeals.length} deals`}><RiskByStage risks={regionDeals} /></Panel>
-              <Panel title="Activity Health" accent="red" meta={`${regionDeals.filter(isDormant).length} dormant · ${regionDeals.filter(isDark).length} dark`}><ActivityHealth risks={regionDeals} /></Panel>
-              <Panel title="Forecast Integrity" accent="blue" meta={`${regionDeals.filter(isMisaligned).length} misaligned`}><ForecastIntegrity risks={regionDeals} forecastStat={data.stats.forecast} /></Panel>
-            </div>
-            <PipelineFunnel stages={data.funnel} />
-            <RepHeatmap risks={regionDeals} />
+            <ErrorBoundary section="Pipeline Intelligence">
+              <div style={grid}>
+                <Panel title="Risk by Stage" accent="amber" meta={`${regionDeals.length} deals`}><RiskByStage risks={regionDeals} /></Panel>
+                <Panel title="Activity Health" accent="red" meta={`${regionDeals.filter(isDormant).length} dormant · ${regionDeals.filter(isDark).length} dark`}><ActivityHealth risks={regionDeals} /></Panel>
+                <Panel title="Forecast Integrity" accent="blue" meta={`${regionDeals.filter(isMisaligned).length} misaligned`}><ForecastIntegrity risks={regionDeals} forecastStat={data.stats.forecast} /></Panel>
+              </div>
+            </ErrorBoundary>
+            <ErrorBoundary section="Pipeline Funnel">
+              <PipelineFunnel stages={data.funnel} />
+            </ErrorBoundary>
+            <ErrorBoundary section="Rep Heatmap">
+              <RepHeatmap risks={regionDeals} />
+            </ErrorBoundary>
           </div>
         );
       case 'comp':
         return (
           <div style={stack}>
-            <DeltaIntelligence data={deltaIntelligence} isLive={isLive} />
-            <CompetitiveDisplacement data={competitiveDisplacement} isLive={isLive} />
+            <ErrorBoundary section="Delta Intelligence">
+              <DeltaIntelligence data={deltaIntelligence} isLive={isLive} />
+            </ErrorBoundary>
+            <ErrorBoundary section="Competitive Displacement">
+              <CompetitiveDisplacement data={competitiveDisplacement} isLive={isLive} />
+            </ErrorBoundary>
           </div>
         );
     }
   };
 
   return (
-    <ReviewsContext.Provider value={reviews}>
-      <div style={{ maxWidth: 1920, margin: '0 auto', padding: '0 clamp(1rem, 3vw, 2rem)' }}>
-        {/* The visible PRISM wordmark is styled text; this gives the page its one h1. */}
-        <h1 style={visuallyHidden}>Prism revenue intelligence</h1>
-        <Header onUploadClick={() => setUploadOpen(true)} period={dataAsOf} nextRefresh={isLive ? nextRefresh : undefined} isLive={isLive} generatedAt={reportCreatedAt ?? reportDate} />
-        <UploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
-        <PrismBar style={{ marginBottom: '1rem' }} />
+    <MotionConfig reducedMotion="user">
+      <ReviewsContext.Provider value={reviews}>
+        <div style={{ maxWidth: 1920, margin: '0 auto', padding: '0 clamp(1rem, 3vw, 2rem)' }}>
+          {/* The visible PRISM wordmark is styled text; this gives the page its one h1. */}
+          <h1 style={visuallyHidden}>Prism revenue intelligence</h1>
+          <Header onUploadClick={() => setUploadOpen(true)} period={dataAsOf} nextRefresh={isLive ? nextRefresh : undefined} isLive={isLive} generatedAt={reportCreatedAt ?? reportDate} />
+          <UploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
+          <PrismBar style={{ marginBottom: '1rem' }} />
 
-        {loading && !showingContent && (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '6rem 2rem', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Loading…
-          </div>
-        )}
-
-        {!loading && !showingContent && (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '6rem 2rem',
-            textAlign: 'center',
-            gap: '1.5rem',
-          }}>
-            <div style={{ fontSize: '3rem', opacity: 0.3 }}>◈</div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--text-primary)' }}>
-              No live data yet
+          {loading && !showingContent && (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '6rem 2rem', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Loading…
             </div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: 420, lineHeight: 1.6 }}>
-              Upload a Salesforce CSV export to run your first analysis. The intelligence engine will process your pipeline and populate this dashboard with live data.
-            </div>
-            <button
-              onClick={() => setUploadOpen(true)}
-              style={{
-                padding: '10px 28px',
-                fontSize: '0.85rem',
-                fontFamily: 'var(--font-mono)',
-                background: 'var(--accent)',
-                border: 'none',
-                borderRadius: 6,
-                color: '#fff',
-                cursor: 'pointer',
-                marginTop: '0.5rem',
-              }}
-            >
-              Upload CSV →
-            </button>
-          </div>
-        )}
+          )}
 
-        {showingContent && (
-          <>
-            <DashboardNav tab={view.tab} region={view.region} regionCounts={regionCounts} onSelectTab={selectTab} onSelectRegion={selectRegion} />
-            {reviews.error && (
-              <div role="alert" style={{ marginTop: '0.75rem', padding: '0.6rem 0.85rem', borderRadius: 6, border: '1px solid var(--warning)', background: 'var(--warning-subtle)', color: 'var(--warning-text)', fontSize: '0.8rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem 1rem' }}>
-                {/* The hook's messages already say what failed ("Couldn't save the review: …"). */}
-                <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{reviews.error}</span>
-                {reviews.clearError && (
-                  <button type="button" onClick={() => reviews.clearError?.()} style={{ minHeight: 32, padding: '0 0.75rem', borderRadius: 6, border: '1px solid var(--warning)', background: 'transparent', color: 'var(--warning-text)', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
-                    Dismiss
-                  </button>
-                )}
+          {!loading && !showingContent && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '6rem 2rem',
+              textAlign: 'center',
+              gap: '1.5rem',
+            }}>
+              <div style={{ fontSize: '3rem', opacity: 0.3 }}>◈</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--text-primary)' }}>
+                No live data yet
               </div>
-            )}
-            <main style={{ padding: '1.5rem 0 2rem' }}>
-              <div id="dashboard-tabpanel" role="tabpanel" aria-labelledby={`tab-${view.tab}`}>
-                <motion.div key={view.tab} variants={containerVariants} initial="hidden" animate="visible">
-                  {/* Each tab sits behind its own ErrorBoundary so one bad payload never blanks the dashboard. */}
-                  <ErrorBoundary key={view.tab} section={tabLabel}>{renderTab()}</ErrorBoundary>
-                </motion.div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: 420, lineHeight: 1.6 }}>
+                Upload a Salesforce CSV export to run your first analysis. The intelligence engine will process your pipeline and populate this dashboard with live data.
               </div>
-            </main>
-            <ErrorBoundary section="Processing Footer">
-              <ProcessingFooter {...reportMeta} />
-            </ErrorBoundary>
-          </>
-        )}
-      </div>
-    </ReviewsContext.Provider>
+              <button
+                onClick={() => setUploadOpen(true)}
+                style={{
+                  padding: '10px 28px',
+                  fontSize: '0.85rem',
+                  fontFamily: 'var(--font-mono)',
+                  background: 'var(--accent)',
+                  border: 'none',
+                  borderRadius: 6,
+                  color: '#fff',
+                  cursor: 'pointer',
+                  marginTop: '0.5rem',
+                }}
+              >
+                Upload CSV →
+              </button>
+            </div>
+          )}
+
+          {showingContent && (
+            <>
+              <DashboardNav tab={view.tab} region={view.region} regionCounts={regionCounts} onSelectTab={onSelectTab} onSelectRegion={selectRegion} />
+              {reviews.error && (
+                <div role="alert" style={{ marginTop: '0.75rem', padding: '0.6rem 0.85rem', borderRadius: 6, border: '1px solid var(--warning)', background: 'var(--warning-subtle)', color: 'var(--warning-text)', fontSize: '0.8rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem 1rem' }}>
+                  {/* The hook's messages already say what failed ("Couldn't save the review: …"). */}
+                  <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{reviews.error}</span>
+                  {reviews.clearError && (
+                    <button type="button" onClick={() => reviews.clearError?.()} style={{ minHeight: 32, padding: '0 0.75rem', borderRadius: 6, border: '1px solid var(--warning)', background: 'transparent', color: 'var(--warning-text)', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
+                      Dismiss
+                    </button>
+                  )}
+                </div>
+              )}
+              <main style={{ padding: '1.5rem 0 2rem' }}>
+                <div ref={panelRef} id="dashboard-tabpanel" role="tabpanel" aria-labelledby={`tab-${view.tab}`} tabIndex={0}>
+                  <motion.div key={view.tab} variants={containerVariants} initial="hidden" animate="visible">
+                    {/* Each tab, and each widget in it, sits behind an ErrorBoundary so one bad payload never blanks the dashboard.
+                        Keyed on region too: a region change remounts the tab, clearing widget-local filters and any crash. */}
+                    <ErrorBoundary key={`${view.tab}:${view.region}`} section={tabLabel}>{renderTab()}</ErrorBoundary>
+                  </motion.div>
+                </div>
+              </main>
+              <ErrorBoundary section="Processing Footer">
+                <ProcessingFooter {...reportMeta} />
+              </ErrorBoundary>
+            </>
+          )}
+        </div>
+      </ReviewsContext.Provider>
+    </MotionConfig>
   );
 }

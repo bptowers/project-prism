@@ -38,7 +38,7 @@ export const DashboardNav: React.FC<Props> = ({ tab, region, regionCounts, onSel
   };
 
   return (
-    <nav aria-label="Dashboard" style={{
+    <nav id="dashboard-nav" aria-label="Dashboard" style={{
       position: 'sticky', top: 0, zIndex: 20, background: 'var(--bg-deep)',
       borderBottom: '1px solid var(--border)', paddingTop: '0.75rem',
       display: 'flex', flexDirection: 'column', gap: '0.6rem',

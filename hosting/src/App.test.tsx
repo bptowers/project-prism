@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { makeDeal, makeRegionData } from '@/test/fixtures';
 import type { RegionData } from '@/lib/types';
@@ -13,6 +13,16 @@ let reviewsState: ReviewsApi;
 vi.mock('@/hooks/useSharedReviews', () => ({ useSharedReviews: () => reviewsState }));
 let regionState: Record<string, unknown> = {};
 vi.mock('@/hooks/useRegion', () => ({ useRegion: () => regionState }));
+let throwRecommendations = false;
+vi.mock('@/components/dashboard/Recommendations', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/dashboard/Recommendations')>();
+  return {
+    Recommendations: (props: Parameters<typeof actual.Recommendations>[0]) => {
+      if (throwRecommendations) throw new Error('bad payload');
+      return actual.Recommendations(props);
+    },
+  };
+});
 
 import App from './App';
 
@@ -26,6 +36,7 @@ function liveState(all: RegionData) {
 }
 
 beforeEach(() => {
+  throwRecommendations = false;
   localStorage.clear();
   window.history.replaceState(null, '', '/');
   reviewsState = { getReview: () => undefined, isDone: () => false, isWorse: () => false, toggle: () => undefined };
@@ -115,5 +126,73 @@ describe('App shell', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/^Couldn't save the review: permission-denied/);
     fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Dismiss' }));
     expect(clearError).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('App tab content', () => {
+  it('clears the Deals tab\'s own filters when the region changes', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Deals' }));
+    // RiskRadar's own stage chip: narrows to the UK deal's stage.
+    fireEvent.click(within(screen.getByRole('main')).getByRole('button', { name: 'Commit' }));
+    expect(screen.queryByRole('button', { name: 'Open NA Deal' })).not.toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByRole('group', { name: 'Region' })).getByRole('button', { name: /^North America/ }));
+    expect(screen.getByRole('button', { name: 'Open NA Deal' })).toBeInTheDocument();
+  });
+
+  it('keeps a sibling widget on screen when one widget throws', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    throwRecommendations = true;
+    render(<App />);
+    fireEvent.click(screen.getByRole('tab', { name: 'CRO Brief' }));
+    expect(screen.getByText('AI Recommended Actions could not be displayed')).toBeInTheDocument();
+    expect(screen.getByText('CRO Intelligence')).toBeInTheDocument();
+  });
+
+  it('makes the tab panel focusable', () => {
+    render(<App />);
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('tabindex', '0');
+  });
+});
+
+describe('App tab scroll', () => {
+  const scrollTo = vi.fn();
+  const rect = (top: number, height = 0) => ({ top, height, bottom: top + height, left: 0, right: 0, width: 0, x: 0, y: top, toJSON: () => ({}) }) as DOMRect;
+
+  beforeEach(() => {
+    scrollTo.mockReset();
+    vi.stubGlobal('scrollTo', scrollTo);
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 1000 });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 });
+  });
+
+  function renderScrolledDown(panelTop: number) {
+    render(<App />);
+    vi.spyOn(screen.getByRole('navigation', { name: 'Dashboard' }), 'getBoundingClientRect').mockReturnValue(rect(0, 100));
+    vi.spyOn(screen.getByRole('tabpanel'), 'getBoundingClientRect').mockReturnValue(rect(panelTop));
+  }
+
+  it('brings the top of the tab panel back into view below the sticky nav', () => {
+    renderScrolledDown(-400);
+    fireEvent.click(screen.getByRole('tab', { name: 'Deals' }));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 500, behavior: 'smooth' });
+  });
+
+  it('jumps without animating when the user prefers reduced motion', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)' }));
+    renderScrolledDown(-400);
+    fireEvent.click(screen.getByRole('tab', { name: 'Deals' }));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 500, behavior: 'auto' });
+  });
+
+  it('leaves the scroll alone when the panel top is already visible', () => {
+    renderScrolledDown(150);
+    fireEvent.click(screen.getByRole('tab', { name: 'Deals' }));
+    expect(scrollTo).not.toHaveBeenCalled();
   });
 });
