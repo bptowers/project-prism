@@ -28,3 +28,4 @@
 - T9: dealReviews grows forever (closed/exited deals never pruned); every page load reads whole collection. Backend prune of keys not in latest report, or listener with reviewedAt cutoff.
 - T9: each snapshot -> new API object -> all useReviews consumers re-render (2 per toggle). Revisit if Deals tab sluggish.
 - T9: reviewedByName > 200 chars can never save (rule exact-match + cap).
+- T10: app has no h1 (only AuthGate); give Header an h1 (visible or sr-only) so panel h2s nest correctly.
