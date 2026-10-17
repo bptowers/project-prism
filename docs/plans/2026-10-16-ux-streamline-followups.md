@@ -49,3 +49,6 @@
 - T15: KPI values themselves untested (pipeline sum, at-risk value/count/high, avg days).
 - T15 BACKEND: stamp deltaComparedToDate (from fetchPreviousReport doc id) on the report so the strip can show 'Since last run (date)' from code.
 - T15: deal-popup ErrorBoundary key switches to 'none' on close, killing DealDetailModal's exit animation; key on last-opened deal via ref.
+- T16: DealDetailModal (existing) lacks role=dialog/aria-modal and doesn't return focus to the Open button on close.
+- T16: RESOLVED by RiskRadar deletion: T13 RiskRadar leftovers, T14 duplicate "Revenue confidence" heading.
+- T16: dropped by design (per spec): RiskRadar's "Risk distribution by pipeline value" bar and "Risk driver ranking" list (Overview radar + RiskMap legend carry this).
