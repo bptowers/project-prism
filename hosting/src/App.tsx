@@ -9,8 +9,6 @@ import { Header } from '@/components/layout/Header';
 import { PrismBar } from '@/components/layout/PrismBar';
 import { DashboardNav } from '@/components/layout/DashboardNav';
 import { ProcessingFooter } from '@/components/layout/ProcessingFooter';
-import { AIBriefing } from '@/components/dashboard/AIBriefing';
-import { StatsRow } from '@/components/dashboard/StatsRow';
 import { PipelineFunnel } from '@/components/dashboard/PipelineFunnel';
 import { RiskRadar } from '@/components/dashboard/RiskRadar';
 import { RiskByStage } from '@/components/dashboard/RiskByStage';
@@ -22,6 +20,7 @@ import { TwentyQuestions } from '@/components/dashboard/TwentyQuestions';
 import { CompetitiveDisplacement } from '@/components/dashboard/CompetitiveDisplacement';
 import { DeltaIntelligence } from '@/components/dashboard/DeltaIntelligence';
 import { UploadModal } from '@/components/dashboard/UploadModal';
+import { OverviewTab } from '@/components/tabs/OverviewTab';
 import { Panel } from '@/components/ui/Panel';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import type { RegionData } from '@/lib/types';
@@ -84,7 +83,8 @@ export default function App() {
 
   // Every tab reads the same region-filtered deals: one region control, no disagreement.
   const regionDeals = useMemo(() => inRegion(allData.risks ?? [], view.region), [allData, view.region]);
-  const fallbackBriefing = isLive && !executiveBriefing ? buildFallbackBriefing(data, totalOpportunities) : undefined;
+  // Portfolio-wide like the LLM briefing it stands in for: the Overview labels it global under a region filter.
+  const fallbackBriefing = isLive && !executiveBriefing ? buildFallbackBriefing(allData, totalOpportunities) : undefined;
   const dataAsOf = dataAsOfLabel(reportDate, reportPeriod);
   const nextRefresh = formatDate(nextScheduledRun(new Date()).toISOString());
   const tabLabel = TABS.find(t => t.key === view.tab)?.label ?? 'Overview';
@@ -106,15 +106,19 @@ export default function App() {
   const renderTab = () => {
     switch (view.tab) {
       case 'overview':
+        // OverviewTab wraps each of its sections in its own ErrorBoundary.
         return (
-          <div style={stack}>
-            <ErrorBoundary section="AI Briefing">
-              <AIBriefing briefing={executiveBriefing} fallbackBriefing={fallbackBriefing} totalOpportunities={totalOpportunities} period={dataAsOf} isLive={isLive} />
-            </ErrorBoundary>
-            <ErrorBoundary section="Pipeline Stats">
-              <StatsRow stats={data.stats} sparklines={data.sparklines} />
-            </ErrorBoundary>
-          </div>
+          <OverviewTab
+            deals={regionDeals}
+            allDeals={allData.risks ?? []}
+            region={view.region}
+            briefing={{ briefing: executiveBriefing, fallbackBriefing, totalOpportunities, period: dataAsOf, isLive }}
+            delta={deltaIntelligence}
+            dealsError={dealsError}
+            onGoToDeals={goToDeals}
+            onSelectRegion={selectRegion}
+            onSeeChanges={() => onSelectTab('comp')}
+          />
         );
       case 'cro':
         return (

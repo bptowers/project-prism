@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { itemVariants } from '@/theme/animations';
 
@@ -33,6 +33,10 @@ interface AIBriefingProps {
   totalOpportunities?: number;
   period?: string;
   isLive?: boolean;
+  /** Clamp to three lines with a "Read full briefing" toggle. */
+  collapsible?: boolean;
+  /** Caveat when a filter can't apply to the briefing, e.g. a selected region. */
+  scopeNote?: string;
 }
 
 export const AIBriefing: React.FC<AIBriefingProps> = ({
@@ -41,14 +45,17 @@ export const AIBriefing: React.FC<AIBriefingProps> = ({
   totalOpportunities,
   period,
   isLive = false,
+  collapsible = false,
+  scopeNote,
 }) => {
+  const [expanded, setExpanded] = useState(false);
   const label = isLive ? period || 'Latest live analysis' : 'Awaiting live analysis';
   const displayBriefing = briefing || fallbackBriefing;
 
   return (
     <motion.div variants={itemVariants} style={{
       background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10,
-      padding: '1.5rem 2rem', marginBottom: '2rem', position: 'relative', overflow: 'hidden',
+      padding: '1.5rem 2rem', marginBottom: 0, position: 'relative', overflow: 'hidden',
     }}>
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 3,
@@ -80,12 +87,30 @@ export const AIBriefing: React.FC<AIBriefingProps> = ({
           </span>
         )}
       </div>
+      {scopeNote && (
+        <p style={{ margin: '-0.5rem 0 0.75rem', fontSize: '0.78rem', color: 'var(--warning-text)' }}>{scopeNote}</p>
+      )}
 
       {isLive && displayBriefing ? (
         // Live LLM-generated briefing — numbers and metrics bolded for faster scanning
-        <p style={{ fontSize: '1rem', color: 'var(--text-secondary)', lineHeight: 1.75, maxWidth: 1100, margin: 0 }}>
-          {highlightBriefingText(displayBriefing)}
-        </p>
+        <>
+          <p style={{
+            fontSize: '1rem', color: 'var(--text-secondary)', lineHeight: 1.75, maxWidth: 1100, margin: 0,
+            ...(collapsible && !expanded
+              ? { display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }
+              : {}),
+          }}>
+            {highlightBriefingText(displayBriefing)}
+          </p>
+          {collapsible && (
+            <button type="button" aria-expanded={expanded} onClick={() => setExpanded(e => !e)} style={{
+              marginTop: '0.5rem', minHeight: 36, padding: 0, background: 'none', border: 'none',
+              color: 'var(--accent)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
+            }}>
+              {expanded ? 'Show less' : 'Read full briefing'}
+            </button>
+          )}
+        </>
       ) : isLive && !briefing ? (
         // Live data loaded but enrichment still running
         <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', margin: 0 }}>
