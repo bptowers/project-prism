@@ -55,3 +55,6 @@
 - T16: DealsTab paging token uses useMemo(() => ({})) — React may discard memo cache; use a string key (region|toHash(filters)|deals.length).
 - T16: clear pendingFocus when filters change (edge case if a toggle never produces a snapshot).
 - T16: CSV exports NaN as "NaN" (empty cell may read better); DealCard.test getSelection spy should restore in afterEach.
+- T17: small white labels on amber/green stage segments ~2.1:1 contrast in dark mode (pre-existing; --on-accent unchanged).
+- T17: <div> inside <button> in RiskByStage/ActivityHealth/RepHeatmap rows (renders fine; switch to block spans if touched).
+- T17: RESOLVED T2 activity-threshold duplication (isDormant/isDark delegate to activityBucket; ActivityHealth uses ACTIVITY_BUCKETS).
