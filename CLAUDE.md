@@ -15,7 +15,7 @@ The project has two independent sub-projects at the root:
 - **`firebase.json`** — Firebase config linking both, with hosting rewrites to function endpoints
 - **`docs/`** — Architecture docs, deployment guide, presentation assets
 - **`test-data/`** — Sample CSV files for local testing (`sample-opportunities.csv`, `sample-3-opportunities.csv`)
-- **`sample-data/`** — Additional sample CSV (`opportunities.csv`) used by the frontend's hardcoded sample data flow
+- **`sample-data/`** — Additional sample CSV (`opportunities.csv`); the frontend no longer has a hardcoded sample-data flow
 
 ## Build & Development Commands
 
@@ -26,7 +26,12 @@ npm install
 npm run dev        # Vite dev server
 npm run build      # tsc && vite build (output: dist/)
 npm run preview    # Preview production build
+npm test           # Vitest + Testing Library (jsdom), src/**/*.test.{ts,tsx}
+npx tsc --noEmit   # type-check src/
+npm run typecheck:rules  # type-check rules-tests/ + vitest.rules.config.ts (tsconfig.rules.json; not covered by the line above)
+npm run test:rules # Firestore security-rule tests against the emulator (see note below)
 ```
+`npm run test:rules` runs `firebase emulators:exec --only firestore`, so it needs the **global Firebase CLI** and a **JDK** (the Firestore emulator is Java). On Brad's machine: `JAVA_HOME=/opt/homebrew/opt/openjdk@21 PATH=/opt/homebrew/opt/openjdk@21/bin:$PATH npm run test:rules`.
 
 ### Backend (Cloud Functions)
 ```bash
@@ -91,21 +96,50 @@ Key layers in `functions/src/`:
 ### Frontend (hosting)
 React SPA with Vite. Uses `@/` path alias (mapped to `src/`).
 
-- **`src/App.tsx`** — Main layout (top to bottom): Header + UploadModal, PrismBar, live/sample data indicator, empty state (when no data), then animated content: AIBriefing → **RiskRadar** (hero position, first widget) → ActivityHealth + ForecastIntegrity + RiskByStage row → StatsRow → RegionTabs → PipelineFunnel → 3-col grid (Win Themes, Loss Themes, Market Signals) → TrendChart → CompetitorIntel → Recommendations → TwentyQuestions → CompetitiveDisplacement → DeltaIntelligence → ProcessingFooter. Uses `framer-motion` for enter animations.
-- **`src/hooks/`** — `useRegion.ts` (region selection + data, plus `isLive`/`hasLiveData`/`showingContent` for live-vs-sample toggle), `useFirestore.ts` (Firestore queries; loads `/reports/{date}` plus the `/reports/{date}/deals` subcollection), `useUpload.ts` (CSV upload)
-- **`src/components/dashboard/`** — Dashboard widgets: AIBriefing, StatsRow, RegionTabs, PipelineFunnel, ThemeChart, RiskRadar, ActivityHealth, ForecastIntegrity, RiskByStage, RepHeatmap, DealDetailModal, MarketSignals, TrendChart, CompetitorIntel, Recommendations, TwentyQuestions, CompetitiveDisplacement, DeltaIntelligence, UploadModal
-- **`src/components/ui/`** — Reusable UI primitives (Panel, Badge, Button, Sparkline)
-- **`src/components/layout/`** — Layout components (Header, PrismBar, ProcessingFooter)
-- **`src/data/sampleData.ts`** — Hardcoded sample data for development
-- **`src/theme/`** — ThemeProvider with light/dark mode, design tokens (`tokens.ts`), animations (`animations.ts`)
+- **`src/App.tsx`** — Header + UploadModal, PrismBar, sticky `DashboardNav` (one region selector + tabs), then one tab panel, then ProcessingFooter. An empty state shows until a live report exists. Every tab gets the same region-filtered deals (`inRegion`), so all tabs agree. Tabs, in order:
+  - **Overview** — changes strip (`SinceLastRun`), collapsible AI briefing, KPI tiles, RiskMap, risk-drivers radar + confidence gauge, today's review queue, region cards
+  - **CRO Brief** — Q10 interventions, actions, Q1–9 question cards
+  - **Deals** — filters, rep summary, deal cards (riskiest first, 24 then "Show all"), CSV export of what's on screen
+  - **Pipeline Health** — stage, activity, forecast, funnel, rep heatmap; each drills into Deals with a filter
+  - **Competition & Change** — what changed, competitor cards, full delta and competitive analyses in disclosures
+
+  Tab, region and Deals filters live in the URL hash via `useDashboardView`, so views are shareable and browser back works. Each tab, and each section inside it, sits behind its own `ErrorBoundary` (keyed on tab + region, so a region change remounts the tab), so one bad LLM payload never blanks the page. Uses `framer-motion` for enter animations.
+- **`src/hooks/`** — `useDashboardView.ts` (tab/region/filters ↔ URL hash; last region remembered in `localStorage['prism-last-region']`), `useRegion.ts` (`useRegion(region)` takes the region from the view and returns its data plus `isLive`/`showingContent`, `regionCounts`, `dealsError` and the enrichment overlays), `useSharedReviews.ts` (live `/dealReviews` from Firestore, behind the `ReviewsApi` in `lib/reviews`), `useFirestore.ts` (loads `/reports/{date}` plus the `/reports/{date}/deals` subcollection), `useUpload.ts` (CSV upload), `useElementWidth.ts` (ResizeObserver content width for responsive charts and tabs, with a fallback for jsdom)
+- **`src/components/tabs/`** — one component per tab: OverviewTab, CroBriefTab, DealsTab, PipelineHealthTab, CompetitionTab
+- **`src/components/overview/`** — SinceLastRun, KpiTiles, ReviewQueue, RegionCards
+- **`src/components/cro/`** — Interventions (Q10), ActionList, CroQuestionsGrid + QuestionDetail (Q1–9)
+- **`src/components/deals/`** — DealFiltersBar, RepSummary, DealCard
+- **`src/components/competition/`** — WhatChanged, CompetitorCards
+- **`src/components/charts/`** — RiskMap, RiskDriversRadar, ConfidenceGauge
+- **`src/components/reviews/`** — `ReviewsContext` (plus an in-memory `MemoryReviewsProvider` for tests) and `ReviewButton`
+- **`src/components/dashboard/`** — Widgets reused inside the tabs: AIBriefing, PipelineFunnel, ActivityHealth, ForecastIntegrity, RiskByStage, RepHeatmap, DealDetailModal, CompetitiveDisplacement, DeltaIntelligence, NotGeneratedPanel, UploadModal
+- **`src/components/ui/`** — Reusable UI primitives: `InsightPanel` (label + question + code-computed takeaway, the pattern every panel uses), `tone` (band text colours/names and shared styles), `ErrorBoundary`, `DealsLoadError` (warns when the full deal list failed to load, so tabs don't quietly show the capped list), Panel, Badge, Button, Sparkline
+- **`src/components/layout/`** — Header (theme toggle), PrismBar, DashboardNav, ProcessingFooter
+- **`src/components/auth/`** — `AuthGate` (Google sign-in + allowlist)
+- **`src/theme/`** — ThemeProvider with light/dark mode, design tokens (`tokens.ts`), animations (`animations.ts`); CSS variables live in `global.css` (use those, no raw hex in components)
+- **`src/lib/`** — pure, unit-tested helpers:
+  - `dealMetrics` — deal scoring (`riskScore`, `riskBand`, `bandForRisk`, `revenueConfidence`, `buildRiskDimensions`). A NaN/infinite `healthScore` falls back to the level-based score.
+  - `dealFilters` — `inRegion`, `applyDealFilters`, `activityBucket`, `repsIn`/`stagesIn`
+  - `takeaways` — every panel takeaway, computed in code from deals or rows
+  - `dashboardView` — `TABS`, URL-hash `parseHash`/`toHash`
+  - `reviews` — `dealKey`, `ReviewsApi`, and the "worse since review" rule: a reviewed deal counts as not done again if its band worsened or its risk rose by `WORSE_SINCE_REVIEW_POINTS` (10)
+  - `croQuestions` — Q1–9 order, region filtering of LLM rows, card stats counted from rows
+  - `competitors` — competitor cards from Q6 threats + displacement loss mechanisms
+  - `exportCsv` — Deals CSV export (quoted cells, formula-injection guard, non-finite numbers as empty cells)
+  - `schedule` — `nextScheduledRun`, mirroring the `runWeeklyAnalysis` cron
+  - `guards` — `asArray`, `isRecord`, `text()` (LLM field → display string; objects become blank instead of crashing React)
+  - `format` — `formatDate` ("15 Oct 2026"), `formatCurrency`, `formatValue` (a $0 total over real deals shows "—", not a misleading $0), `normalizeStage`
+  - also `regions`, `riskSignals`, `dealClassifiers`, `injectDeals`, `csvPreview`, `allowedDomains`
 - **`src/lib/firebase.ts`** — Firebase client init with automatic emulator connection in dev
 - **`src/lib/types.ts`** — Frontend-specific type definitions. `RegionData` is the core per-region data shape. Also defines typed interfaces for the three enrichment overlays: `TwentyQuestionsData` (10 CRO questions), `CompetitiveDisplacementData`, and `DeltaIntelligenceData` (pipeline trajectory, deal-level changes, early warnings).
+- **`rules-tests/`** — Firestore security-rule tests (`@firebase/rules-unit-testing`), run by `npm run test:rules` with `vitest.rules.config.ts`
 
 ### Firestore Collections
 - `/reports/{date}` — Aggregated reports by date (trimmed payload — see Firestore 1 MiB notes below)
 - `/reports/{date}/deals/{opportunityId}` — Full uncapped per-deal records, written in batches of 500. Added to remove the 50-deal-per-region cap that was needed to keep the main doc under 1 MiB. The frontend `useFirestore` hook fetches this subcollection alongside the main doc.
 - `/analyses/{executionId}/opportunities/{opportunityId}` — Individual LLM analyses (chunked at 400 ops/batch — under Firestore's 500-ops/batch hard limit)
 - `/executions/{executionId}` — Pipeline execution logs
+- `/dealReviews/{dealKey}` — Shared deal reviews `{reviewedBy, reviewedByName, reviewedAt, riskAtReview}`, written by the client (see the rule note under Key Conventions). `dealKey` comes from `lib/reviews.ts`.
 
 ## Environment Variables
 
@@ -151,7 +185,10 @@ Uses Vite env vars prefixed with `VITE_FIREBASE_*` (apiKey, authDomain, projectI
 - **Access is restricted to verified company-domain Google accounts.** The frontend uses Google sign-in (`signInWithPopup`); an `AuthGate` (`hosting/src/components/auth/AuthGate.tsx`) blocks the app until a signed-in user's email is on the allowlist. Anonymous auth was removed.
 - **The domain allowlist is duplicated in four places that must be kept in sync** (rules files can't import TS, and there's no shared FE/BE package yet): `hosting/src/lib/allowedDomains.ts`, `functions/src/util/allowedDomains.ts` (both export `ALLOWED_DOMAINS` + `isAllowedEmail`), and the `allowed()` regex helper in `firestore.rules` and `storage.rules`. Current domains: `simprogroup.com`, `simpro.us`, `simpro.au`, `bigchange.com`. Adding a domain means editing all four.
 - **All 4 HTTP endpoints require a Firebase ID token**: `Authorization: Bearer <idToken>`. The `requireAuth` middleware in `index.ts` verifies it via `admin.auth().verifyIdToken()` **and** rejects (403) any token whose email is off the allowlist or whose `email_verified !== true`.
-- Firestore/Storage rules gate reads on the `allowed()` helper (verified email + allowlisted domain); writes from the client are always denied (Cloud Functions use Admin SDK, bypassing rules)
+- Firestore/Storage rules gate reads on the `allowed()` helper (verified email + allowlisted domain); writes from the client are always denied (Cloud Functions use Admin SDK, bypassing rules), except `/dealReviews`, which allowlisted users may write under a narrow rule: own email, `reviewedByName` bound to the token's name (or the email when there is none), server timestamp, fixed fields, `riskAtReview` a number in 0–100. Rule tests: `cd hosting && npm run test:rules` (Firestore emulator; needs the global Firebase CLI and a JDK, see the build commands above).
+- **The dashboard follows the same "numbers from code" rule**: every takeaway figure is computed from deals or rows (`lib/takeaways.ts`, `lib/croQuestions.ts`, `lib/competitors.ts`), never parsed out of LLM prose. Where an LLM-authored count is shown (Q6 `affectedDeals`, competitor cards), it is labelled "(AI count)". The LLM-written new-deal count (`newPipeline.count`/`totalMrr`) and comparison date (`comparedTo`) are deliberately not shown in the changes strip or What Changed.
+- **Theme**: the app opens in light mode; dark mode is opt-in via the header toggle and remembered per browser in `localStorage['prism-theme-choice']`. That key is written only by an explicit toggle (the OS setting and the legacy `prism-theme` key are ignored). An inline script in `hosting/index.html` applies a stored dark choice before first paint so it doesn't flash light; keep its key in sync with `ThemeProvider`.
+- **The scheduler cron is mirrored**: `runWeeklyAnalysis`'s `0 6 */3 * *` (UTC) in `functions/src/index.ts` is duplicated in `hosting/src/lib/schedule.ts` for the header's "next refresh" date. Change both together.
 - LLM API keys are stored as Firebase Secret Manager secrets, not plain env vars — every function declares `secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"]` in its config so any provider can be selected at runtime
 - **Firestore 1 MiB document limit handling**: `index.ts` has `trimReportForStorage()` and `trimTransformedForStorage()` helpers that cap arrays/strings before writing to `/reports/{date}`. Per-deal data is split into the `/reports/{date}/deals` subcollection (full uncapped). `logDocSize()` logs JSON byte size on every write so blowouts are diagnosable — note Firestore's actual stored size is typically 2–3× the JSON byte count due to per-field overhead
 - The pipeline has a **multi-phase enrichment pattern**: base report is stored immediately after aggregation, then `Aggregator.enrichWithLLM()` runs up to 5 non-fatal enrichment passes — Phase 1: executive briefing + recommendations + forecast confidence (PORTFOLIO_AGGREGATION_PROMPT); Phase 2: pipeline health narrative; Phase 3: 10 CRO questions (TWENTY_QUESTIONS_PROMPT, stored as `twentyQuestions`); Phase 4: competitive displacement intelligence (COMPETITIVE_DISPLACEMENT_PROMPT, stored as `competitiveDisplacement`); Phase 5: delta intelligence vs. prior report (DELTA_INTELLIGENCE_PROMPT, stored as `deltaIntelligence`). Each phase is independently non-fatal.

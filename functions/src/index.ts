@@ -171,6 +171,7 @@ export const onCSVUpload = onObjectFinalized(
 /**
  * Scheduled function: Runs the BigQuery analysis
  * Trigger: Every 3 days at 6:00 AM UTC (cron 0 6 star-slash-3 star star — see `schedule` below)
+ * The schedule is mirrored in hosting/src/lib/schedule.ts (the dashboard's "next refresh" date); keep in sync.
  */
 export const runWeeklyAnalysis = onSchedule(
   { schedule: "0 6 */3 * *", timeZone: "UTC", timeoutSeconds: 1800, memory: "2GiB", secrets: ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] },
