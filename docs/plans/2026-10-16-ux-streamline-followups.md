@@ -60,3 +60,6 @@
 - T17: RESOLVED T2 activity-threshold duplication (isDormant/isDark delegate to activityBucket; ActivityHealth uses ACTIVITY_BUCKETS).
 - T18 BACKEND: send opportunityId to the LLM in buildDealTable (aggregator.ts:611-626) and add opportunityId to the Q10 row schema; then match Interventions on id first (survives renames/duplicate names).
 - T18: CRO card buttons "View 3 →"/"Read more" repeat across cards; add aria-describedby to the card h3.
+- T19 BACKEND: write each deal's OpportunityAnalysis.competitorThreat name onto /reports/{date}/deals docs so competitor cards can count regionDeals per competitor in code (replacing LLM affectedDeals, currently labelled "AI count").
+- T19: threat rows labelled "Global" dropped under a region filter; "UK and Australia" lands in AU only (normalizeRegionKey branch order). Add a note or count under All only.
+- T19: live with no displacement -> "Full competitive analysis" disclosure opens to a not-generated panel; delta with only forecastDrift shows "Not generated" in WhatChanged while change-detail disclosure is offered. Cosmetic.
