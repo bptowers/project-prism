@@ -59,14 +59,16 @@ const LATE_STAGES = new Set(['Proposal', 'Negotiation', 'Commit', 'Contract Revi
 
 /** Collapse Salesforce stage names onto the canonical funnel labels. */
 export function normalizeStage(stage?: string): string {
-  if (!stage) return 'Unknown';
-  const lower = stage.toLowerCase();
+  // Trimmed once, so a stage with stray whitespace matches itself after a round trip through the URL hash.
+  const s = stage?.trim();
+  if (!s) return 'Unknown';
+  const lower = s.toLowerCase();
   if (lower.includes('signature') || lower.includes('commit')) return 'Commit';
   if (lower.includes('contract')) return 'Contract Review';
   if (lower.includes('draft')) return 'Proposal';
   if (lower.includes('approved')) return 'Approved';
-  const match = STAGE_ORDER.find(s => lower.includes(s.toLowerCase()));
-  return match || stage;
+  const match = STAGE_ORDER.find(name => lower.includes(name.toLowerCase()));
+  return match || s;
 }
 
 export function isLateStage(stage?: string): boolean {

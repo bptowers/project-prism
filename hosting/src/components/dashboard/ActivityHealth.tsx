@@ -1,6 +1,7 @@
 import React from 'react';
 import type { RiskDeal } from '@/lib/types';
 import { formatValue } from '@/lib/format';
+import { plural } from '@/lib/takeaways';
 import { ACTIVITY_BUCKETS, activityBucket, type ActivityBucket } from '@/lib/dealFilters';
 
 interface Props {
@@ -56,7 +57,7 @@ export const ActivityHealth: React.FC<Props> = ({ risks, onBucketClick }) => {
             key={b.key}
             type="button"
             onClick={() => onBucketClick(b.key)}
-            aria-label={`Show ${b.label.toLowerCase()} deals (${b.count})`}
+            aria-label={`Show ${b.label.toLowerCase()} deals: ${plural(b.count, 'deal')}, ${pct}%`}
             style={{ ...cardStyle, cursor: 'pointer', textAlign: 'left', font: 'inherit', color: 'inherit' }}
           >
             {content}

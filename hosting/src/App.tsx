@@ -137,6 +137,7 @@ export default function App() {
             deals={regionDeals}
             funnel={data.funnel}
             forecastStat={data.stats.forecast}
+            region={view.region}
             dealsError={dealsError}
             onGoToDeals={goToDealsFromTab}
           />

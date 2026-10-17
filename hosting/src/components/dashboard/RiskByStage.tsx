@@ -1,6 +1,7 @@
 import React from 'react';
 import type { RiskDeal } from '@/lib/types';
 import { normalizeStage, STAGE_ORDER } from '@/lib/format';
+import { plural } from '@/lib/takeaways';
 
 interface Props {
   risks: RiskDeal[];
@@ -78,7 +79,7 @@ export const RiskByStage: React.FC<Props> = ({ risks, onStageClick }) => {
             key={stage}
             type="button"
             onClick={() => onStageClick(stage)}
-            aria-label={`Show ${stage} deals (${total})`}
+            aria-label={`Show ${stage} deals: ${plural(total, 'deal')}, ${high} high risk`}
             style={{ ...rowStyle, width: '100%', minHeight: 36, padding: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', font: 'inherit', color: 'inherit' }}
           >
             {content}

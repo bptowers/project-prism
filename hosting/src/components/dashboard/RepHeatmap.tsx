@@ -2,6 +2,8 @@ import React from 'react';
 import { RiskDeal } from '@/lib/types';
 import { formatValue } from '@/lib/format';
 import { repName } from '@/lib/dealFilters';
+import { isAtRisk, revenueConfidence, sumValue } from '@/lib/dealMetrics';
+import { plural } from '@/lib/takeaways';
 
 interface Props {
   risks: RiskDeal[];
@@ -11,15 +13,14 @@ interface Props {
 
 interface RepRow {
   name: string;
-  avgHealthScore: number | null;
+  /** Value-weighted revenue confidence, 0–100: the figure the rep takeaway ranks by. */
+  confidence: number;
   dealCount: number;
   atRiskCount: number;
   totalPipeline: number;
-  highCount: number;
 }
 
-function healthColor(score: number | null): string {
-  if (score === null) return 'var(--border)';
+function healthColor(score: number): string {
   if (score >= 70) return 'var(--success)';
   if (score >= 40) return 'var(--warning)';
   return 'var(--error)';
@@ -53,38 +54,16 @@ export function RepHeatmap({ risks, onRepClick }: Props) {
     repMap.set(name, existing);
   }
 
-  const rows: RepRow[] = [];
-  for (const [name, deals] of repMap.entries()) {
-    if (name === 'Unassigned' && deals.length === 0) continue;
+  const rows: RepRow[] = [...repMap.entries()].map(([name, deals]) => ({
+    name,
+    confidence: revenueConfidence(deals),
+    dealCount: deals.length,
+    atRiskCount: deals.filter(isAtRisk).length,
+    totalPipeline: sumValue(deals),
+  }));
 
-    const scoredDeals = deals.filter(
-      (d) => typeof d.healthScore === 'number' && !isNaN(d.healthScore)
-    );
-    const avgHealthScore =
-      scoredDeals.length > 0
-        ? scoredDeals.reduce((sum, d) => sum + (d.healthScore as number), 0) /
-          scoredDeals.length
-        : null;
-
-    rows.push({
-      name,
-      avgHealthScore: avgHealthScore !== null ? Math.round(avgHealthScore) : null,
-      dealCount: deals.length,
-      atRiskCount: deals.filter(
-        (d) => d.level === 'HIGH' || d.level === 'MEDIUM'
-      ).length,
-      totalPipeline: deals.reduce((sum, d) => sum + (d.pipelineValue ?? 0), 0),
-      highCount: deals.filter((d) => d.level === 'HIGH').length,
-    });
-  }
-
-  // Sort: null avgHealthScore goes to bottom, otherwise ascending (riskiest first)
-  rows.sort((a, b) => {
-    if (a.avgHealthScore === null && b.avgHealthScore === null) return 0;
-    if (a.avgHealthScore === null) return 1;
-    if (b.avgHealthScore === null) return -1;
-    return a.avgHealthScore - b.avgHealthScore;
-  });
+  // Lowest confidence first, the same ranking repTakeaway names (a stable sort, so ties keep the same order too).
+  rows.sort((a, b) => a.confidence - b.confidence);
 
   const hasPipeline = rows.some((r) => r.totalPipeline > 0);
   const gridColumns = hasPipeline
@@ -99,18 +78,16 @@ export function RepHeatmap({ risks, onRepClick }: Props) {
         {rows.map((row, idx) => {
           const isLast = idx === rows.length - 1;
           const isAlt = idx % 2 === 1;
-          const color = healthColor(row.avgHealthScore);
-          const barFill =
-            row.avgHealthScore !== null
-              ? (row.avgHealthScore / 100) * 120
-              : 0;
+          const color = healthColor(row.confidence);
+          const barFill = (row.confidence / 100) * 120;
 
           return (
             <button
               key={row.name}
               type="button"
               onClick={() => onRepClick(row.name)}
-              aria-label={`Show deals for ${row.name}`}
+              aria-label={`Show deals for ${row.name}: confidence ${row.confidence}, ${row.atRiskCount} at risk, ${plural(row.dealCount, 'deal')}`}
+              data-inset-focus
               style={{
                 border: 'none',
                 width: '100%',
@@ -174,30 +151,18 @@ export function RepHeatmap({ risks, onRepClick }: Props) {
                     }}
                   />
                 </div>
-                {row.avgHealthScore !== null ? (
-                  <span
-                    style={{
-                      color,
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '0.78rem',
-                      fontWeight: 700,
-                      minWidth: 24,
-                    }}
-                  >
-                    {row.avgHealthScore}
-                  </span>
-                ) : (
-                  <span
-                    style={{
-                      color: 'var(--text-muted)',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '0.78rem',
-                      minWidth: 24,
-                    }}
-                  >
-                    —
-                  </span>
-                )}
+                <span
+                  title="Revenue confidence"
+                  style={{
+                    color,
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    minWidth: 24,
+                  }}
+                >
+                  {row.confidence}
+                </span>
               </div>
 
               {/* Col 3: At-risk badge */}

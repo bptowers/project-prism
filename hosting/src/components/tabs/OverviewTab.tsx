@@ -6,6 +6,7 @@ import { regionLabel } from '@/lib/regions';
 import { driversTakeaway, riskMapTakeaway } from '@/lib/takeaways';
 import { AIBriefing } from '@/components/dashboard/AIBriefing';
 import { DealDetailModal } from '@/components/dashboard/DealDetailModal';
+import { DealsLoadError } from '@/components/ui/DealsLoadError';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { InsightPanel } from '@/components/ui/InsightPanel';
 import { RiskMap } from '@/components/charts/RiskMap';
@@ -41,11 +42,7 @@ export const OverviewTab: React.FC<Props> = ({
   // Each section has its own boundary so one bad LLM payload (briefing, delta) never blanks the Overview.
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {dealsError && (
-        <div role="alert" style={{ padding: '0.6rem 0.85rem', borderRadius: 6, border: '1px solid var(--error)', background: 'var(--error-subtle)', color: 'var(--error-text)', fontSize: '0.8rem' }}>
-          Could not load deals: {dealsError.replace(/\.$/, '')}. Showing the capped list embedded in the report.
-        </div>
-      )}
+      <DealsLoadError error={dealsError} hasDeals={deals.length > 0} />
       <ErrorBoundary section="Since Last Run">
         <SinceLastRun delta={delta} region={region} onSeeChanges={onSeeChanges} />
       </ErrorBoundary>

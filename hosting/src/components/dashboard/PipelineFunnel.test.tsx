@@ -8,21 +8,25 @@ const stages = [
 ];
 
 describe('PipelineFunnel', () => {
-  it('does not show a hardcoded average cycle time', () => {
+  it('does not show a hardcoded average cycle time or its own title (the InsightPanel has one)', () => {
     render(<PipelineFunnel stages={stages} />);
-    expect(screen.getByText('Pipeline Stage Progression')).toBeInTheDocument();
     expect(screen.queryByText(/Avg\. cycle/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Pipeline Stage Progression')).not.toBeInTheDocument();
   });
 
-  it('renders an empty-state line and does not throw when there are no stages', () => {
-    render(<PipelineFunnel stages={[]} />);
-    expect(screen.getByText('Pipeline Stage Progression')).toBeInTheDocument();
-    expect(screen.getByText('No stage data in this report.')).toBeInTheDocument();
+  it('renders nothing and does not throw when there are no stages (the takeaway says so)', () => {
+    const { container } = render(<PipelineFunnel stages={[]} />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it('renders stage counts when present', () => {
     render(<PipelineFunnel stages={stages} />);
     expect(screen.getByText('Discovery')).toBeInTheDocument();
     expect(screen.getByText('10')).toBeInTheDocument();
+  });
+
+  it('sizes the track to its stages rather than a fixed 900px', () => {
+    render(<PipelineFunnel stages={stages} />);
+    expect(screen.getByTestId('funnel-track')).toHaveStyle({ minWidth: '220px' });
   });
 });

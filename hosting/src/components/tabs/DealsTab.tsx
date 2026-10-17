@@ -7,6 +7,7 @@ import { plural } from '@/lib/takeaways';
 import { downloadDealsCsv } from '@/lib/exportCsv';
 import { dealKey } from '@/lib/reviews';
 import { InsightPanel } from '@/components/ui/InsightPanel';
+import { DealsLoadError } from '@/components/ui/DealsLoadError';
 import { DealDetailModal } from '@/components/dashboard/DealDetailModal';
 import { useReviews } from '@/components/reviews/ReviewsContext';
 import { DealCard } from '@/components/deals/DealCard';
@@ -73,11 +74,7 @@ export const DealsTab: React.FC<Props> = ({ deals, region, filters, onFiltersCha
       question="Which deals need work, and who owns them?"
       takeaway={`Showing ${plural(visible.length, 'deal')} of ${deals.length} in ${scope}, highest risk first.`}
     >
-      {dealsError && (
-        <div role="alert" style={{ padding: '0.6rem 0.85rem', borderRadius: 6, border: '1px solid var(--error)', background: 'var(--error-subtle)', color: 'var(--error-text)', fontSize: '0.8rem' }}>
-          Could not load deals: {dealsError.replace(/\.$/, '')}.{deals.length > 0 && ' Showing the capped list embedded in the report.'}
-        </div>
-      )}
+      <DealsLoadError error={dealsError} hasDeals={deals.length > 0} />
       {/* Export what is on screen: the same filters, hidden reviews and risk order as the list. */}
       <DealFiltersBar deals={deals} filters={filters} onChange={onFiltersChange} exportCount={visible.length} onExport={() => downloadDealsCsv(visible)} />
       {filters.rep && (

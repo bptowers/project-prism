@@ -74,6 +74,11 @@ describe('normalizeStage', () => {
     expect(normalizeStage('Something Custom')).toBe('Something Custom');
     expect(normalizeStage(undefined)).toBe('Unknown');
   });
+
+  it('trims stray whitespace so unknown stages round-trip through the URL hash', () => {
+    expect(normalizeStage('  Something Custom ')).toBe('Something Custom');
+    expect(normalizeStage('   ')).toBe('Unknown');
+  });
 });
 
 describe('isLateStage', () => {
