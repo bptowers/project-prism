@@ -71,6 +71,15 @@ describe('Interventions', () => {
     });
   });
 
+  it('counts a deal the AI names twice once in the takeaway, matched or not', () => {
+    const rows = (...names: string[]) => ({ question10: { label: '', answer: '', deals: names.map(name => ({ name, rep: '', region: 'UK', mrr: '$10K' })) } });
+    const { unmount } = render(<Interventions data={rows('Acme', 'ACME')} region="all" deals={[makeDeal({ value: 'Acme' })]} isLive />);
+    expect(screen.getByText('1 deal worth $10K needs you personally.')).toBeInTheDocument();
+    unmount();
+    render(<Interventions data={rows('Ghost Co', ' ghost co ', 'Other Co')} region="all" deals={[]} isLive />);
+    expect(screen.getByText('2 deals worth $20K need you personally.')).toBeInTheDocument();
+  });
+
   it('shows a deadline that is not a date as written, without "by"', () => {
     const d = { question10: { label: '', answer: '', deals: [{ name: 'Acme', rep: '', region: 'UK', mrr: '', deadline: '48 hours' }] } };
     render(<Interventions data={d} region="all" deals={[]} isLive />);

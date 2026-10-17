@@ -54,6 +54,14 @@ export const Interventions: React.FC<Props> = ({ data, region, deals, isLive }) 
     return { row, deal, duplicate };
   });
   const distinct = matched.filter(m => m.deal && !m.duplicate).map(m => m.deal as RiskDeal);
+  // The takeaway counts each deal once: by report deal when matched, else by the AI's normalised name.
+  const named = new Set<string>();
+  const takeawayRows = matched.filter(({ row, deal }, i) => {
+    const id = deal ? `deal:${dealKey(deal)}` : norm(row.name) ? `name:${norm(row.name)}` : `row:${i}`;
+    if (named.has(id)) return false;
+    named.add(id);
+    return true;
+  }).map(m => m.row);
   const done = distinct.filter(d => reviews.isDone(d)).length;
   const unmatched = matched.filter(m => !m.deal).length;
   const label = [
@@ -66,7 +74,7 @@ export const Interventions: React.FC<Props> = ({ data, region, deals, isLive }) 
     <InsightPanel
       label={label}
       question="Which deals need the CRO personally?"
-      takeaway={interventionsTakeaway(rows)}
+      takeaway={interventionsTakeaway(takeawayRows)}
       note={region !== 'all' ? `The AI picked these from all regions; showing the ones in ${regionLabel(region)}.` : undefined}
     >
       <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
