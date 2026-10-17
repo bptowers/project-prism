@@ -52,3 +52,6 @@
 - T16: DealDetailModal (existing) lacks role=dialog/aria-modal and doesn't return focus to the Open button on close.
 - T16: RESOLVED by RiskRadar deletion: T13 RiskRadar leftovers, T14 duplicate "Revenue confidence" heading.
 - T16: dropped by design (per spec): RiskRadar's "Risk distribution by pipeline value" bar and "Risk driver ranking" list (Overview radar + RiskMap legend carry this).
+- T16: DealsTab paging token uses useMemo(() => ({})) — React may discard memo cache; use a string key (region|toHash(filters)|deals.length).
+- T16: clear pendingFocus when filters change (edge case if a toggle never produces a snapshot).
+- T16: CSV exports NaN as "NaN" (empty cell may read better); DealCard.test getSelection spy should restore in afterEach.
