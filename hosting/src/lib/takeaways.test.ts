@@ -101,7 +101,7 @@ describe('panel takeaways', () => {
   });
 
   it('interventionsTakeaway sums MRR from LLM rows', () => {
-    expect(interventionsTakeaway([{ mrr: '$12,000' }, { mrr: '$3K' }])).toBe('2 deals worth $15K need you personally.');
+    expect(interventionsTakeaway([{ mrr: '$12,000' }, { mrr: '$3K' }])).toBe('2 deals worth $15K (AI-reported) need you personally.');
     expect(interventionsTakeaway([])).toBe('Nothing in this view needs CRO intervention.');
   });
 
@@ -135,10 +135,10 @@ describe('panel takeaways', () => {
     expect(competitorTakeaway([
       { name: 'ServiceM8', deals: 50, value: 9_000 },
       { name: 'JobLogic', deals: 3, value: 20_000 },
-    ])).toBe('JobLogic is the biggest threat here: $20K at risk.');
+    ])).toBe('JobLogic is the biggest threat here: about $20K at risk (AI estimate).');
     // A competitor with AI-reported deals but no value is never the biggest threat while another has a value.
     expect(competitorTakeaway([{ name: 'Fergus', deals: 9, value: 0 }, { name: 'Tradify', deals: 0, value: 3_000 }]))
-      .toBe('Tradify is the biggest threat here: $3K at risk.');
+      .toBe('Tradify is the biggest threat here: about $3K at risk (AI estimate).');
   });
 
   it('competitorTakeaway counts competitors, not AI deals, when none has a value', () => {

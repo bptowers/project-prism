@@ -6,8 +6,11 @@ import { repName } from './dealFilters';
 import { text } from './guards';
 
 /**
- * One-line panel takeaways. Every figure is computed here from deals or rows;
- * none is read out of LLM prose (project rule: numbers from code, prose from the LLM).
+ * One-line panel takeaways. Nothing is read out of LLM prose (project rule: numbers
+ * from code, prose from the LLM). Counts, confidence and deal values come from the
+ * deals themselves. The exception is money summed from LLM rows: the per-deal `mrr`
+ * the AI copies into CRO question rows and Q6 `mrrAtRisk` are the AI's own figures,
+ * so those totals are labelled "(AI-reported)" or "(AI estimate)".
  */
 
 export function plural(count: number, noun: string): string {
@@ -105,7 +108,9 @@ export function repTakeaway(deals: RiskDeal[]): string {
 export function interventionsTakeaway(rows: { mrr?: string }[]): string {
   if (!rows.length) return 'Nothing in this view needs CRO intervention.';
   const value = rows.reduce((sum, r) => sum + parseMoney(r.mrr), 0);
-  return `${plural(rows.length, 'deal')}${worth(value)} ${pick(rows.length, 'needs', 'need')} you personally.`;
+  // The rows' mrr is transcribed by the LLM, so the total is labelled as the AI's.
+  const reported = value > 0 ? `${worth(value)} (AI-reported)` : '';
+  return `${plural(rows.length, 'deal')}${reported} ${pick(rows.length, 'needs', 'need')} you personally.`;
 }
 
 const URGENCY_RANK: Record<string, number> = { P1: 0, P2: 1, P3: 2 };
@@ -138,7 +143,8 @@ export function competitorTakeaway(cards: { name: string; deals: number; value: 
   const valued = cards.filter(c => c.value > 0);
   if (valued.length) {
     const top = [...valued].sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))[0];
-    return `${top.name} is the biggest threat here: ${formatCurrency(top.value)} at risk.`;
+    // value is summed from the AI's per-competitor mrrAtRisk: ranked on, but labelled as an estimate.
+    return `${top.name} is the biggest threat here: about ${formatCurrency(top.value)} at risk (AI estimate).`;
   }
   const flagged = cards.filter(c => c.deals > 0).length;
   if (flagged) return `${plural(flagged, 'competitor')} ${pick(flagged, 'is', 'are')} flagged by the AI.`;

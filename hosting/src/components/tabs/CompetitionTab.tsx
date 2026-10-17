@@ -37,7 +37,7 @@ export const CompetitionTab: React.FC<Props> = ({ delta, displacement, twentyQue
       </ErrorBoundary>
       {hasChangeDetail(delta) && (
         <details style={disclosure}>
-          <summary style={summary}>More change detail: forecast drift, regional trajectory, competitor momentum{scope}</summary>
+          <summary style={summary}>More change detail (AI analysis): forecast drift, regional trajectory, competitor momentum{scope}</summary>
           <div style={{ marginTop: '0.5rem' }}>
             <ErrorBoundary section="Delta Intelligence">
               <DeltaIntelligence data={delta} isLive={isLive} hideSummary />
@@ -52,7 +52,7 @@ export const CompetitionTab: React.FC<Props> = ({ delta, displacement, twentyQue
       </ErrorBoundary>
       {(displacement || isLive) && (
         <details style={disclosure}>
-          <summary style={summary}>Full competitive analysis: win mechanisms, regional arbitrage, re-warm opportunities{scope}</summary>
+          <summary style={summary}>Full competitive analysis (AI analysis): win mechanisms, regional arbitrage, re-warm opportunities{scope}</summary>
           <div style={{ marginTop: '0.5rem' }}>
             <ErrorBoundary section="Competitive Displacement">
               <CompetitiveDisplacement data={displacement} isLive={isLive} />

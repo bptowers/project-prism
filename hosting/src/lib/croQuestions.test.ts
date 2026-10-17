@@ -18,7 +18,11 @@ describe('filterQuestionByRegion', () => {
 
 describe('questionStat', () => {
   it('counts deal rows and sums their MRR', () => {
-    expect(questionStat(q)).toEqual({ count: 2, text: '2 deals · $4K' });
+    expect(questionStat(q)).toEqual({ count: 2, text: '2 deals · $4K (AI figures)' });
+  });
+
+  it('leaves the AI label off when no row carries an MRR', () => {
+    expect(questionStat({ label: 'x', answer: '', deals: [{ name: 'A', mrr: 'n/a' }] as never })).toEqual({ count: 1, text: '1 deal' });
   });
 
   it('describes region-only and empty questions', () => {

@@ -11,6 +11,17 @@ describe('AIBriefing', () => {
     expect(screen.getByRole('button', { name: 'Show less' })).toHaveAttribute('aria-expanded', 'true');
   });
 
+  it('badges the AI briefing as AI-generated and the code-built fallback as computed', () => {
+    const { unmount } = render(<AIBriefing isLive briefing="From the model." fallbackBriefing="From code." />);
+    expect(screen.getByText('AI-GENERATED BRIEFING')).toBeInTheDocument();
+    expect(screen.getByText('From the model.')).toBeInTheDocument();
+    unmount();
+    render(<AIBriefing isLive fallbackBriefing="From code." />);
+    expect(screen.getByText('SUMMARY (COMPUTED)')).toBeInTheDocument();
+    expect(screen.queryByText('AI-GENERATED BRIEFING')).not.toBeInTheDocument();
+    expect(screen.getByText('From code.')).toBeInTheDocument();
+  });
+
   it('shows a scope note when a region filter cannot apply to it', () => {
     render(<AIBriefing isLive briefing="Text." scopeNote="Global briefing: covers all regions, not just UK." />);
     expect(screen.getByText('Global briefing: covers all regions, not just UK.')).toBeInTheDocument();

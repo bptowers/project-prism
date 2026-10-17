@@ -51,6 +51,8 @@ export const AIBriefing: React.FC<AIBriefingProps> = ({
   const [expanded, setExpanded] = useState(false);
   const label = isLive ? period || 'Latest live analysis' : 'Awaiting live analysis';
   const displayBriefing = briefing || fallbackBriefing;
+  // The fallback is built in code from the deals, not by the LLM, so it must not wear the AI badge.
+  const isComputed = !briefing && !!fallbackBriefing;
 
   return (
     <motion.div variants={itemVariants} style={{
@@ -75,7 +77,7 @@ export const AIBriefing: React.FC<AIBriefingProps> = ({
             borderRadius: '50%',
             animation: isLive ? 'pulse 2s ease infinite' : 'none',
           }} />
-          {isLive ? 'AI-GENERATED BRIEFING' : 'NO LIVE BRIEFING'}
+          {!isLive ? 'NO LIVE BRIEFING' : isComputed ? 'SUMMARY (COMPUTED)' : 'AI-GENERATED BRIEFING'}
         </span>
         <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.125rem' }}>{label}</span>
         {isLive && totalOpportunities && (

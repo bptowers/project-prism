@@ -79,6 +79,14 @@ describe('App header period', () => {
 });
 
 describe('App shell', () => {
+  it('builds a computed fallback briefing with a real deal count when the report has no total', () => {
+    regionState = { ...regionState, executiveBriefing: undefined, totalOpportunities: undefined };
+    render(<App />);
+    expect(screen.getByText('SUMMARY (COMPUTED)')).toBeInTheDocument();
+    expect(screen.getByText(/open opportunities were analysed/)).toHaveTextContent(/^2 open opportunities were analysed/);
+    expect(document.body).not.toHaveTextContent('NaN');
+  });
+
   it('opens on the Overview tab with the briefing and data freshness', () => {
     render(<App />);
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');

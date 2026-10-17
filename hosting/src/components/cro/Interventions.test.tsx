@@ -22,7 +22,7 @@ describe('Interventions', () => {
         <Interventions data={data} region="uk" deals={[makeDeal({ value: 'Acme Renewal' })]} isLive />
       </MemoryReviewsProvider>,
     );
-    expect(screen.getByText('2 deals worth $15K need you personally.')).toBeInTheDocument();
+    expect(screen.getByText('2 deals worth $15K (AI-reported) need you personally.')).toBeInTheDocument();
     expect(screen.getByText('Call the CFO')).toBeInTheDocument();
     expect(screen.getByText('by 18 Oct 2026')).toBeInTheDocument();
     expect(screen.queryByText('Far Away')).not.toBeInTheDocument();
@@ -74,10 +74,10 @@ describe('Interventions', () => {
   it('counts a deal the AI names twice once in the takeaway, matched or not', () => {
     const rows = (...names: string[]) => ({ question10: { label: '', answer: '', deals: names.map(name => ({ name, rep: '', region: 'UK', mrr: '$10K' })) } });
     const { unmount } = render(<Interventions data={rows('Acme', 'ACME')} region="all" deals={[makeDeal({ value: 'Acme' })]} isLive />);
-    expect(screen.getByText('1 deal worth $10K needs you personally.')).toBeInTheDocument();
+    expect(screen.getByText('1 deal worth $10K (AI-reported) needs you personally.')).toBeInTheDocument();
     unmount();
     render(<Interventions data={rows('Ghost Co', ' ghost co ', 'Other Co')} region="all" deals={[]} isLive />);
-    expect(screen.getByText('2 deals worth $20K need you personally.')).toBeInTheDocument();
+    expect(screen.getByText('2 deals worth $20K (AI-reported) need you personally.')).toBeInTheDocument();
   });
 
   it('shows a deadline that is not a date as written, without "by"', () => {
@@ -93,7 +93,7 @@ describe('Interventions', () => {
       { name: 42, region: 7, mrr: '$2K', croAction: { text: 'Call' }, deadline: { when: 'soon' }, stage: ['Commit'] },
     ] } } as never;
     render(<Interventions data={malformed} region="all" deals={[makeDeal({ value: '42' })]} isLive />);
-    expect(screen.getByText('1 deal worth $2K needs you personally.')).toBeInTheDocument();
+    expect(screen.getByText('1 deal worth $2K (AI-reported) needs you personally.')).toBeInTheDocument();
     expect(screen.getByText('42')).toBeInTheDocument();
     expect(screen.getByText('7 · $2K')).toBeInTheDocument();
   });

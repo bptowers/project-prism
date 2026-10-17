@@ -20,9 +20,9 @@ describe('CroQuestionsGrid', () => {
     expect(screen.getByText('Not generated for this run')).toBeInTheDocument();
   });
 
-  it('shows a code-computed stat per card and expands the rows behind it', () => {
+  it('shows a stat per card counted from its rows, labelling the AI money, and expands the rows behind it', () => {
     render(<CroQuestionsGrid data={data} region="all" isLive />);
-    expect(screen.getByText('1 deal · $1K')).toBeInTheDocument();
+    expect(screen.getByText('1 deal · $1K (AI figures)')).toBeInTheDocument();
     const toggle = screen.getByRole('button', { name: 'View 1 →' });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(toggle);
@@ -53,7 +53,7 @@ describe('CroQuestionsGrid', () => {
     expect(within(silent).getByText('Nothing flagged')).toBeInTheDocument();
     expect(within(silent).queryByRole('button')).not.toBeInTheDocument();
     // The null row is skipped, not counted and not rendered.
-    expect(screen.getByText('1 deal · $2K')).toBeInTheDocument();
+    expect(screen.getByText('1 deal · $2K (AI figures)')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'View 1 →' }));
     expect(screen.getByText('Acme')).toBeInTheDocument();
   });

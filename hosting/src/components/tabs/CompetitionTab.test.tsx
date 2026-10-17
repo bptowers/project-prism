@@ -22,16 +22,16 @@ const delta = {
 } as unknown as DeltaIntelligenceData;
 
 describe('CompetitionTab', () => {
-  it('builds competitor cards for the region in view, with a code-computed takeaway', () => {
+  it('builds competitor cards for the region in view, labelling the AI-estimated value', () => {
     render(<CompetitionTab delta={delta} displacement={displacement} twentyQuestions={twentyQuestions} region="uk" isLive />);
-    expect(screen.getByText('JobLogic is the biggest threat here: $12K at risk.')).toBeInTheDocument();
+    expect(screen.getByText('JobLogic is the biggest threat here: about $12K at risk (AI estimate).')).toBeInTheDocument();
     const card = screen.getByRole('article', { name: 'JobLogic' });
-    expect(card).toHaveTextContent('3 deals (AI count) · $12K at risk');
+    expect(card).toHaveTextContent('3 deals (AI count) · $12K at risk (AI estimate)');
     expect(card).toHaveTextContent('Counter-play: Lead with 3-year cost');
     expect(screen.queryByRole('article', { name: 'ServiceM8' })).not.toBeInTheDocument();
   });
 
-  it('keeps the full analyses behind native disclosures, marked as covering all regions', () => {
+  it('keeps the full analyses behind native disclosures, marked as AI analysis covering all regions', () => {
     render(<CompetitionTab delta={delta} displacement={displacement} twentyQuestions={twentyQuestions} region="uk" isLive />);
     const changeDetail = screen.getByText(/More change detail/);
     const full = screen.getByText(/Full competitive analysis/);
@@ -39,6 +39,8 @@ describe('CompetitionTab', () => {
     expect(full.tagName).toBe('SUMMARY');
     expect(changeDetail).toHaveTextContent('(all regions)');
     expect(full).toHaveTextContent('(all regions)');
+    expect(changeDetail).toHaveTextContent(/^More change detail \(AI analysis\)/);
+    expect(full).toHaveTextContent(/^Full competitive analysis \(AI analysis\)/);
     expect(changeDetail.closest('details')).not.toHaveAttribute('open');
   });
 

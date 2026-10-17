@@ -45,7 +45,10 @@ export function filterQuestionByRegion(q: TQQuestion, region: Region): TQQuestio
   };
 }
 
-/** A card's headline figure, counted from its rows (never read from the prose). */
+/**
+ * A card's headline figure, counted from its rows (never read from the prose). The deal count is
+ * code's; the money is the sum of the AI's per-row mrr, so a stat with money carries "(AI figures)".
+ */
 export function questionStat(q: TQQuestion): { count: number; text: string } {
   const dealRows = [
     ...rows<{ mrr?: string }>(q.silent7Days), ...rows<{ mrr?: string }>(q.silent14Days),
@@ -54,7 +57,7 @@ export function questionStat(q: TQQuestion): { count: number; text: string } {
   ];
   if (dealRows.length) {
     const value = dealRows.reduce((sum, r) => sum + parseMoney(r.mrr), 0);
-    return { count: dealRows.length, text: `${plural(dealRows.length, 'deal')}${value > 0 ? ` · ${formatCurrency(value)}` : ''}` };
+    return { count: dealRows.length, text: `${plural(dealRows.length, 'deal')}${value > 0 ? ` · ${formatCurrency(value)} (AI figures)` : ''}` };
   }
   const reps = rows(q.reps);
   if (reps.length) return { count: reps.length, text: plural(reps.length, 'rep') };
