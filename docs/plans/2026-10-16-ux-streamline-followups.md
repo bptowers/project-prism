@@ -63,3 +63,14 @@
 - T19 BACKEND: write each deal's OpportunityAnalysis.competitorThreat name onto /reports/{date}/deals docs so competitor cards can count regionDeals per competitor in code (replacing LLM affectedDeals, currently labelled "AI count").
 - T19: threat rows labelled "Global" dropped under a region filter; "UK and Australia" lands in AU only (normalizeRegionKey branch order). Add a note or count under All only.
 - T19: live with no displacement -> "Full competitive analysis" disclosure opens to a not-generated panel; delta with only forecastDrift shows "Not generated" in WhatChanged while change-detail disclosure is offered. Cosmetic.
+
+## From the final whole-branch review (17 Oct)
+- FIRST POST-DEPLOY FIX (I-2): KPI "At risk"/"Pipeline" (dealMetrics.sumValue) add MRR and contract Amount together and count HIGH+MEDIUM; backend portfolioFacts keeps MRR vs Amount separate and "at risk" = HIGH only. Once 8307e97 runs, briefing and tiles will disagree. Fix: MRR-only with "+N Amount-only deals" note and/or rename tile "At risk (high + medium)".
+- M-2: counts of AI-selected rows (SinceLastRun "N got worse", WhatChanged columns, CRO card "N deals") are code-counted but the selection is the LLM's; consider "(AI-flagged)".
+- M-4: RiskMap aria label uses formatCurrency ($0 vs "—"); ForecastIntegrity sums pipelineValue by hand; 70/40 band thresholds hard-coded in dealMetrics.bandForHealth, tone.scoreTextColor, RepHeatmap.tsx:24-25, ConfidenceGauge.tsx:6 — derive from bandForRisk.
+- M-5: Pipeline Funnel uses backend stageDistribution (raw stage names), not regionDeals; counts can differ from Risk by Stage and it doesn't drill into Deals (CLAUDE.md says all do).
+- M-6 dead code: useRegion computeInFlightStats; ui/Sparkline + test (orphaned since StatsRow removal); radarSummary only used in tests; MemoryReviewsProvider in prod bundle; Panel, useReportHistory, REGION_LABEL_ORDER, unused recharts dependency, RegionData.sparklines/winThemes/lossThemes/trendData; empty untracked src/components/upload/.
+- M-7: any allowlisted user can delete any review, no audit trail (by design — confirm).
+- M-8: raw hex remains in App.tsx:182, Header.tsx:184 (#fff), DealDetailModal.tsx:52 (#a855f7); CLAUDE.md should say test:rules runs from hosting/.
+- Bundle 900 kB (firestore ~941k src, auth 440k, framer-motion 395k); future win: lazy-load UploadModal/storage/papaparse and non-Overview tabs.
+- DEPLOY ORDER (I-3): functions first (8307e97), trigger fetchFromBigQuery, verify new report has portfolioFacts, then hosting + firestore:rules; until then the 16 Oct briefing's LLM figures contradict code-computed tiles.
