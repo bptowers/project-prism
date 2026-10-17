@@ -4,8 +4,8 @@ import { regionLabel } from './regions';
 
 const HEADERS = ['Account Name', 'Opportunity Name', 'Region', 'Stage', 'Rep', 'Risk Level', 'Health Score', 'Pipeline Value', 'Days Stalled', 'Confidence', 'Summary', 'Recommended Action'];
 
-/** Characters that make Excel or Sheets read a cell as a formula (CSV injection). */
-const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
+/** Characters that make Excel or Sheets read a cell as a formula (CSV injection), even after leading spaces. */
+const FORMULA_TRIGGER = /^\s*[=+\-@\t\r]/;
 
 /**
  * Quote a free-text cell. Embedded quotes are doubled so commas, quotes and
@@ -17,6 +17,11 @@ function cell(v: string): string {
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
+/** A number is written bare; anything else that turns up in a numeric column goes through cell(). */
+function num(v: unknown): string {
+  return typeof v === 'number' && Number.isFinite(v) ? String(v) : cell(String(v ?? ''));
+}
+
 /** Every free-text field is quoted (the old exporter left names unquoted, so a comma split the row). */
 export function dealsToCsv(risks: RiskDeal[]): string {
   const rows = risks.map(r => [
@@ -25,23 +30,28 @@ export function dealsToCsv(risks: RiskDeal[]): string {
     cell(regionLabel(r.region)),
     cell(normalizeStage(r.stage)),
     cell(r.rep ?? 'Unassigned'),
-    r.level,
-    r.healthScore ?? '',
-    r.pipelineValue ?? 0,
-    r.daysStalled,
-    r.confidence,
+    cell(r.level),
+    num(r.healthScore),
+    num(r.pipelineValue ?? 0),
+    num(r.daysStalled),
+    num(r.confidence),
     cell(r.summary ?? ''),
     cell(r.action ?? ''),
   ].join(','));
-  return [HEADERS.join(','), ...rows].join('\n');
+  // CRLF row ends are what RFC 4180 and Excel expect.
+  return [HEADERS.join(','), ...rows].join('\r\n');
 }
 
 export function downloadDealsCsv(risks: RiskDeal[], today: Date = new Date()): void {
-  const blob = new Blob([dealsToCsv(risks)], { type: 'text/csv;charset=utf-8;' });
+  // The BOM tells Excel the file is UTF-8, so names like "Zoë" don't open as mojibake.
+  const blob = new Blob(['\uFEFF', dealsToCsv(risks)], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = `prism-deals-${today.toISOString().split('T')[0]}.csv`;
+  // Firefox ignores click() on a detached link; revoking in the same tick can cancel the download.
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

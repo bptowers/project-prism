@@ -23,10 +23,22 @@ const selectStyle: React.CSSProperties = {
   width: '100%', minHeight: 40, padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--border-emphasis)',
   background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.85rem',
 };
+/**
+ * A filter from the URL (or kept across a region change) may match nothing here.
+ * Keep it as an option so the select shows it and can clear it, rather than
+ * falsely reading "All".
+ */
+function withCurrent(options: string[], current?: string): string[] {
+  return current && !options.includes(current) ? [...options, current] : options;
+}
+const optionLabel = (value: string, present: string[]) => (present.includes(value) ? value : `${value} (no deals here)`);
+
 const fieldLabel: React.CSSProperties = { ...smallCaps, display: 'block', marginBottom: 4 };
 const checkLabel: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36, fontSize: '0.85rem', color: 'var(--text-primary)' };
 
 export const DealFiltersBar: React.FC<Props> = ({ deals, filters, onChange, exportCount, onExport }) => {
+  const reps = repsIn(deals);
+  const stages = stagesIn(deals);
   const chips: { label: string; clear: Partial<DealsTabFilters> }[] = [];
   if (filters.rep) chips.push({ label: `Rep: ${filters.rep}`, clear: { rep: undefined } });
   if (filters.stage) chips.push({ label: `Stage: ${filters.stage}`, clear: { stage: undefined } });
@@ -43,14 +55,14 @@ export const DealFiltersBar: React.FC<Props> = ({ deals, filters, onChange, expo
           <label htmlFor="deals-rep" style={fieldLabel}>Rep</label>
           <select id="deals-rep" value={filters.rep ?? ''} onChange={e => onChange({ rep: e.target.value || undefined })} style={selectStyle}>
             <option value="">All reps</option>
-            {repsIn(deals).map(rep => <option key={rep} value={rep}>{rep}</option>)}
+            {withCurrent(reps, filters.rep).map(rep => <option key={rep} value={rep}>{optionLabel(rep, reps)}</option>)}
           </select>
         </div>
         <div>
           <label htmlFor="deals-stage" style={fieldLabel}>Stage</label>
           <select id="deals-stage" value={filters.stage ?? ''} onChange={e => onChange({ stage: e.target.value || undefined })} style={selectStyle}>
             <option value="">All stages</option>
-            {stagesIn(deals).map(stage => <option key={stage} value={stage}>{stage}</option>)}
+            {withCurrent(stages, filters.stage).map(stage => <option key={stage} value={stage}>{optionLabel(stage, stages)}</option>)}
           </select>
         </div>
         <div>

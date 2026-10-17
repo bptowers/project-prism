@@ -42,6 +42,14 @@ describe('DealCard', () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
+  it('ignores a card click that ends a text selection', () => {
+    const { onOpen } = setup();
+    vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => 'Champion' } as Selection);
+    fireEvent.click(screen.getByText('Champion has gone dark.'));
+    expect(onOpen).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
   it('reviewing does not open the deal', () => {
     const { card, onOpen } = setup();
     fireEvent.click(within(card).getByRole('button', { name: 'Mark reviewed: Acme Corp Renewal' }));

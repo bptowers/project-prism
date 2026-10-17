@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Region, RiskDeal } from '@/lib/types';
 import { applyDealFilters, repName } from '@/lib/dealFilters';
 import { riskScore } from '@/lib/dealMetrics';
 import { regionLabel } from '@/lib/regions';
 import { plural } from '@/lib/takeaways';
 import { downloadDealsCsv } from '@/lib/exportCsv';
+import { dealKey } from '@/lib/reviews';
 import { InsightPanel } from '@/components/ui/InsightPanel';
 import { DealDetailModal } from '@/components/dashboard/DealDetailModal';
 import { useReviews } from '@/components/reviews/ReviewsContext';
@@ -25,8 +26,15 @@ interface Props {
 
 export const DealsTab: React.FC<Props> = ({ deals, region, filters, onFiltersChange, dealsError }) => {
   const reviews = useReviews();
-  const [showAll, setShowAll] = useState(false);
   const [selected, setSelected] = useState<RiskDeal | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const pendingFocus = useRef<{ key: string; index: number } | null>(null);
+
+  // "Show all" applies to one list: new deals, region or filters start collapsed again,
+  // without an effect that would first paint the long list and then shrink it.
+  const listScope = useMemo(() => ({}), [deals, region, filters]);
+  const [expandedFor, setExpandedFor] = useState<object | null>(null);
+  const showAll = expandedFor === listScope;
 
   const filtered = useMemo(() => applyDealFilters(deals, filters), [deals, filters]);
   const visible = useMemo(
@@ -37,6 +45,23 @@ export const DealsTab: React.FC<Props> = ({ deals, region, filters, onFiltersCha
   );
   const shown = showAll ? visible : visible.slice(0, PAGE_SIZE);
   const scope = region === 'all' ? 'all regions' : regionLabel(region);
+
+  // With "Hide reviewed" on, reviewing a card removes it and focus would fall to <body>.
+  // Once it has gone (the shared write may land a moment later), focus the card that took
+  // its place, else the one before, else the list itself.
+  useLayoutEffect(() => {
+    const pending = pendingFocus.current;
+    if (!pending || shown.some(d => dealKey(d) === pending.key)) return;
+    pendingFocus.current = null;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return; // the user has already moved on
+    const opens = listRef.current?.querySelectorAll<HTMLButtonElement>('[data-deal-open]');
+    (opens?.[pending.index] ?? opens?.[pending.index - 1] ?? listRef.current)?.focus();
+  }, [shown]);
+
+  const onReviewToggle = (deal: RiskDeal, index: number) => {
+    if (filters.hideReviewed && !reviews.isDone(deal)) pendingFocus.current = { key: dealKey(deal), index };
+  };
 
   let emptyMessage = 'No deals match these filters.';
   if (deals.length === 0) emptyMessage = dealsError ? 'Deals could not be loaded.' : 'No open deals in this view.';
@@ -50,7 +75,7 @@ export const DealsTab: React.FC<Props> = ({ deals, region, filters, onFiltersCha
     >
       {dealsError && (
         <div role="alert" style={{ padding: '0.6rem 0.85rem', borderRadius: 6, border: '1px solid var(--error)', background: 'var(--error-subtle)', color: 'var(--error-text)', fontSize: '0.8rem' }}>
-          Could not load deals: {dealsError.replace(/\.$/, '')}. Showing the capped list embedded in the report.
+          Could not load deals: {dealsError.replace(/\.$/, '')}.{deals.length > 0 && ' Showing the capped list embedded in the report.'}
         </div>
       )}
       {/* Export what is on screen: the same filters, hidden reviews and risk order as the list. */}
@@ -60,20 +85,25 @@ export const DealsTab: React.FC<Props> = ({ deals, region, filters, onFiltersCha
           rep={filters.rep}
           repDeals={deals.filter(d => repName(d) === filters.rep)}
           regionDeals={deals}
-          regionName={region === 'all' ? 'all-regions' : regionLabel(region)}
+          region={region}
         />
       )}
-      {visible.length === 0 ? (
-        <div style={{ padding: '1.25rem', border: '1px dashed var(--border)', borderRadius: 8, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-          {emptyMessage}
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: '0.85rem' }}>
-          {shown.map(deal => <DealCard key={`${deal.id}-${deal.value}`} deal={deal} onOpen={setSelected} />)}
-        </div>
-      )}
+      {/* tabIndex -1: the focus fallback when reviewing hides the last card. */}
+      <div ref={listRef} role="region" aria-label="Deal list" tabIndex={-1}>
+        {visible.length === 0 ? (
+          <div style={{ padding: '1.25rem', border: '1px dashed var(--border)', borderRadius: 8, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            {emptyMessage}
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: '0.85rem' }}>
+            {shown.map((deal, index) => (
+              <DealCard key={`${deal.id}-${deal.value}`} deal={deal} onOpen={setSelected} onReviewToggle={d => onReviewToggle(d, index)} />
+            ))}
+          </div>
+        )}
+      </div>
       {visible.length > PAGE_SIZE && (
-        <button type="button" onClick={() => setShowAll(s => !s)} style={{
+        <button type="button" onClick={() => setExpandedFor(showAll ? null : listScope)} style={{
           alignSelf: 'center', minHeight: 40, padding: '0 1rem', borderRadius: 6, border: '1px solid var(--border-emphasis)',
           background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.85rem', cursor: 'pointer',
         }}>
