@@ -31,7 +31,7 @@ export const SinceLastRun: React.FC<Props> = ({ delta, region, onSeeChanges }) =
     <section aria-label="Since last run" style={strip}>
       <span style={smallCaps}>Since last run</span>
       {!delta ? (
-        <span style={{ color: 'var(--text-secondary)' }}>First run: nothing to compare yet.</span>
+        <span style={{ color: 'var(--text-secondary)' }}>No comparison with the last run yet.</span>
       ) : !changes ? (
         <span style={{ color: 'var(--text-secondary)' }}>Deal-level changes aren't available for this run.</span>
       ) : (

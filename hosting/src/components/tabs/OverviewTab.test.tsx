@@ -166,8 +166,8 @@ describe('OverviewTab', () => {
     expect(within(strip).getByText('0 improved')).toBeInTheDocument();
   });
 
-  it('says there is nothing to compare on a first run', () => {
+  it('says there is no comparison yet when the delta is missing', () => {
     setup({ delta: undefined });
-    expect(within(screen.getByRole('region', { name: 'Since last run' })).getByText('First run: nothing to compare yet.')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Since last run' })).getByText('No comparison with the last run yet.')).toBeInTheDocument();
   });
 });
