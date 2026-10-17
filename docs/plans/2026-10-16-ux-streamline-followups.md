@@ -40,3 +40,6 @@
 - T13: RiskRadar leftovers until T16: own Region chip block; "deteriorated" badge ignores nav region.
 - T13: clearError clears both write+listen errors; coexisting listen error never seen (rare).
 - T13: bundle 880 kB (was 862 kB pre-T13); Vite >500 kB warning pre-existing. Consider code-splitting tabs (React.lazy) later.
+- T14: RiskMap exact overlaps (default realDaysStalled values 45/22/10/2, 60+ clamp) hide same-size bubbles from mouse users; deterministic x-jitter by risk.id optional.
+- T14: "High risk" legend (Red, risk >= 61) vs "Danger zone" (risk >= 70) wording mismatch; gridlines at 25/50/75 match neither. Consider a 70 gridline or "very high risk" label.
+- T14->T16: duplicate "Revenue confidence" heading inside RiskRadar disappears when RiskRadar is deleted.
