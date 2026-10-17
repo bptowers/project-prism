@@ -63,7 +63,7 @@ export const CroQuestionsGrid: React.FC<Props> = ({ data, region, isLive }) => {
                   {isOpen ? 'Hide' : detail ? `View ${stat.count} →` : 'Read more'}
                 </button>
               )}
-              {isOpen && detail && <div id={detailId}><QuestionDetail qKey={key} question={question} /></div>}
+              {isOpen && detail && <div id={detailId}><QuestionDetail qKey={key} question={question} region={region} /></div>}
             </article>
           );
         })}

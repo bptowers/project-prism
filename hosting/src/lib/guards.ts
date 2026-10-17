@@ -15,3 +15,10 @@ export function asArray<T>(value: unknown): T[] {
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
+
+/** An LLM field as display text: strings and finite numbers kept, anything else (an object would throw as a React child) blank. */
+export function text(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return '';
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { asArray, isRecord } from './guards';
+import { asArray, isRecord, text } from './guards';
 
 describe('asArray', () => {
   it('returns the array unchanged when given an array', () => {
@@ -25,5 +25,17 @@ describe('isRecord', () => {
     expect(isRecord('Not available.')).toBe(false);
     expect(isRecord(null)).toBe(false);
     expect(isRecord(undefined)).toBe(false);
+  });
+});
+
+describe('text', () => {
+  it('keeps strings and finite numbers, and blanks anything else', () => {
+    expect(text('Acme')).toBe('Acme');
+    expect(text(42)).toBe('42');
+    expect(text(0)).toBe('0');
+    expect(text(NaN)).toBe('');
+    expect(text({ name: 'Acme' })).toBe('');
+    expect(text(null)).toBe('');
+    expect(text(undefined)).toBe('');
   });
 });

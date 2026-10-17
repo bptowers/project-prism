@@ -118,7 +118,7 @@ export default function App() {
         );
       case 'cro':
         // CroBriefTab wraps each of its sections in its own ErrorBoundary.
-        return <CroBriefTab twentyQuestions={twentyQuestions} recommendations={data.recommendations} region={view.region} deals={regionDeals} isLive={isLive} />;
+        return <CroBriefTab twentyQuestions={twentyQuestions} recommendations={data.recommendations} region={view.region} deals={regionDeals} dealsError={dealsError} isLive={isLive} />;
       case 'deals':
         return <DealsTab deals={regionDeals} region={view.region} filters={view} onFiltersChange={setFilters} dealsError={dealsError} />;
       case 'health':

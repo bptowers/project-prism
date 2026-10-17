@@ -1,5 +1,5 @@
 import type { Region, TQDealRow, TQGapDeal, TQQuestion, TQRegionRow, TQRepRow, TQSilentDeal, TQThreatRow, TwentyQuestionsData } from './types';
-import { asArray, isRecord } from './guards';
+import { asArray, isRecord, text } from './guards';
 import { normalizeRegionKey } from './regions';
 import { formatCurrency, parseMoney } from './format';
 import { plural } from './takeaways';
@@ -25,7 +25,7 @@ function rows<T>(value: unknown): T[] {
 }
 
 function keep<T extends { region?: string }>(value: unknown, region: Region): T[] {
-  return rows<T>(value).filter(r => normalizeRegionKey(String(r.region ?? '')) === region);
+  return rows<T>(value).filter(r => normalizeRegionKey(text(r.region)) === region);
 }
 
 /** Narrow every row array to one region. The AI's prose answer is left untouched (it is global). */

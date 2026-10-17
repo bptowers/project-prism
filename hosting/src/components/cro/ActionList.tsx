@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { Recommendation } from '@/lib/types';
-import { asArray, isRecord } from '@/lib/guards';
+import { asArray, isRecord, text } from '@/lib/guards';
 import { plural } from '@/lib/takeaways';
 import { InsightPanel } from '@/components/ui/InsightPanel';
 
@@ -15,8 +15,9 @@ const PRIORITY_STYLE: Record<string, React.CSSProperties> = {
 export const ActionList: React.FC<{ items: Recommendation[] }> = ({ items }) => {
   const [open, setOpen] = useState<number | null>(null);
   const list = asArray<unknown>(items)
-    .filter((item): item is Recommendation => isRecord(item))
-    .map((item, index) => ({ item, index }))
+    .filter(isRecord)
+    // Unvalidated LLM fields: an object value would throw as a React child.
+    .map((item, index) => ({ item: { priority: text(item.priority), title: text(item.title), desc: text(item.desc), impact: text(item.impact) }, index }))
     .sort((a, b) => (ORDER[a.item.priority] ?? 3) - (ORDER[b.item.priority] ?? 3));
   const p1 = list.filter(x => x.item.priority === 'P1').length;
   const takeaway = !list.length

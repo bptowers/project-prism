@@ -20,4 +20,9 @@ describe('ActionList', () => {
     expect(screen.getByText('Champion went dark')).toBeInTheDocument();
     expect(rows[0]).toHaveAttribute('aria-expanded', 'true');
   });
+
+  it('renders object fields as blank instead of crashing', () => {
+    render(<ActionList items={[{ priority: 'P1', title: { text: 'x' }, desc: 'Detail', impact: ['$1K'] } as never]} />);
+    expect(screen.getByRole('button')).toHaveTextContent('P1');
+  });
 });

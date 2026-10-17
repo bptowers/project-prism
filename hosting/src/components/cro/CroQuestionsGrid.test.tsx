@@ -57,4 +57,28 @@ describe('CroQuestionsGrid', () => {
     fireEvent.click(screen.getByRole('button', { name: 'View 1 →' }));
     expect(screen.getByText('Acme')).toBeInTheDocument();
   });
+
+  it('labels the AI\'s stage-stall figures as all regions under a region filter', () => {
+    const q9 = { question9: {
+      label: 'Stalls', answer: 'Proposal is the bottleneck.', bottleneckStage: 'Proposal', totalMrrStuck: '$40K', isSystemic: true,
+      deals: [{ name: 'Acme', rep: 'Jo', region: 'UK', mrr: '$1K', stage: 'Proposal', daysInStage: 40 }],
+    } };
+    const { unmount } = render(<CroQuestionsGrid data={q9} region="uk" isLive />);
+    fireEvent.click(screen.getByRole('button', { name: 'View 1 →' }));
+    expect(screen.getByText('Bottleneck (all regions):')).toBeInTheDocument();
+    expect(screen.getByText('MRR stuck (all regions):')).toBeInTheDocument();
+    unmount();
+    render(<CroQuestionsGrid data={q9} region="all" isLive />);
+    fireEvent.click(screen.getByRole('button', { name: 'View 1 →' }));
+    expect(screen.getByText('Bottleneck:')).toBeInTheDocument();
+  });
+
+  it('renders object cell values as blank instead of crashing', () => {
+    const odd = { question2: { label: 'Slippage', answer: '', deals: [
+      { name: { first: 'Acme' }, rep: ['Jo'], region: 7, mrr: '$1K', currentCloseDate: { d: 1 }, slippageSignal: 'Pushed twice' },
+    ] } } as unknown as TwentyQuestionsData;
+    render(<CroQuestionsGrid data={odd} region="all" isLive />);
+    fireEvent.click(screen.getByRole('button', { name: 'View 1 →' }));
+    expect(screen.getByText('Pushed twice')).toBeInTheDocument();
+  });
 });
