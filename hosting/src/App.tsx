@@ -9,13 +9,12 @@ import { Header } from '@/components/layout/Header';
 import { PrismBar } from '@/components/layout/PrismBar';
 import { DashboardNav } from '@/components/layout/DashboardNav';
 import { ProcessingFooter } from '@/components/layout/ProcessingFooter';
-import { CompetitiveDisplacement } from '@/components/dashboard/CompetitiveDisplacement';
-import { DeltaIntelligence } from '@/components/dashboard/DeltaIntelligence';
 import { UploadModal } from '@/components/dashboard/UploadModal';
 import { OverviewTab } from '@/components/tabs/OverviewTab';
 import { DealsTab } from '@/components/tabs/DealsTab';
 import { PipelineHealthTab } from '@/components/tabs/PipelineHealthTab';
 import { CroBriefTab } from '@/components/tabs/CroBriefTab';
+import { CompetitionTab } from '@/components/tabs/CompetitionTab';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import type { RegionData } from '@/lib/types';
 import { formatDate } from '@/lib/format';
@@ -53,7 +52,6 @@ function buildFallbackBriefing(data: RegionData, totalOpportunities?: number): s
   return `${total} open opportunities were analysed; ${flagged.length} are currently flagged by the risk engine, including ${high} high-priority deals and ${medium} medium-priority deals. Risk is most concentrated in ${topRegion?.[0] || 'the active pipeline'} (${topRegion?.[1] || flagged.length} flagged deals), with the top immediate intervention being ${topRisk?.value || 'the highest-risk active deal'}: ${topRisk?.summary || 'review required'}. The detailed AI briefing is still being enriched, but the base signal is already clear: leadership should inspect the highest-risk deals before relying on the current forecast.`;
 }
 
-const stack: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '1.25rem' };
 const visuallyHidden: React.CSSProperties = {
   position: 'absolute', width: 1, height: 1, padding: 0, margin: -1,
   overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0,
@@ -134,16 +132,8 @@ export default function App() {
           />
         );
       case 'comp':
-        return (
-          <div style={stack}>
-            <ErrorBoundary section="Delta Intelligence">
-              <DeltaIntelligence data={deltaIntelligence} isLive={isLive} />
-            </ErrorBoundary>
-            <ErrorBoundary section="Competitive Displacement">
-              <CompetitiveDisplacement data={competitiveDisplacement} isLive={isLive} />
-            </ErrorBoundary>
-          </div>
-        );
+        // CompetitionTab wraps each of its sections in its own ErrorBoundary.
+        return <CompetitionTab delta={deltaIntelligence} displacement={competitiveDisplacement} twentyQuestions={twentyQuestions} region={view.region} isLive={isLive} />;
     }
   };
 

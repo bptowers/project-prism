@@ -7,7 +7,12 @@ import { asArray, isRecord } from '@/lib/guards';
 import { formatDate } from '@/lib/format';
 import { NotGeneratedPanel } from '@/components/dashboard/NotGeneratedPanel';
 
-interface Props { data?: DeltaIntelligenceData; isLive?: boolean; }
+interface Props {
+  data?: DeltaIntelligenceData;
+  isLive?: boolean;
+  /** WhatChanged already shows trajectory, deal changes and warnings. */
+  hideSummary?: boolean;
+}
 
 /** Safe uppercase for LLM-authored enum-ish strings that may be missing or non-string. */
 const upper = (v: unknown): string => String(v ?? '').toUpperCase();
@@ -25,7 +30,26 @@ const SEVERITY_BADGE: Record<string, 'high' | 'medium' | 'low'> = {
   watch: 'low',
 };
 
-export const DeltaIntelligence: React.FC<Props> = ({ data, isLive }) => {
+type Momentum = { competitor: string; evidence: string };
+
+function momentumOf(data?: DeltaIntelligenceData) {
+  return isRecord(data?.competitiveMomentumShift)
+    ? {
+        gaining: asArray<Momentum>(data.competitiveMomentumShift.gaining),
+        losing: asArray<Momentum>(data.competitiveMomentumShift.losing),
+      }
+    : undefined;
+}
+
+/** True when there is anything beyond the summary WhatChanged shows: forecast drift, regional trajectory or competitor momentum. */
+export function hasChangeDetail(data?: DeltaIntelligenceData): boolean {
+  const momentum = momentumOf(data);
+  return isRecord(data?.forecastDrift)
+    || asArray(data?.regionalTrajectory).length > 0
+    || Boolean(momentum && (momentum.gaining.length || momentum.losing.length));
+}
+
+export const DeltaIntelligence: React.FC<Props> = ({ data, isLive, hideSummary }) => {
   // LLM-authored payload: coerce every slot to the shape we iterate. Older
   // reports in Firestore may carry prose strings where arrays belong.
   const trajectory = isRecord(data?.pipelineTrajectory) ? data.pipelineTrajectory : undefined;
@@ -38,16 +62,13 @@ export const DeltaIntelligence: React.FC<Props> = ({ data, isLive }) => {
         deteriorated: asArray<DeltaDeal>(data.significantDealChanges.deteriorated),
       }
     : undefined;
-  const momentum = isRecord(data?.competitiveMomentumShift)
-    ? {
-        gaining: asArray<{ competitor: string; evidence: string }>(data.competitiveMomentumShift.gaining),
-        losing: asArray<{ competitor: string; evidence: string }>(data.competitiveMomentumShift.losing),
-      }
-    : undefined;
+  const momentum = momentumOf(data);
 
-  const hasContent = trajectory || earlyWarnings.length || forecastDrift;
+  const hasContent = hideSummary
+    ? hasChangeDetail(data)
+    : trajectory || earlyWarnings.length || forecastDrift;
   if (!data || !hasContent) {
-    return isLive ? <NotGeneratedPanel title="Delta Intelligence" /> : null;
+    return isLive && !hideSummary ? <NotGeneratedPanel title="Delta Intelligence" /> : null;
   }
 
   return (
@@ -56,7 +77,8 @@ export const DeltaIntelligence: React.FC<Props> = ({ data, isLive }) => {
         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
           Delta Intelligence
         </h3>
-        {data.comparedTo && (
+        {/* comparedTo is LLM-written; WhatChanged leads this tab and does not present it as fact. */}
+        {!hideSummary && data.comparedTo && (
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
             vs {formatDate(data.comparedTo)}{data.daysBetween ? ` (${data.daysBetween}d)` : ''}
           </span>
@@ -64,7 +86,7 @@ export const DeltaIntelligence: React.FC<Props> = ({ data, isLive }) => {
       </div>
 
       {/* Pipeline Trajectory */}
-      {trajectory && (
+      {!hideSummary && trajectory && (
         <motion.div
           whileHover={cardHover}
           style={{
@@ -115,7 +137,7 @@ export const DeltaIntelligence: React.FC<Props> = ({ data, isLive }) => {
       )}
 
       {/* Deal Changes — Improved & Deteriorated */}
-      {dealChanges && (
+      {!hideSummary && dealChanges && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
           {/* Improved */}
           <div>
@@ -188,7 +210,7 @@ export const DeltaIntelligence: React.FC<Props> = ({ data, isLive }) => {
             </div>
             <div>
               <div style={{ fontSize: '0.65rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Delta</div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem', fontWeight: 700, color: forecastDrift.delta?.startsWith('+') ? 'var(--success)' : forecastDrift.delta?.startsWith('-') ? 'var(--error)' : 'var(--text-primary)' }}>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem', fontWeight: 700, color: startsWith(forecastDrift.delta, '+') ? 'var(--success)' : startsWith(forecastDrift.delta, '-') ? 'var(--error)' : 'var(--text-primary)' }}>
                 {forecastDrift.delta}
               </div>
             </div>
@@ -220,7 +242,7 @@ export const DeltaIntelligence: React.FC<Props> = ({ data, isLive }) => {
       )}
 
       {/* Early Warnings */}
-      {earlyWarnings.length > 0 && (
+      {!hideSummary && earlyWarnings.length > 0 && (
         <>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--error)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Early Warnings

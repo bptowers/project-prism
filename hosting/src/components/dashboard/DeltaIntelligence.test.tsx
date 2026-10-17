@@ -47,3 +47,29 @@ describe('DeltaIntelligence empty states', () => {
     expect(screen.getByText('Not generated for this run')).toBeInTheDocument();
   });
 });
+
+describe('DeltaIntelligence hideSummary', () => {
+  it('leaves the trajectory, deal changes and warnings to WhatChanged', () => {
+    render(<DeltaIntelligence data={malformed} hideSummary />);
+    expect(screen.queryByText('Pipeline softening')).not.toBeInTheDocument();
+    expect(screen.queryByText('Acme')).not.toBeInTheDocument();
+  });
+
+  it('still shows forecast drift and competitor momentum, without the LLM-written comparison date', () => {
+    const detail = {
+      ...malformed,
+      forecastDrift: { previousRealistic: '$100K', currentRealistic: '$90K', delta: 12, driftDirection: 'declining', primaryCause: 'Commit slipped', quarterEndProjection: '' },
+      competitiveMomentumShift: { gaining: [{ competitor: 'JobLogic', evidence: 'Two new UK losses' }], losing: 'None' },
+    } as unknown as DeltaIntelligenceData;
+    render(<DeltaIntelligence data={detail} isLive hideSummary />);
+    expect(screen.getByText('Commit slipped')).toBeInTheDocument();
+    expect(screen.getByText('JobLogic')).toBeInTheDocument();
+    expect(screen.queryByText('Pipeline softening')).not.toBeInTheDocument();
+    expect(screen.queryByText(/vs 7 Sep 2026/)).not.toBeInTheDocument();
+  });
+
+  it('renders nothing rather than a not-generated panel when there is no extra detail', () => {
+    const { container } = render(<DeltaIntelligence data={malformed} isLive hideSummary />);
+    expect(container).toBeEmptyDOMElement();
+  });
+});

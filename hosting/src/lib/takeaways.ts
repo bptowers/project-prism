@@ -129,6 +129,12 @@ export function changeTakeaway(worse: DeltaDeal[], better: DeltaDeal[]): string 
 
 export function competitorTakeaway(cards: { name: string; deals: number; value: number }[]): string {
   if (!cards.length) return 'No competitor threats recorded for this view.';
-  const top = [...cards].sort((a, b) => b.value - a.value || b.deals - a.deals)[0];
-  return `${top.name} is the biggest threat here: ${plural(top.deals, 'deal')}${worth(top.value)}.`;
+  // Loss-history cards carry no open deals or value; never name one as a "threat: 0 deals".
+  const active = cards.filter(c => c.deals > 0 || c.value > 0);
+  if (!active.length) {
+    return `No open deals are flagged against a competitor in this view. ${plural(cards.length, 'competitor')} ${pick(cards.length, 'appears', 'appear')} in past losses.`;
+  }
+  const top = [...active].sort((a, b) => b.value - a.value || b.deals - a.deals)[0];
+  const exposure = top.deals > 0 ? `${plural(top.deals, 'deal')}${worth(top.value)}` : `${formatCurrency(top.value)} at risk`;
+  return `${top.name} is the biggest threat here: ${exposure}.`;
 }

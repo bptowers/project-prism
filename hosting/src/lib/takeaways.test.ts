@@ -137,6 +137,13 @@ describe('panel takeaways', () => {
       { name: 'ServiceM8', deals: 5, value: 9_000 },
     ])).toBe('JobLogic is the biggest threat here: 3 deals worth $20K.');
   });
+
+  it('competitorTakeaway does not call a loss-history-only competitor a threat with 0 deals', () => {
+    expect(competitorTakeaway([{ name: 'Aroflo', deals: 0, value: 0 }, { name: 'Fergus', deals: 0, value: 0 }]))
+      .toBe('No open deals are flagged against a competitor in this view. 2 competitors appear in past losses.');
+    expect(competitorTakeaway([{ name: 'Aroflo', deals: 0, value: 0 }, { name: 'Tradify', deals: 0, value: 3_000 }]))
+      .toBe('Tradify is the biggest threat here: $3K at risk.');
+  });
 });
 
 describe('zero-value deals never show $0', () => {
