@@ -13,13 +13,13 @@ let reviewsState: ReviewsApi;
 vi.mock('@/hooks/useSharedReviews', () => ({ useSharedReviews: () => reviewsState }));
 let regionState: Record<string, unknown> = {};
 vi.mock('@/hooks/useRegion', () => ({ useRegion: () => regionState }));
-let throwRecommendations = false;
-vi.mock('@/components/dashboard/Recommendations', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/components/dashboard/Recommendations')>();
+let throwActionList = false;
+vi.mock('@/components/cro/ActionList', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/cro/ActionList')>();
   return {
-    Recommendations: (props: Parameters<typeof actual.Recommendations>[0]) => {
-      if (throwRecommendations) throw new Error('bad payload');
-      return actual.Recommendations(props);
+    ActionList: (props: Parameters<typeof actual.ActionList>[0]) => {
+      if (throwActionList) throw new Error('bad payload');
+      return actual.ActionList(props);
     },
   };
 });
@@ -36,7 +36,7 @@ function liveState(all: RegionData) {
 }
 
 beforeEach(() => {
-  throwRecommendations = false;
+  throwActionList = false;
   localStorage.clear();
   window.history.replaceState(null, '', '/');
   reviewsState = { getReview: () => undefined, isDone: () => false, isWorse: () => false, toggle: () => undefined };
@@ -155,11 +155,11 @@ describe('App tab content', () => {
 
   it('keeps a sibling widget on screen when one widget throws', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    throwRecommendations = true;
+    throwActionList = true;
     render(<App />);
     fireEvent.click(screen.getByRole('tab', { name: 'CRO Brief' }));
-    expect(screen.getByText('AI Recommended Actions could not be displayed')).toBeInTheDocument();
-    expect(screen.getByText('CRO Intelligence')).toBeInTheDocument();
+    expect(screen.getByText("This Week's Actions could not be displayed")).toBeInTheDocument();
+    expect(screen.getByText('CRO questions')).toBeInTheDocument();
   });
 
   it('makes the tab panel focusable', () => {

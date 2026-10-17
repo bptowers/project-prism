@@ -9,14 +9,13 @@ import { Header } from '@/components/layout/Header';
 import { PrismBar } from '@/components/layout/PrismBar';
 import { DashboardNav } from '@/components/layout/DashboardNav';
 import { ProcessingFooter } from '@/components/layout/ProcessingFooter';
-import { Recommendations } from '@/components/dashboard/Recommendations';
-import { TwentyQuestions } from '@/components/dashboard/TwentyQuestions';
 import { CompetitiveDisplacement } from '@/components/dashboard/CompetitiveDisplacement';
 import { DeltaIntelligence } from '@/components/dashboard/DeltaIntelligence';
 import { UploadModal } from '@/components/dashboard/UploadModal';
 import { OverviewTab } from '@/components/tabs/OverviewTab';
 import { DealsTab } from '@/components/tabs/DealsTab';
 import { PipelineHealthTab } from '@/components/tabs/PipelineHealthTab';
+import { CroBriefTab } from '@/components/tabs/CroBriefTab';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import type { RegionData } from '@/lib/types';
 import { formatDate } from '@/lib/format';
@@ -118,16 +117,8 @@ export default function App() {
           />
         );
       case 'cro':
-        return (
-          <div style={stack}>
-            <ErrorBoundary section="AI Recommended Actions">
-              <Recommendations items={data.recommendations} />
-            </ErrorBoundary>
-            <ErrorBoundary section="CRO Intelligence">
-              <TwentyQuestions data={twentyQuestions} isLive={isLive} />
-            </ErrorBoundary>
-          </div>
-        );
+        // CroBriefTab wraps each of its sections in its own ErrorBoundary.
+        return <CroBriefTab twentyQuestions={twentyQuestions} recommendations={data.recommendations} region={view.region} deals={regionDeals} isLive={isLive} />;
       case 'deals':
         return <DealsTab deals={regionDeals} region={view.region} filters={view} onFiltersChange={setFilters} dealsError={dealsError} />;
       case 'health':

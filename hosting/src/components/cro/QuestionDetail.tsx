@@ -1,9 +1,6 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { itemVariants } from '@/theme/animations';
+import React from 'react';
 import { Badge } from '@/components/ui/Badge';
 import type {
-  TwentyQuestionsData,
   TQQuestion,
   TQSilentDeal,
   TQDealRow,
@@ -12,32 +9,8 @@ import type {
   TQThreatRow,
   TQGapDeal,
 } from '@/lib/types';
-import { asArray } from '@/lib/guards';
+import { asArray, isRecord } from '@/lib/guards';
 import { formatDate } from '@/lib/format';
-import { NotGeneratedPanel } from '@/components/dashboard/NotGeneratedPanel';
-
-interface Props { data?: TwentyQuestionsData; isLive?: boolean; }
-
-// All ten CRO questions the backend answers (see TWENTY_QUESTIONS_PROMPT).
-// Previously only question1–7 were listed here, so questions 8–10 never
-// rendered even when present in the data.
-const QUESTION_KEYS = [
-  'question1', 'question2', 'question3', 'question4', 'question5',
-  'question6', 'question7', 'question8', 'question9', 'question10',
-] as const;
-
-const QUESTION_BADGES: Record<string, string> = {
-  question1: 'Gone Silent',
-  question2: 'Slippage',
-  question3: 'Coverage',
-  question4: 'Rep Risk',
-  question5: 'No Econ Buyer',
-  question6: 'Competitive',
-  question7: 'Forecast Fiction',
-  question8: 'Risk by Region',
-  question9: 'Stage Stalls',
-  question10: 'CRO Actions',
-};
 
 // ── Generic table ──────────────────────────────────────────────────────────
 interface Col<T> {
@@ -47,8 +20,8 @@ interface Col<T> {
 }
 
 function DataTable<T>({ columns, rows }: { columns: Col<T>[]; rows?: T[] }) {
-  // LLM-authored rows: a prose string here must render as "no rows", not throw.
-  const list = asArray<T>(rows);
+  // LLM-authored rows: a prose string here must render as "no rows", and a null entry is skipped, not thrown on.
+  const list = asArray<T>(rows).filter(row => isRecord(row));
   if (!list.length) return null;
   return (
     <div style={{ marginTop: '0.75rem', overflowX: 'auto' }}>
@@ -89,7 +62,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 // ── Per-question detail ─────────────────────────────────────────────────────
-function QuestionDetail({ qKey, question }: { qKey: string; question: TQQuestion }) {
+export function QuestionDetail({ qKey, question }: { qKey: string; question: TQQuestion }) {
   const silentCols: Col<TQSilentDeal>[] = [
     { header: 'Deal', cell: (d) => dealCell(d.name) },
     { header: 'Rep', cell: (d) => d.rep },
@@ -114,9 +87,9 @@ function QuestionDetail({ qKey, question }: { qKey: string; question: TQQuestion
       case 'question1':
         return (
           <>
-            {question.silent7Days?.length ? (<><SectionLabel>7-Day Silence · Early Warning</SectionLabel><DataTable columns={silentCols} rows={question.silent7Days} /></>) : null}
-            {question.silent14Days?.length ? (<><SectionLabel>14-Day Silence · Active Risk</SectionLabel><DataTable columns={silentCols} rows={question.silent14Days} /></>) : null}
-            {question.silent30Days?.length ? (<><SectionLabel>30-Day Silence · Ghost Deals</SectionLabel><DataTable columns={silentCols} rows={question.silent30Days} /></>) : null}
+            {asArray(question.silent7Days).length ? (<><SectionLabel>7-Day Silence · Early Warning</SectionLabel><DataTable columns={silentCols} rows={question.silent7Days} /></>) : null}
+            {asArray(question.silent14Days).length ? (<><SectionLabel>14-Day Silence · Active Risk</SectionLabel><DataTable columns={silentCols} rows={question.silent14Days} /></>) : null}
+            {asArray(question.silent30Days).length ? (<><SectionLabel>30-Day Silence · Ghost Deals</SectionLabel><DataTable columns={silentCols} rows={question.silent30Days} /></>) : null}
           </>
         );
       case 'question2':
@@ -192,8 +165,8 @@ function QuestionDetail({ qKey, question }: { qKey: string; question: TQQuestion
       case 'question7':
         return (
           <>
-            {question.optimismBias?.length ? (<><SectionLabel>Optimism Bias · Rep over-confident vs. health</SectionLabel><DataTable columns={gapCols} rows={question.optimismBias} /></>) : null}
-            {question.sandbagging?.length ? (<><SectionLabel>Sandbagging · Upside opportunity</SectionLabel><DataTable columns={gapCols} rows={question.sandbagging} /></>) : null}
+            {asArray(question.optimismBias).length ? (<><SectionLabel>Optimism Bias · Rep over-confident vs. health</SectionLabel><DataTable columns={gapCols} rows={question.optimismBias} /></>) : null}
+            {asArray(question.sandbagging).length ? (<><SectionLabel>Sandbagging · Upside opportunity</SectionLabel><DataTable columns={gapCols} rows={question.sandbagging} /></>) : null}
           </>
         );
       case 'question8':
@@ -232,22 +205,6 @@ function QuestionDetail({ qKey, question }: { qKey: string; question: TQQuestion
             />
           </>
         );
-      case 'question10':
-        return (
-          <DataTable<TQDealRow>
-            columns={[
-              { header: 'Deal', cell: (d) => dealCell(d.name) },
-              { header: 'Rep', cell: (d) => d.rep },
-              { header: 'Region', cell: (d) => regionCell(d.region) },
-              { header: 'MRR', align: 'right', cell: (d) => mrrCell(d.mrr) },
-              { header: 'Health', align: 'right', cell: (d) => d.healthScore ?? '—' },
-              { header: 'Urgency', cell: (d) => d.urgencySignal || '—' },
-              { header: 'CRO Action', cell: (d) => d.croAction || '—' },
-              { header: 'By', cell: (d) => (d.deadline ? <Badge variant="high">{formatDate(d.deadline)}</Badge> : '—') },
-            ]}
-            rows={question.deals}
-          />
-        );
       default:
         return null;
     }
@@ -262,105 +219,9 @@ function QuestionDetail({ qKey, question }: { qKey: string; question: TQQuestion
 }
 
 // Detail is only meaningful for questions that carry structured rows.
-function hasDetail(q: TQQuestion): boolean {
-  return Boolean(
-    q.silent7Days?.length || q.silent14Days?.length || q.silent30Days?.length ||
-    q.deals?.length || q.regions?.length || q.reps?.length || q.threats?.length ||
-    q.optimismBias?.length || q.sandbagging?.length
-  );
+export function hasDetail(q: TQQuestion): boolean {
+  // asArray, not ?.length: prose where an array belongs has a length but no rows.
+  return [
+    q.silent7Days, q.silent14Days, q.silent30Days, q.deals, q.regions, q.reps, q.threats, q.optimismBias, q.sandbagging,
+  ].some(rows => asArray(rows).some(isRecord));
 }
-
-export const TwentyQuestions: React.FC<Props> = ({ data, isLive }) => {
-  const [expanded, setExpanded] = useState<string | null>(null);
-
-  const questions: { key: string; question: TQQuestion }[] = [];
-  if (data) {
-    for (const key of QUESTION_KEYS) {
-      const question = data[key];
-      if (question) questions.push({ key, question });
-    }
-  }
-
-  if (questions.length === 0) {
-    return isLive ? <NotGeneratedPanel title="CRO Intelligence" /> : null;
-  }
-
-  return (
-    <motion.div variants={itemVariants} style={{ marginBottom: '2rem' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', marginBottom: '1rem' }}>
-        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-          CRO Intelligence
-        </h3>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-          {questions.length} of 10 questions
-        </span>
-      </div>
-      {questions.map(({ key, question }) => {
-        const expandable = hasDetail(question);
-        const isOpen = expanded === key;
-        const detailId = `tq-${key}-detail`;
-        const headerStyle: React.CSSProperties = {
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem',
-        };
-        const headerContent = (
-          <>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Badge variant="info">{QUESTION_BADGES[key] || key}</Badge>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                {question.label}
-              </span>
-            </span>
-            {expandable && (
-              <span aria-hidden="true" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-                {isOpen ? '▼' : '▶'}
-              </span>
-            )}
-          </>
-        );
-        return (
-          <div
-            key={key}
-            style={{
-              padding: '1rem',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              marginBottom: '0.75rem',
-              background: 'var(--bg-elevated)',
-              borderLeft: '3px solid var(--prism-blue)',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            {expandable ? (
-              // Real button so the accordion is keyboard-operable and announces state.
-              <button
-                type="button"
-                aria-expanded={isOpen}
-                aria-controls={detailId}
-                onClick={() => setExpanded(isOpen ? null : key)}
-                style={{
-                  ...headerStyle,
-                  width: '100%',
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  font: 'inherit',
-                  color: 'inherit',
-                }}
-              >
-                {headerContent}
-              </button>
-            ) : (
-              <div style={headerStyle}>{headerContent}</div>
-            )}
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              {question.answer}
-            </div>
-            {isOpen && <div id={detailId}><QuestionDetail qKey={key} question={question} /></div>}
-          </div>
-        );
-      })}
-    </motion.div>
-  );
-};
