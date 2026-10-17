@@ -43,3 +43,7 @@
 - T14: RiskMap exact overlaps (default realDaysStalled values 45/22/10/2, 60+ clamp) hide same-size bubbles from mouse users; deterministic x-jitter by risk.id optional.
 - T14: "High risk" legend (Red, risk >= 61) vs "Danger zone" (risk >= 70) wording mismatch; gridlines at 25/50/75 match neither. Consider a 70 gridline or "very high risk" label.
 - T14->T16: duplicate "Revenue confidence" heading inside RiskRadar disappears when RiskRadar is deleted.
+- T15 BACKEND: compute newDealCount and comparedTo in code (aggregator has previousReport at aggregator.ts:567; compare opportunity IDs, use previous report date key) so the Overview "Since last run" strip can show new deals again. Dropped from UI because the LLM writes newPipeline.count.
+- T15: At-risk tile "N high" counts LLM level HIGH; queue "High · 80" badge from health score (T1 isAtRisk vs riskBand split, now visible on one screen).
+- T15: "Read full briefing" toggle shows even when text fits in 3 lines (show only if scrollHeight > clientHeight); briefing label could be an h2.
+- T15: KPI values themselves untested (pipeline sum, at-risk value/count/high, avg days).
