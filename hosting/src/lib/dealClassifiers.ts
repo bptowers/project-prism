@@ -1,18 +1,19 @@
 import type { RiskDeal } from './types';
+import { activityBucket } from './dealFilters';
 
 /**
  * Deal classifiers shared by the stat cards, panel headers and widgets so a
  * count in one place always matches the list in another.
  */
 
-/** No activity for 14–29 days. */
+/** No activity for 14–29 days. Thresholds live in activityBucket so these match the Deals tab filter. */
 export function isDormant(deal: RiskDeal): boolean {
-  return deal.daysStalled >= 14 && deal.daysStalled <= 29;
+  return activityBucket(deal.daysStalled) === 'dormant';
 }
 
 /** No activity for 30+ days. */
 export function isDark(deal: RiskDeal): boolean {
-  return deal.daysStalled >= 30;
+  return activityBucket(deal.daysStalled) === 'dark';
 }
 
 /**

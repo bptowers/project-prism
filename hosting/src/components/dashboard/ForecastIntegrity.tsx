@@ -51,7 +51,7 @@ export const ForecastIntegrity: React.FC<Props> = ({ risks, forecastStat }) => {
             letterSpacing: '0.5px',
             marginBottom: 2,
           }}>
-            Forecast Confidence
+            AI Forecast Confidence
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
             <span style={{

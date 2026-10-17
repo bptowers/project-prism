@@ -1,9 +1,12 @@
 import React from 'react';
 import { RiskDeal } from '@/lib/types';
-import { formatCurrency } from '@/lib/format';
+import { formatValue } from '@/lib/format';
+import { repName } from '@/lib/dealFilters';
 
 interface Props {
   risks: RiskDeal[];
+  /** Opens the Deals tab filtered to this rep. */
+  onRepClick: (rep: string) => void;
 }
 
 interface RepRow {
@@ -22,17 +25,10 @@ function healthColor(score: number | null): string {
   return 'var(--error)';
 }
 
-export function RepHeatmap({ risks }: Props) {
+export function RepHeatmap({ risks, onRepClick }: Props) {
   if (risks.length === 0) {
     return (
-      <div
-        style={{
-          border: '1px solid var(--border)',
-          borderRadius: 8,
-          background: 'var(--bg-surface)',
-          padding: '1.25rem',
-        }}
-      >
+      <div style={{ minWidth: 0 }}>
         <p
           style={{
             fontFamily: 'var(--font-mono)',
@@ -50,10 +46,11 @@ export function RepHeatmap({ risks }: Props) {
   // Group by rep
   const repMap = new Map<string, RiskDeal[]>();
   for (const risk of risks) {
-    const repName = risk.rep?.trim() || 'Unassigned';
-    const existing = repMap.get(repName) ?? [];
+    // Same key as the Deals tab's rep filter, so a click-through lists exactly these deals.
+    const name = repName(risk);
+    const existing = repMap.get(name) ?? [];
     existing.push(risk);
-    repMap.set(repName, existing);
+    repMap.set(name, existing);
   }
 
   const rows: RepRow[] = [];
@@ -95,41 +92,10 @@ export function RepHeatmap({ risks }: Props) {
     : '180px 1fr auto auto';
 
   return (
-    <div
-      style={{
-        border: '1px solid var(--border)',
-        borderRadius: 8,
-        background: 'var(--bg-surface)',
-        padding: '1.25rem',
-      }}
-    >
-      {/* Header */}
-      <div style={{ marginBottom: '1rem' }}>
-        <div
-          style={{
-            fontWeight: 800,
-            fontSize: '1rem',
-            color: 'var(--text-primary)',
-            fontFamily: 'var(--font-body)',
-            lineHeight: 1.2,
-          }}
-        >
-          Rep Performance
-        </div>
-        <div
-          style={{
-            color: 'var(--text-muted)',
-            fontSize: '0.76rem',
-            marginTop: '0.2rem',
-            fontFamily: 'var(--font-body)',
-          }}
-        >
-          Ranked by avg health score · lowest first
-        </div>
-      </div>
-
+    // Rows keep their columns at phone width and scroll inside the panel instead of widening the page.
+    <div style={{ minWidth: 0, overflowX: 'auto' }}>
       {/* Table */}
-      <div>
+      <div style={{ minWidth: 'max-content' }}>
         {rows.map((row, idx) => {
           const isLast = idx === rows.length - 1;
           const isAlt = idx % 2 === 1;
@@ -140,14 +106,24 @@ export function RepHeatmap({ risks }: Props) {
               : 0;
 
           return (
-            <div
+            <button
               key={row.name}
+              type="button"
+              onClick={() => onRepClick(row.name)}
+              aria-label={`Show deals for ${row.name}`}
               style={{
+                border: 'none',
+                width: '100%',
+                textAlign: 'left',
+                font: 'inherit',
+                color: 'inherit',
+                cursor: 'pointer',
                 display: 'grid',
                 gridTemplateColumns: gridColumns,
                 alignItems: 'center',
                 gap: '0.75rem',
                 padding: '0.65rem 0.5rem',
+                minHeight: 44,
                 background: isAlt ? 'var(--bg-elevated)' : 'transparent',
                 borderBottom: isLast ? 'none' : '1px solid var(--border)',
                 borderRadius: isAlt ? 4 : 0,
@@ -264,7 +240,7 @@ export function RepHeatmap({ risks }: Props) {
                     textAlign: 'right',
                   }}
                 >
-                  {row.totalPipeline > 0 ? formatCurrency(row.totalPipeline) : '—'}
+                  {formatValue(row.totalPipeline, row.dealCount)}
                 </div>
               )}
 
@@ -280,7 +256,7 @@ export function RepHeatmap({ risks }: Props) {
               >
                 {row.dealCount} {row.dealCount === 1 ? 'deal' : 'deals'}
               </div>
-            </div>
+            </button>
           );
         })}
       </div>

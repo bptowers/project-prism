@@ -1,127 +1,68 @@
 import React from 'react';
 import type { RiskDeal } from '@/lib/types';
-import { formatCurrency } from '@/lib/format';
-import { isDormant, isDark } from '@/lib/dealClassifiers';
+import { formatValue } from '@/lib/format';
+import { ACTIVITY_BUCKETS, activityBucket, type ActivityBucket } from '@/lib/dealFilters';
 
 interface Props {
   risks: RiskDeal[];
+  /** When given, each bucket is a button that drills into its deals. */
+  onBucketClick?: (bucket: ActivityBucket) => void;
 }
 
-interface Bucket {
-  label: string;
-  range: string;
-  color: string;
-  test: (deal: RiskDeal) => boolean;
-}
+const COLOR: Record<ActivityBucket, string> = {
+  active: 'var(--success)', cooling: 'var(--warning)', dormant: 'var(--error)', dark: 'var(--text-muted)',
+};
 
-const BUCKETS: Bucket[] = [
-  { label: 'Active',  range: '0–6 days',   color: 'var(--success)', test: d => d.daysStalled >= 0 && d.daysStalled <= 6 },
-  { label: 'Cooling', range: '7–13 days',  color: 'var(--warning)', test: d => d.daysStalled >= 7 && d.daysStalled <= 13 },
-  { label: 'Dormant', range: '14–29 days', color: 'var(--error)',   test: isDormant },
-  { label: 'Dark',    range: '30+ days',   color: 'var(--text-muted)', test: isDark },
-];
-
-export const ActivityHealth: React.FC<Props> = ({ risks }) => {
+export const ActivityHealth: React.FC<Props> = ({ risks, onBucketClick }) => {
   if (risks.length === 0) {
     return (
-      <div style={{
-        padding: '2rem',
-        textAlign: 'center',
-        color: 'var(--text-muted)',
-        fontFamily: 'var(--font-mono)',
-        fontSize: '0.8rem',
-      }}>
+      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
         No activity data
       </div>
     );
   }
 
   const total = risks.length;
-
-  const buckets = BUCKETS.map(b => {
-    const deals = risks.filter(b.test);
-    const pipelineValue = deals.reduce((sum, r) => sum + (r.pipelineValue ?? 0), 0);
-    return { ...b, count: deals.length, pipelineValue };
+  const buckets = ACTIVITY_BUCKETS.map(b => {
+    const deals = risks.filter(r => activityBucket(r.daysStalled) === b.key);
+    return { ...b, color: COLOR[b.key], count: deals.length, pipelineValue: deals.reduce((sum, r) => sum + (r.pipelineValue ?? 0), 0) };
   });
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '0.75rem',
-    }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', gap: '0.75rem' }}>
       {buckets.map(b => {
         const pct = total > 0 ? Math.round((b.count / total) * 100) : 0;
-        return (
-          <div
-            key={b.label}
-            style={{
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.75rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.25rem',
-              borderLeft: `3px solid ${b.color}`,
-            }}
-          >
+        const cardStyle: React.CSSProperties = {
+          background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderTop: `3px solid ${b.color}`,
+          borderRadius: 8, padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.25rem',
+        };
+        const content = (
+          <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                background: b.color,
-                flexShrink: 0,
-              }} />
-              <span style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.7rem',
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-              }}>
-                {b.label}
-              </span>
-              <span style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.62rem',
-                color: 'var(--text-muted)',
-                marginLeft: 'auto',
-              }}>
-                {b.range}
-              </span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>{b.label}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>{b.range}</span>
             </div>
-
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-              <span style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: '1.5rem',
-                fontWeight: 700,
-                color: b.count > 0 ? b.color : 'var(--text-muted)',
-                lineHeight: 1,
-              }}>
-                {b.count}
-              </span>
-              <span style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.7rem',
-                color: 'var(--text-muted)',
-              }}>
-                {pct}%
-              </span>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 700, lineHeight: 1, color: 'var(--text-primary)' }}>{b.count}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>{pct}%</span>
             </div>
-
-            <div style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.68rem',
-              color: b.pipelineValue > 0 ? 'var(--text-secondary)' : 'var(--text-muted)',
-            }}>
-              {b.pipelineValue > 0 ? formatCurrency(b.pipelineValue) : '—'}
-              {b.pipelineValue > 0 && (
-                <span style={{ color: 'var(--text-muted)', marginLeft: 2 }}>at risk</span>
-              )}
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+              {formatValue(b.pipelineValue, b.count)}
             </div>
-          </div>
+          </>
+        );
+        return onBucketClick ? (
+          <button
+            key={b.key}
+            type="button"
+            onClick={() => onBucketClick(b.key)}
+            aria-label={`Show ${b.label.toLowerCase()} deals (${b.count})`}
+            style={{ ...cardStyle, cursor: 'pointer', textAlign: 'left', font: 'inherit', color: 'inherit' }}
+          >
+            {content}
+          </button>
+        ) : (
+          <div key={b.key} style={cardStyle}>{content}</div>
         );
       })}
     </div>

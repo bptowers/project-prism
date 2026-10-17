@@ -5,7 +5,7 @@ import { riskBand, isAtRisk, type RiskBand } from './dealMetrics';
 
 export type ActivityBucket = 'active' | 'cooling' | 'dormant' | 'dark';
 
-/** Same thresholds as isDormant / isDark in dealClassifiers. */
+/** The one definition of the activity thresholds; isDormant / isDark in dealClassifiers delegate here. */
 export const ACTIVITY_BUCKETS: { key: ActivityBucket; label: string; range: string }[] = [
   { key: 'active', label: 'Active', range: '0–6 days' },
   { key: 'cooling', label: 'Cooling', range: '7–13 days' },

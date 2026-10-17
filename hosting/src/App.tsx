@@ -9,11 +9,6 @@ import { Header } from '@/components/layout/Header';
 import { PrismBar } from '@/components/layout/PrismBar';
 import { DashboardNav } from '@/components/layout/DashboardNav';
 import { ProcessingFooter } from '@/components/layout/ProcessingFooter';
-import { PipelineFunnel } from '@/components/dashboard/PipelineFunnel';
-import { RiskByStage } from '@/components/dashboard/RiskByStage';
-import { ActivityHealth } from '@/components/dashboard/ActivityHealth';
-import { ForecastIntegrity } from '@/components/dashboard/ForecastIntegrity';
-import { RepHeatmap } from '@/components/dashboard/RepHeatmap';
 import { Recommendations } from '@/components/dashboard/Recommendations';
 import { TwentyQuestions } from '@/components/dashboard/TwentyQuestions';
 import { CompetitiveDisplacement } from '@/components/dashboard/CompetitiveDisplacement';
@@ -21,15 +16,14 @@ import { DeltaIntelligence } from '@/components/dashboard/DeltaIntelligence';
 import { UploadModal } from '@/components/dashboard/UploadModal';
 import { OverviewTab } from '@/components/tabs/OverviewTab';
 import { DealsTab } from '@/components/tabs/DealsTab';
-import { Panel } from '@/components/ui/Panel';
+import { PipelineHealthTab } from '@/components/tabs/PipelineHealthTab';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import type { RegionData } from '@/lib/types';
 import { formatDate } from '@/lib/format';
 import { regionLabel } from '@/lib/regions';
-import { inRegion } from '@/lib/dealFilters';
+import { inRegion, type DealFilters } from '@/lib/dealFilters';
 import { TABS, type TabKey } from '@/lib/dashboardView';
 import { nextScheduledRun } from '@/lib/schedule';
-import { isDormant, isDark, isMisaligned } from '@/lib/dealClassifiers';
 
 function dataAsOfLabel(reportDate?: string, period?: string): string | undefined {
   if (!reportDate) return period;
@@ -60,11 +54,6 @@ function buildFallbackBriefing(data: RegionData, totalOpportunities?: number): s
   return `${total} open opportunities were analysed; ${flagged.length} are currently flagged by the risk engine, including ${high} high-priority deals and ${medium} medium-priority deals. Risk is most concentrated in ${topRegion?.[0] || 'the active pipeline'} (${topRegion?.[1] || flagged.length} flagged deals), with the top immediate intervention being ${topRisk?.value || 'the highest-risk active deal'}: ${topRisk?.summary || 'review required'}. The detailed AI briefing is still being enriched, but the base signal is already clear: leadership should inspect the highest-risk deals before relying on the current forecast.`;
 }
 
-const grid: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))',
-  gap: '1.25rem',
-};
 const stack: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '1.25rem' };
 const visuallyHidden: React.CSSProperties = {
   position: 'absolute', width: 1, height: 1, padding: 0, margin: -1,
@@ -106,6 +95,10 @@ export default function App() {
     scrollPanelToTop();
     selectTab(tab);
   };
+  const goToDealsFromTab = (filters?: DealFilters) => {
+    scrollPanelToTop();
+    goToDeals(filters);
+  };
 
   const renderTab = () => {
     switch (view.tab) {
@@ -119,7 +112,7 @@ export default function App() {
             briefing={{ briefing: executiveBriefing, fallbackBriefing, totalOpportunities, period: dataAsOf, isLive }}
             delta={deltaIntelligence}
             dealsError={dealsError}
-            onGoToDeals={filters => { scrollPanelToTop(); goToDeals(filters); }}
+            onGoToDeals={goToDealsFromTab}
             onSelectRegion={selectRegion}
             onSeeChanges={() => onSelectTab('comp')}
           />
@@ -138,22 +131,15 @@ export default function App() {
       case 'deals':
         return <DealsTab deals={regionDeals} region={view.region} filters={view} onFiltersChange={setFilters} dealsError={dealsError} />;
       case 'health':
+        // PipelineHealthTab wraps each of its panels in its own ErrorBoundary.
         return (
-          <div style={stack}>
-            <ErrorBoundary section="Pipeline Intelligence">
-              <div style={grid}>
-                <Panel title="Risk by Stage" accent="amber" meta={`${regionDeals.length} deals`}><RiskByStage risks={regionDeals} /></Panel>
-                <Panel title="Activity Health" accent="red" meta={`${regionDeals.filter(isDormant).length} dormant · ${regionDeals.filter(isDark).length} dark`}><ActivityHealth risks={regionDeals} /></Panel>
-                <Panel title="Forecast Integrity" accent="blue" meta={`${regionDeals.filter(isMisaligned).length} misaligned`}><ForecastIntegrity risks={regionDeals} forecastStat={data.stats.forecast} /></Panel>
-              </div>
-            </ErrorBoundary>
-            <ErrorBoundary section="Pipeline Funnel">
-              <PipelineFunnel stages={data.funnel} />
-            </ErrorBoundary>
-            <ErrorBoundary section="Rep Heatmap">
-              <RepHeatmap risks={regionDeals} />
-            </ErrorBoundary>
-          </div>
+          <PipelineHealthTab
+            deals={regionDeals}
+            funnel={data.funnel}
+            forecastStat={data.stats.forecast}
+            dealsError={dealsError}
+            onGoToDeals={goToDealsFromTab}
+          />
         );
       case 'comp':
         return (
