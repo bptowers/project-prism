@@ -1,8 +1,8 @@
 import React from 'react';
 import type { RiskDeal } from '@/lib/types';
 import type { DealFilters } from '@/lib/dealFilters';
-import { formatCurrency } from '@/lib/format';
-import { isAtRisk, sumValue } from '@/lib/dealMetrics';
+import { formatValue } from '@/lib/format';
+import { bandForRisk, isAtRisk, sumValue, type RiskBand } from '@/lib/dealMetrics';
 import { plural } from '@/lib/takeaways';
 import { scoreTextColor, smallCaps } from '@/components/ui/tone';
 
@@ -16,21 +16,29 @@ interface Tile {
   filters: DealFilters;
 }
 
+const CONFIDENCE_WORD: Record<RiskBand, string> = { Green: 'Healthy', Yellow: 'Caution', Red: 'At risk' };
+
+interface Props {
+  deals: RiskDeal[];
+  /** revenueConfidence(deals), or null when there are no deals to score. */
+  confidence: number | null;
+  onSelect: (filters: DealFilters) => void;
+}
+
 /** Four headline numbers, each a door into the Deals tab. */
-export const KpiTiles: React.FC<{ deals: RiskDeal[]; onSelect: (filters: DealFilters) => void }> = ({ deals, onSelect }) => {
+export const KpiTiles: React.FC<Props> = ({ deals, confidence, onSelect }) => {
   const atRisk = deals.filter(isAtRisk);
   const high = deals.filter(d => d.level === 'HIGH');
-  const scored = deals.filter(d => typeof d.healthScore === 'number');
-  const avgHealth = scored.length ? Math.round(scored.reduce((s, d) => s + (d.healthScore as number), 0) / scored.length) : null;
   const avgDays = deals.length ? Math.round(deals.reduce((s, d) => s + Math.max(0, d.daysStalled || 0), 0) / deals.length) : null;
 
   const tiles: Tile[] = [
-    { key: 'pipeline', label: 'Pipeline value', value: formatCurrency(sumValue(deals)), sub: plural(deals.length, 'open deal'), color: 'var(--text-primary)', link: 'View all deals →', filters: {} },
-    { key: 'atRisk', label: 'At risk', value: formatCurrency(sumValue(atRisk)), sub: `${plural(atRisk.length, 'deal')} · ${high.length} high`, color: 'var(--error-text)', link: 'View at-risk deals →', filters: { riskOnly: true } },
+    { key: 'pipeline', label: 'Pipeline value', value: formatValue(sumValue(deals), deals.length), sub: plural(deals.length, 'open deal'), color: 'var(--text-primary)', link: 'View all deals →', filters: {} },
+    { key: 'atRisk', label: 'At risk', value: formatValue(sumValue(atRisk), atRisk.length), sub: `${plural(atRisk.length, 'deal')} · ${high.length} high`, color: 'var(--error-text)', link: 'View at-risk deals →', filters: { riskOnly: true } },
     {
-      key: 'health', label: 'Avg deal health', value: avgHealth === null ? '—' : `${avgHealth}/100`,
-      sub: avgHealth === null ? 'No health scores' : avgHealth >= 70 ? 'Healthy' : avgHealth >= 40 ? 'Caution' : 'At risk',
-      color: scoreTextColor(avgHealth), link: 'View red deals →', filters: { band: 'Red' },
+      // Same bands as riskBand: confidence is value-weighted health, so risk = 100 - confidence.
+      key: 'confidence', label: 'Revenue confidence', value: confidence === null ? '—' : `${confidence}/100`,
+      sub: confidence === null ? 'No deals in view' : CONFIDENCE_WORD[bandForRisk(100 - confidence)],
+      color: scoreTextColor(confidence), link: 'View red deals →', filters: { band: 'Red' },
     },
     {
       key: 'quiet', label: 'Avg days since activity', value: avgDays === null ? '—' : `${avgDays}d`,

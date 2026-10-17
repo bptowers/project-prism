@@ -57,7 +57,7 @@ export const OverviewTab: React.FC<Props> = ({
         />
       </ErrorBoundary>
       <ErrorBoundary section="Headline Numbers">
-        <KpiTiles deals={deals} onSelect={onGoToDeals} />
+        <KpiTiles deals={deals} confidence={deals.length ? confidence : null} onSelect={onGoToDeals} />
       </ErrorBoundary>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem' }}>
         <div style={{ flex: '2 1 560px', minWidth: 0 }}>
@@ -70,8 +70,13 @@ export const OverviewTab: React.FC<Props> = ({
         <div style={{ flex: '1 1 320px', minWidth: 0 }}>
           <ErrorBoundary section="Risk Drivers">
             <InsightPanel label="Risk drivers · revenue confidence" question="What's driving it?" takeaway={driversTakeaway(deals.length, confidence, dimensions)}>
-              <RiskDriversRadar dimensions={dimensions} valueTotal={sumValue(deals)} />
-              <ConfidenceGauge value={confidence} />
+              {/* With no deals the takeaway says so; a red 0/100 gauge would read as a verdict. */}
+              {deals.length > 0 && (
+                <>
+                  <RiskDriversRadar dimensions={dimensions} valueTotal={sumValue(deals)} />
+                  <ConfidenceGauge value={confidence} />
+                </>
+              )}
             </InsightPanel>
           </ErrorBoundary>
         </div>
@@ -82,7 +87,8 @@ export const OverviewTab: React.FC<Props> = ({
       <ErrorBoundary section="Regions">
         <RegionCards allDeals={allDeals} region={region} onSelectRegion={onSelectRegion} />
       </ErrorBoundary>
-      <ErrorBoundary section="Deal Details">
+      {/* Keyed on the deal so a crash in one deal's popup doesn't stick when another opens. */}
+      <ErrorBoundary key={selected ? `${selected.id}-${selected.value}` : 'none'} section="Deal Details">
         <DealDetailModal deal={selected} onClose={() => setSelected(null)} />
       </ErrorBoundary>
     </div>

@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Region, RiskDeal } from '@/lib/types';
-import { formatCurrency } from '@/lib/format';
+import { formatValue } from '@/lib/format';
 import { inRegion } from '@/lib/dealFilters';
 import { isAtRisk, revenueConfidence, sumValue } from '@/lib/dealMetrics';
 import { regionLabel } from '@/lib/regions';
@@ -46,9 +46,15 @@ export const RegionCards: React.FC<Props> = ({ allDeals, region, onSelectRegion 
               display: 'flex', flexDirection: 'column', gap: 5,
             }}>
               <span style={{ fontWeight: 700, fontSize: '1rem' }}>{row.label}</span>
-              <Line label="Pipeline" value={formatCurrency(row.pipeline)} />
-              <Line label="At risk" value={`${formatCurrency(row.atRiskValue)} · ${plural(row.atRiskCount, 'deal')}`} color="var(--error-text)" />
-              <Line label="Confidence" value={`${row.confidence}/100`} color={scoreTextColor(row.confidence)} />
+              {row.dealCount === 0 ? (
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>No deals in this report</span>
+              ) : (
+                <>
+                  <Line label="Pipeline" value={formatValue(row.pipeline, row.dealCount)} />
+                  <Line label="At risk" value={`${formatValue(row.atRiskValue, row.atRiskCount)} · ${plural(row.atRiskCount, 'deal')}`} color="var(--error-text)" />
+                  <Line label="Confidence" value={`${row.confidence}/100`} color={scoreTextColor(row.confidence)} />
+                </>
+              )}
               <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent)' }}>
                 {active ? 'Selected · click to show all regions' : `Focus on ${row.label}`}
               </span>

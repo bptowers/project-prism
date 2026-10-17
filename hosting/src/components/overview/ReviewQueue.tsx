@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { RiskDeal } from '@/lib/types';
-import { formatCurrency, isLateStage, normalizeStage } from '@/lib/format';
+import { formatValue, isLateStage, normalizeStage } from '@/lib/format';
 import { dealValue, riskBand, riskScore } from '@/lib/dealMetrics';
 import { repName } from '@/lib/dealFilters';
 import { regionLabel } from '@/lib/regions';
@@ -22,7 +22,7 @@ export const ReviewQueue: React.FC<Props> = ({ deals, onOpenDeal, onSeeAll }) =>
   const queue = useMemo(
     () => deals
       .filter(d => isLateStage(d.stage))
-      .sort((a, b) => riskScore(b) - riskScore(a) || dealValue(b) - dealValue(a))
+      .sort((a, b) => riskScore(b) - riskScore(a) || dealValue(b) - dealValue(a) || String(a.value).localeCompare(String(b.value)))
       .slice(0, 5),
     [deals],
   );
@@ -46,24 +46,26 @@ export const ReviewQueue: React.FC<Props> = ({ deals, onOpenDeal, onSeeAll }) =>
         {queue.map(deal => {
           const band = riskBand(deal);
           const isDone = reviews.isDone(deal);
+          // Reviewed rows recede via a muted colour, not opacity, so their text keeps its contrast.
+          const muted = isDone ? 'var(--text-muted)' : undefined;
           return (
             <li key={`${deal.id}-${deal.value}`} style={{
               display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4rem 1rem',
-              padding: '0.6rem 0.25rem', borderTop: '1px solid var(--border)', opacity: isDone ? 0.6 : 1,
+              padding: '0.6rem 0.25rem', borderTop: '1px solid var(--border)',
             }}>
               <button type="button" onClick={() => onOpenDeal(deal)} style={{
                 flex: '2 1 220px', textAlign: 'left', background: 'none', border: 'none', padding: 0, minHeight: 36,
-                fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer',
+                fontSize: '0.9rem', fontWeight: 700, color: muted ?? 'var(--text-primary)', cursor: 'pointer',
                 textDecoration: 'underline', textDecorationColor: 'var(--border-emphasis)', textUnderlineOffset: 3,
               }}>
                 {deal.value}
               </button>
-              <span style={{ flex: '2 1 200px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              <span style={{ flex: '2 1 200px', fontSize: '0.8rem', color: muted ?? 'var(--text-secondary)' }}>
                 {regionLabel(deal.region)} · {repName(deal)} · {normalizeStage(deal.stage)}
               </span>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{deal.daysStalled}d quiet</span>
-              <span style={{ flex: '0 0 70px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(dealValue(deal))}</span>
-              <span style={{ flex: '0 0 90px', textAlign: 'right', fontSize: '0.75rem', fontWeight: 700, color: BAND_TEXT[band] }}>
+              <span style={{ fontSize: '0.8rem', color: muted ?? 'var(--text-secondary)' }}>{deal.daysStalled}d quiet</span>
+              <span style={{ flex: '0 0 70px', textAlign: 'right', fontWeight: 700, color: muted }}>{formatValue(dealValue(deal), 1)}</span>
+              <span style={{ flex: '0 0 90px', textAlign: 'right', fontSize: '0.75rem', fontWeight: 700, color: muted ?? BAND_TEXT[band] }}>
                 {BAND_NAME[band]} · {riskScore(deal)}
               </span>
               <ReviewButton deal={deal} />

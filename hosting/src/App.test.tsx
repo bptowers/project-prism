@@ -190,6 +190,13 @@ describe('App tab scroll', () => {
     expect(scrollTo).toHaveBeenCalledWith({ top: 500, behavior: 'auto' });
   });
 
+  it('scrolls to the top of the Deals tab when an Overview tile opens it', () => {
+    renderScrolledDown(-400);
+    fireEvent.click(screen.getByRole('button', { name: /^At risk/ }));
+    expect(screen.getByRole('tab', { name: 'Deals' })).toHaveAttribute('aria-selected', 'true');
+    expect(scrollTo).toHaveBeenCalledWith({ top: 500, behavior: 'smooth' });
+  });
+
   it('leaves the scroll alone when the panel top is already visible', () => {
     renderScrolledDown(150);
     fireEvent.click(screen.getByRole('tab', { name: 'Deals' }));

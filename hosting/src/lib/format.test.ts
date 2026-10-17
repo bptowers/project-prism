@@ -1,5 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { formatCurrency, formatDate, normalizeStage, isLateStage, parseMoney } from './format';
+import { formatCurrency, formatDate, formatValue, normalizeStage, isLateStage, parseMoney } from './format';
+
+describe('formatValue', () => {
+  it('formats a positive total as currency', () => {
+    expect(formatValue(40_000, 2)).toBe('$40K');
+  });
+
+  it('shows a dash, not $0, when deals exist but none carries a value', () => {
+    expect(formatValue(0, 3)).toBe('—');
+  });
+
+  it('shows $0 only when there are genuinely no deals', () => {
+    expect(formatValue(0, 0)).toBe('$0');
+  });
+});
 
 describe('formatCurrency', () => {
   it('renders $0 for zero, negatives and NaN', () => {

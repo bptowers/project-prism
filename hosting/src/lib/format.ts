@@ -10,6 +10,15 @@ export function formatCurrency(value: number): string {
   return `$${Math.round(value)}`;
 }
 
+/**
+ * A deal total for display. pipelineValue is often missing, so a $0 total over
+ * real deals means "no value recorded" and shows a dash rather than a misleading $0.
+ */
+export function formatValue(value: number, count: number): string {
+  if (value > 0) return formatCurrency(value);
+  return count > 0 ? '—' : '$0';
+}
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;

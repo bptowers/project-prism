@@ -90,9 +90,10 @@ export default function App() {
   const tabLabel = TABS.find(t => t.key === view.tab)?.label ?? 'Overview';
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Picking a tab from far down the previous one starts the new tab at its top, just under the sticky nav.
-  // Back/forward goes through the hash listener instead, so the browser's own scroll restoration applies.
-  const onSelectTab = (tab: TabKey) => {
+  // Picking a tab (or a click-through into one) from far down the page starts the new tab at its top,
+  // just under the sticky nav. Back/forward goes through the hash listener instead, so the browser's
+  // own scroll restoration applies.
+  const scrollPanelToTop = () => {
     const panel = panelRef.current;
     const navHeight = document.getElementById('dashboard-nav')?.getBoundingClientRect().height ?? 0;
     const panelTop = panel?.getBoundingClientRect().top;
@@ -100,6 +101,9 @@ export default function App() {
       const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
       window.scrollTo({ top: window.scrollY + panelTop - navHeight, behavior: reduce ? 'auto' : 'smooth' });
     }
+  };
+  const onSelectTab = (tab: TabKey) => {
+    scrollPanelToTop();
     selectTab(tab);
   };
 
@@ -115,7 +119,7 @@ export default function App() {
             briefing={{ briefing: executiveBriefing, fallbackBriefing, totalOpportunities, period: dataAsOf, isLive }}
             delta={deltaIntelligence}
             dealsError={dealsError}
-            onGoToDeals={goToDeals}
+            onGoToDeals={filters => { scrollPanelToTop(); goToDeals(filters); }}
             onSelectRegion={selectRegion}
             onSeeChanges={() => onSelectTab('comp')}
           />

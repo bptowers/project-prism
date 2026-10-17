@@ -1,8 +1,7 @@
 import React from 'react';
-import type { DeltaDeal, DeltaIntelligenceData, Region } from '@/lib/types';
+import type { DeltaIntelligenceData, Region } from '@/lib/types';
 import { asArray, isRecord } from '@/lib/guards';
 import { normalizeRegionKey } from '@/lib/regions';
-import { formatDate } from '@/lib/format';
 import { linkButton, smallCaps } from '@/components/ui/tone';
 
 interface Props {
@@ -11,29 +10,37 @@ interface Props {
   onSeeChanges: () => void;
 }
 
-/** One-line "what moved since the last run" strip at the top of the Overview. */
+const strip: React.CSSProperties = {
+  display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem 1.1rem',
+  background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '0.6rem 1.1rem',
+};
+
+/**
+ * One-line "what moved since the last run" strip at the top of the Overview.
+ * Only counts rows; the LLM's own figures (newPipeline.count, comparedTo) are not shown.
+ */
 export const SinceLastRun: React.FC<Props> = ({ delta, region, onSeeChanges }) => {
   const changes = isRecord(delta?.significantDealChanges) ? delta.significantDealChanges : undefined;
-  if (!delta || !changes) return null;
-
-  const inView = (d: DeltaDeal) => region === 'all' || normalizeRegionKey(d.region) === region;
-  const worse = asArray<DeltaDeal>(changes.deteriorated).filter(inView).length;
-  const better = asArray<DeltaDeal>(changes.improved).filter(inView).length;
-  // newPipeline is portfolio-wide (no region), so only show it for All.
-  const newPipeline = changes.newPipeline;
-  const newDeals = region === 'all' && isRecord(newPipeline) && typeof newPipeline.count === 'number' ? newPipeline.count : undefined;
-  const since = delta.comparedTo ? ` (${formatDate(delta.comparedTo)})` : '';
+  // Delta rows are unvalidated LLM JSON: drop non-objects and coerce region to a string.
+  const count = (rows: unknown) => asArray<unknown>(rows)
+    .filter(isRecord)
+    .filter(d => region === 'all' || normalizeRegionKey(String(d.region ?? '')) === region)
+    .length;
 
   return (
-    <div role="status" aria-label="Changes since the last run" style={{
-      display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem 1.1rem',
-      background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '0.6rem 1.1rem',
-    }}>
-      <span style={smallCaps}>Since last run{since}</span>
-      <span style={{ fontWeight: 700, color: 'var(--error-text)' }}>↓ {worse} got worse</span>
-      <span style={{ fontWeight: 700, color: 'var(--success-text)' }}>↑ {better} improved</span>
-      {newDeals !== undefined && <span style={{ fontWeight: 700 }}>{newDeals} new deals</span>}
-      <button type="button" onClick={onSeeChanges} style={{ ...linkButton, marginLeft: 'auto' }}>See what changed →</button>
-    </div>
+    <section aria-label="Since last run" style={strip}>
+      <span style={smallCaps}>Since last run</span>
+      {!delta ? (
+        <span style={{ color: 'var(--text-secondary)' }}>First run: nothing to compare yet.</span>
+      ) : !changes ? (
+        <span style={{ color: 'var(--text-secondary)' }}>Deal-level changes aren't available for this run.</span>
+      ) : (
+        <>
+          <span style={{ fontWeight: 700, color: 'var(--error-text)' }}><span aria-hidden="true">↓</span> {count(changes.deteriorated)} got worse</span>
+          <span style={{ fontWeight: 700, color: 'var(--success-text)' }}><span aria-hidden="true">↑</span> {count(changes.improved)} improved</span>
+        </>
+      )}
+      {delta && <button type="button" onClick={onSeeChanges} style={{ ...linkButton, marginLeft: 'auto' }}>See what changed →</button>}
+    </section>
   );
 };
