@@ -58,3 +58,5 @@
 - T17: small white labels on amber/green stage segments ~2.1:1 contrast in dark mode (pre-existing; --on-accent unchanged).
 - T17: <div> inside <button> in RiskByStage/ActivityHealth/RepHeatmap rows (renders fine; switch to block spans if touched).
 - T17: RESOLVED T2 activity-threshold duplication (isDormant/isDark delegate to activityBucket; ActivityHealth uses ACTIVITY_BUCKETS).
+- T18 BACKEND: send opportunityId to the LLM in buildDealTable (aggregator.ts:611-626) and add opportunityId to the Q10 row schema; then match Interventions on id first (survives renames/duplicate names).
+- T18: CRO card buttons "View 3 →"/"Read more" repeat across cards; add aria-describedby to the card h3.
