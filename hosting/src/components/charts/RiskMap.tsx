@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import type { RiskDeal } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { dealValue, riskBand, riskScore, weightedValue, type RiskBand } from '@/lib/dealMetrics';
+import { useElementWidth } from '@/hooks/useElementWidth';
 
 const MAX_BUBBLES = 40;
 const MAX_DAYS = 60;
-const WIDTH = 760;
-const HEIGHT = 300;
-// top >= the largest bubble radius (18), so a risk-100 bubble isn't clipped by the viewBox.
-const PAD = { left: 44, right: 16, top: 20, bottom: 44 };
+// The viewBox tracks the rendered width (one unit = one CSS px) so 11-unit text is a true 11px.
+const FALLBACK_WIDTH = 760;
+const NARROW = 520;
+// top and right >= the largest bubble radius (18) plus half its stroke, so bubbles at
+// risk 100 or 60+ days aren't clipped by the viewBox edge.
+const PAD = { left: 44, right: 20, top: 20, bottom: 44 };
 
 const BAND_COLOR: Record<RiskBand, string> = { Red: 'var(--prism-red)', Yellow: 'var(--prism-amber)', Green: 'var(--prism-green)' };
 const BAND_LABEL: Record<RiskBand, string> = { Red: 'High risk', Yellow: 'Medium', Green: 'Low' };
@@ -22,6 +25,12 @@ interface Props {
 
 /** Where is the risk? x = days since activity, y = risk score, bubble = deal value. */
 export const RiskMap: React.FC<Props> = ({ risks, onDealClick }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const WIDTH = Math.round(clamp(useElementWidth(containerRef, FALLBACK_WIDTH), 320, 960));
+  const narrow = WIDTH < NARROW;
+  const HEIGHT = narrow ? 260 : 300;
+  const maxRadius = narrow ? 14 : 18;
+  const xTicks = narrow ? [0, 30, 60] : [0, 15, 30, 45, 60];
   const plotW = WIDTH - PAD.left - PAD.right;
   const plotH = HEIGHT - PAD.top - PAD.bottom;
   const x = (days: number) => PAD.left + (clamp(days, 0, MAX_DAYS) / MAX_DAYS) * plotW;
@@ -39,15 +48,21 @@ export const RiskMap: React.FC<Props> = ({ risks, onDealClick }) => {
       risk,
       score: riskScore(risk),
       band: riskBand(risk),
-      r: clamp(5 + Math.sqrt(weightedValue(risk) / maxValue) * 13, 6, 18),
+      r: clamp(5 + Math.sqrt(weightedValue(risk) / maxValue) * 13, 6, maxRadius),
     }));
 
+  if (!risks.length) {
+    return (
+      <div ref={containerRef} style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>No deals in this view.</div>
+    );
+  }
+
   return (
-    <div>
+    <div ref={containerRef}>
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group" aria-label={`Risk map of ${plotted.length} deals`} style={{ width: '100%', height: 'auto', display: 'block' }}>
         <rect x={x(21)} y={y(100)} width={x(MAX_DAYS) - x(21)} height={y(70) - y(100)} fill="var(--error-subtle)" />
         <text x={x(MAX_DAYS) - 6} y={y(100) + 14} textAnchor="end" fontSize="11" fontWeight="700" fill="var(--error-text)">
-          Danger zone: high risk, quiet 3+ weeks
+          {narrow ? 'Danger zone' : 'Danger zone: high risk, quiet 3+ weeks'}
         </text>
         {[0, 25, 50, 75, 100].map(tick => (
           <g key={`y${tick}`}>
@@ -55,7 +70,7 @@ export const RiskMap: React.FC<Props> = ({ risks, onDealClick }) => {
             <text x={PAD.left - 8} y={y(tick) + 4} textAnchor="end" fontSize="11" fill="var(--text-muted)">{tick}</text>
           </g>
         ))}
-        {[0, 15, 30, 45, 60].map(tick => (
+        {xTicks.map(tick => (
           <text key={`x${tick}`} x={x(tick)} y={HEIGHT - PAD.bottom + 18} textAnchor="middle" fontSize="11" fill="var(--text-muted)">
             {tick === MAX_DAYS ? '60d+' : `${tick}d`}
           </text>

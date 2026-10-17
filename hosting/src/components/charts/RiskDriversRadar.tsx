@@ -5,6 +5,13 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+/** Text alternative for the radar: the non-zero drivers, largest first. */
+export function radarSummary(dimensions: RiskDimension[]): string {
+  const drivers = dimensions.filter(d => d.value > 0).sort((a, b) => b.value - a.value);
+  if (!drivers.length) return 'Top risk drivers: none in this view';
+  return `Top risk drivers: ${drivers.map(d => `${d.label} ${d.value}`).join(', ')}`;
+}
+
 export function RiskDriversRadar({
   dimensions,
   valueTotal,
@@ -44,7 +51,7 @@ export function RiskDriversRadar({
 
   return (
     <div>
-      <svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Top risk drivers radar chart" style={{ width: '100%', maxWidth: 340, height: 'auto', display: 'block', margin: '0 auto 0.85rem' }}>
+      <svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label={radarSummary(chartDrivers)} style={{ width: '100%', maxWidth: 340, height: 'auto', display: 'block', margin: '0 auto 0.85rem' }}>
         {gridLevels.map(level => (
           <polygon
             key={level}
