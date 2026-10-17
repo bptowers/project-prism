@@ -34,7 +34,7 @@ const LABELS: Record<RegionKey, string> = {
 /** Human label for a region key or raw value. Unknown values pass through. */
 export function regionLabel(key: string | undefined): string {
   const normalized = normalizeRegionKey(key);
-  if (normalized in LABELS) return LABELS[normalized as RegionKey];
+  if (Object.prototype.hasOwnProperty.call(LABELS, normalized)) return LABELS[normalized as RegionKey];
   if (normalized === 'unknown') return 'Unknown';
   return key ?? 'Unknown';
 }

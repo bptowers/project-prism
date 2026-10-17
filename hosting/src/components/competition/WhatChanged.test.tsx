@@ -71,6 +71,6 @@ describe('WhatChanged', () => {
     expect(screen.getByText('Went dark')).toBeInTheDocument();
     expect(screen.getByText('Closed won.')).toBeInTheDocument();
     expect(screen.getByText('Commit is thin')).toBeInTheDocument();
-    expect(screen.getByText('Jo · UK · 5000')).toBeInTheDocument();
+    expect(screen.getByText('Jo · UK · $5K')).toBeInTheDocument();
   });
 });

@@ -26,9 +26,9 @@ describe('questionStat', () => {
     expect(questionStat({ label: 'x', answer: '' })).toEqual({ count: 0, text: 'Nothing flagged' });
   });
 
-  it('totals competitor threats, leaving out a deal count the AI did not give', () => {
+  it('totals competitor threats, labelling the AI deal count and leaving it out when the AI did not give one', () => {
     const threat = (competitor: string, affectedDeals?: number) => ({ competitor, region: 'UK', affectedDeals, mrrAtRisk: '', displacementPattern: '' });
-    expect(questionStat({ label: 'c', answer: '', threats: [threat('A', 2), threat('B', 3)] as never })).toEqual({ count: 2, text: '2 competitors · 5 deals' });
+    expect(questionStat({ label: 'c', answer: '', threats: [threat('A', 2), threat('B', 3)] as never })).toEqual({ count: 2, text: '2 competitors · 5 deals (AI count)' });
     expect(questionStat({ label: 'c', answer: '', threats: [threat('A')] as never })).toEqual({ count: 1, text: '1 competitor' });
   });
 

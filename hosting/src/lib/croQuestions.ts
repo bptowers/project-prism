@@ -61,7 +61,8 @@ export function questionStat(q: TQQuestion): { count: number; text: string } {
   const threats = rows<TQThreatRow>(q.threats);
   if (threats.length) {
     const affected = threats.reduce((sum, t) => sum + (Number(t.affectedDeals) || 0), 0);
-    return { count: threats.length, text: `${plural(threats.length, 'competitor')}${affected > 0 ? ` · ${plural(affected, 'deal')}` : ''}` };
+    // affectedDeals is the AI's own per-row count, so the total is labelled as such.
+    return { count: threats.length, text: `${plural(threats.length, 'competitor')}${affected > 0 ? ` · ${plural(affected, 'deal')} (AI count)` : ''}` };
   }
   const regions = rows(q.regions);
   if (regions.length) return { count: regions.length, text: plural(regions.length, 'region') };

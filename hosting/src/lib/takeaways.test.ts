@@ -131,18 +131,31 @@ describe('panel takeaways', () => {
     expect(changeTakeaway([d('Zeta'), d('Alpha')], [])).toBe('2 deals got worse and 0 improved. Biggest concern: Alpha.');
   });
 
-  it('competitorTakeaway picks the biggest threat by value', () => {
+  it('competitorTakeaway picks the biggest threat by value alone, never quoting the AI deal count', () => {
     expect(competitorTakeaway([
+      { name: 'ServiceM8', deals: 50, value: 9_000 },
       { name: 'JobLogic', deals: 3, value: 20_000 },
-      { name: 'ServiceM8', deals: 5, value: 9_000 },
-    ])).toBe('JobLogic is the biggest threat here: 3 deals worth $20K.');
+    ])).toBe('JobLogic is the biggest threat here: $20K at risk.');
+    // A competitor with AI-reported deals but no value is never the biggest threat while another has a value.
+    expect(competitorTakeaway([{ name: 'Fergus', deals: 9, value: 0 }, { name: 'Tradify', deals: 0, value: 3_000 }]))
+      .toBe('Tradify is the biggest threat here: $3K at risk.');
+  });
+
+  it('competitorTakeaway counts competitors, not AI deals, when none has a value', () => {
+    expect(competitorTakeaway([{ name: 'Fergus', deals: 9, value: 0 }, { name: 'Aroflo', deals: 0, value: 0 }]))
+      .toBe('1 competitor is flagged by the AI.');
+    expect(competitorTakeaway([{ name: 'Fergus', deals: 9, value: 0 }, { name: 'Tradify', deals: 2, value: 0 }]))
+      .toBe('2 competitors are flagged by the AI.');
   });
 
   it('competitorTakeaway does not call a loss-history-only competitor a threat with 0 deals', () => {
     expect(competitorTakeaway([{ name: 'Aroflo', deals: 0, value: 0 }, { name: 'Fergus', deals: 0, value: 0 }]))
       .toBe('No open deals are flagged against a competitor in this view. 2 competitors appear in past losses.');
-    expect(competitorTakeaway([{ name: 'Aroflo', deals: 0, value: 0 }, { name: 'Tradify', deals: 0, value: 3_000 }]))
-      .toBe('Tradify is the biggest threat here: $3K at risk.');
+  });
+
+  it('changeTakeaway never names an object-valued deal as "[object Object]"', () => {
+    const malformed = [{ deal: { name: 'x' }, rep: 'Jo', region: 'UK', change: 'x', urgency: 'P1' }] as unknown as DeltaDeal[];
+    expect(changeTakeaway(malformed, [])).toBe('1 deal got worse and 0 improved.');
   });
 });
 
@@ -154,7 +167,7 @@ describe('zero-value deals never show $0', () => {
     expect(forecastTakeaway([makeDeal({ confidence: 85, healthScore: 20, pipelineValue: 0 })]))
       .toBe('1 deal looks stronger in the forecast than its health suggests.');
     expect(interventionsTakeaway([{ mrr: 'n/a' }])).toBe('1 deal needs you personally.');
-    expect(competitorTakeaway([{ name: 'JobLogic', deals: 2, value: 0 }])).toBe('JobLogic is the biggest threat here: 2 deals.');
+    expect(competitorTakeaway([{ name: 'JobLogic', deals: 2, value: 0 }])).toBe('1 competitor is flagged by the AI.');
   });
 
   it('repTakeaway omits the at-risk clause when nothing is at risk', () => {

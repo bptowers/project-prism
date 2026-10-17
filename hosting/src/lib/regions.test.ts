@@ -48,4 +48,9 @@ describe('regionLabel', () => {
     expect(regionLabel('LATAM')).toBe('LATAM');
     expect(regionLabel(undefined)).toBe('Unknown');
   });
+
+  it('does not fall through to Object.prototype for keys like "constructor"', () => {
+    expect(regionLabel('constructor')).toBe('constructor');
+    expect(regionLabel('toString')).toBe('toString');
+  });
 });

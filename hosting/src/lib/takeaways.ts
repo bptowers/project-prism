@@ -3,6 +3,7 @@ import { formatCurrency, normalizeStage, parseMoney } from './format';
 import { isAtRisk, revenueConfidence, sumValue, type RiskDimension } from './dealMetrics';
 import { isMisaligned } from './dealClassifiers';
 import { repName } from './dealFilters';
+import { text } from './guards';
 
 /**
  * One-line panel takeaways. Every figure is computed here from deals or rows;
@@ -110,7 +111,7 @@ export function interventionsTakeaway(rows: { mrr?: string }[]): string {
 const URGENCY_RANK: Record<string, number> = { P1: 0, P2: 1, P3: 2 };
 // Delta rows are unvalidated LLM JSON, so fields are coerced rather than trusted to be strings.
 const urgencyRank = (deal: DeltaDeal) => URGENCY_RANK[String(deal.urgency ?? '').trim().toUpperCase()] ?? 3;
-const dealName = (deal: DeltaDeal) => String(deal.deal ?? '').trim();
+const dealName = (deal: DeltaDeal) => text(deal.deal).trim();
 
 /** Most urgent first, then highest MRR, then name, so the pick never depends on the LLM's ordering. */
 function byConcern(a: DeltaDeal, b: DeltaDeal): number {
@@ -127,14 +128,20 @@ export function changeTakeaway(worse: DeltaDeal[], better: DeltaDeal[]): string 
   return `${plural(worse.length, 'deal')} got worse and ${better.length} improved.${concern ? ` Biggest concern: ${concern}.` : ''}`;
 }
 
+/**
+ * Ranked by value at risk only: a card's deal count is the AI's own affectedDeals
+ * figure, so it is never quoted here. A competitor with AI-reported deals but no
+ * value is only mentioned (as a count of competitors) when nothing has a value.
+ */
 export function competitorTakeaway(cards: { name: string; deals: number; value: number }[]): string {
   if (!cards.length) return 'No competitor threats recorded for this view.';
-  // Loss-history cards carry no open deals or value; never name one as a "threat: 0 deals".
-  const active = cards.filter(c => c.deals > 0 || c.value > 0);
-  if (!active.length) {
-    return `No open deals are flagged against a competitor in this view. ${plural(cards.length, 'competitor')} ${pick(cards.length, 'appears', 'appear')} in past losses.`;
+  const valued = cards.filter(c => c.value > 0);
+  if (valued.length) {
+    const top = [...valued].sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))[0];
+    return `${top.name} is the biggest threat here: ${formatCurrency(top.value)} at risk.`;
   }
-  const top = [...active].sort((a, b) => b.value - a.value || b.deals - a.deals)[0];
-  const exposure = top.deals > 0 ? `${plural(top.deals, 'deal')}${worth(top.value)}` : `${formatCurrency(top.value)} at risk`;
-  return `${top.name} is the biggest threat here: ${exposure}.`;
+  const flagged = cards.filter(c => c.deals > 0).length;
+  if (flagged) return `${plural(flagged, 'competitor')} ${pick(flagged, 'is', 'are')} flagged by the AI.`;
+  // Loss-history cards carry no open deals or value; never name one as a "threat: 0 deals".
+  return `No open deals are flagged against a competitor in this view. ${plural(cards.length, 'competitor')} ${pick(cards.length, 'appears', 'appear')} in past losses.`;
 }

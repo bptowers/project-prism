@@ -24,9 +24,9 @@ const delta = {
 describe('CompetitionTab', () => {
   it('builds competitor cards for the region in view, with a code-computed takeaway', () => {
     render(<CompetitionTab delta={delta} displacement={displacement} twentyQuestions={twentyQuestions} region="uk" isLive />);
-    expect(screen.getByText('JobLogic is the biggest threat here: 3 deals worth $12K.')).toBeInTheDocument();
+    expect(screen.getByText('JobLogic is the biggest threat here: $12K at risk.')).toBeInTheDocument();
     const card = screen.getByRole('article', { name: 'JobLogic' });
-    expect(card).toHaveTextContent('3 deals · $12K at risk');
+    expect(card).toHaveTextContent('3 deals (AI count) · $12K at risk');
     expect(card).toHaveTextContent('Counter-play: Lead with 3-year cost');
     expect(screen.queryByRole('article', { name: 'ServiceM8' })).not.toBeInTheDocument();
   });
@@ -47,6 +47,19 @@ describe('CompetitionTab', () => {
     render(<CompetitionTab delta={summaryOnly} displacement={displacement} twentyQuestions={twentyQuestions} region="all" isLive />);
     expect(screen.queryByText(/More change detail/)).not.toBeInTheDocument();
     expect(screen.getByText(/Full competitive analysis/)).not.toHaveTextContent('(all regions)');
+  });
+
+  it('marks a loss-history-only competitor as having no open deals', () => {
+    const lossOnly = { lossMechanisms: [{ region: 'UK', competitor: 'Aroflo', statedReason: '', realMechanism: 'Cheaper', counter: '' }] } as CompetitiveDisplacementData;
+    render(<CompetitionTab displacement={lossOnly} region="all" isLive />);
+    expect(screen.getByRole('article', { name: 'Aroflo' })).toHaveTextContent('No open deals flagged; seen in past losses.');
+    expect(screen.getByRole('article', { name: 'Aroflo' })).not.toHaveTextContent('0 deals');
+  });
+
+  it('says competitor analysis was not generated on a live run without it, rather than "no threats"', () => {
+    render(<CompetitionTab delta={delta} region="all" isLive />);
+    expect(screen.getByText("Competitor analysis wasn't generated for this run.")).toBeInTheDocument();
+    expect(screen.queryByText('No competitor threats recorded for this view.')).not.toBeInTheDocument();
   });
 
   it('shows honest empty states on sample data', () => {

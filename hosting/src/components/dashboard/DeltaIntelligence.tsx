@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { itemVariants, cardHover } from '@/theme/animations';
 import { Badge } from '@/components/ui/Badge';
 import type { DeltaIntelligenceData, DeltaDeal, EarlyWarning } from '@/lib/types';
-import { asArray, isRecord } from '@/lib/guards';
+import { asArray, isRecord, text } from '@/lib/guards';
 import { formatDate } from '@/lib/format';
 import { NotGeneratedPanel } from '@/components/dashboard/NotGeneratedPanel';
 
@@ -35,8 +35,9 @@ type Momentum = { competitor: string; evidence: string };
 function momentumOf(data?: DeltaIntelligenceData) {
   return isRecord(data?.competitiveMomentumShift)
     ? {
-        gaining: asArray<Momentum>(data.competitiveMomentumShift.gaining),
-        losing: asArray<Momentum>(data.competitiveMomentumShift.losing),
+        // Prose entries ("None") are not momentum.
+        gaining: asArray<unknown>(data.competitiveMomentumShift.gaining).filter(isRecord) as Momentum[],
+        losing: asArray<unknown>(data.competitiveMomentumShift.losing).filter(isRecord) as Momentum[],
       }
     : undefined;
 }
@@ -274,7 +275,7 @@ export const DeltaIntelligence: React.FC<Props> = ({ data, isLive, hideSummary }
 
       {/* Competitive Momentum */}
       {momentum && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: '1rem', marginTop: '1rem' }}>
           {momentum.gaining?.length > 0 && (
             <div>
               <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--error)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -282,8 +283,8 @@ export const DeltaIntelligence: React.FC<Props> = ({ data, isLive, hideSummary }
               </div>
               {momentum.gaining.map((c, i) => (
                 <div key={i} style={{ padding: '0.5rem', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-elevated)', marginBottom: '0.5rem' }}>
-                  <span style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-primary)' }}>{c.competitor}</span>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>{c.evidence}</div>
+                  <span style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-primary)' }}>{text(c.competitor)}</span>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>{text(c.evidence)}</div>
                 </div>
               ))}
             </div>
@@ -295,8 +296,8 @@ export const DeltaIntelligence: React.FC<Props> = ({ data, isLive, hideSummary }
               </div>
               {momentum.losing.map((c, i) => (
                 <div key={i} style={{ padding: '0.5rem', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-elevated)', marginBottom: '0.5rem' }}>
-                  <span style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-primary)' }}>{c.competitor}</span>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>{c.evidence}</div>
+                  <span style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-primary)' }}>{text(c.competitor)}</span>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>{text(c.evidence)}</div>
                 </div>
               ))}
             </div>

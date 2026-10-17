@@ -26,6 +26,8 @@ export const CompetitionTab: React.FC<Props> = ({ delta, displacement, twentyQue
     () => buildCompetitorCards(twentyQuestions?.question6?.threats, displacement?.lossMechanisms, region),
     [twentyQuestions, displacement, region],
   );
+  // A live run with neither source didn't produce the analysis; that is not the same as "no threats".
+  const competitorsMissing = isLive && !twentyQuestions?.question6 && !displacement;
   // The disclosed analyses are the AI's portfolio-wide views; they are not filtered to the region.
   const scope = region !== 'all' ? ' (all regions)' : '';
   return (
@@ -44,7 +46,7 @@ export const CompetitionTab: React.FC<Props> = ({ delta, displacement, twentyQue
         </details>
       )}
       <ErrorBoundary section="Competition">
-        <InsightPanel label="Competition" question="Who are we up against, and where?" takeaway={competitorTakeaway(cards)}>
+        <InsightPanel label="Competition" question="Who are we up against, and where?" takeaway={competitorsMissing ? "Competitor analysis wasn't generated for this run." : competitorTakeaway(cards)}>
           <CompetitorCards cards={cards} />
         </InsightPanel>
       </ErrorBoundary>

@@ -3,9 +3,12 @@ import type { CompetitorCard } from '@/lib/competitors';
 import { formatCurrency } from '@/lib/format';
 import { plural } from '@/lib/takeaways';
 
-/** "3 deals · $12K at risk"; loss-history-only competitors have no open deals, so no "0 deals". */
+/**
+ * "3 deals (AI count) · $12K at risk". The deal count is the AI's affectedDeals, so it is labelled;
+ * loss-history-only competitors have no open deals, so no "0 deals".
+ */
 function exposure(card: CompetitorCard): string {
-  return [card.deals > 0 ? plural(card.deals, 'deal') : '', card.value > 0 ? `${formatCurrency(card.value)} at risk` : '']
+  return [card.deals > 0 ? `${plural(card.deals, 'deal')} (AI count)` : '', card.value > 0 ? `${formatCurrency(card.value)} at risk` : '']
     .filter(Boolean)
     .join(' · ');
 }

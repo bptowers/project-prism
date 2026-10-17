@@ -1,6 +1,7 @@
 import React from 'react';
 import type { DeltaDeal, DeltaIntelligenceData, Region } from '@/lib/types';
 import { asArray, isRecord, text } from '@/lib/guards';
+import { formatCurrency, parseMoney } from '@/lib/format';
 import { normalizeRegionKey, regionLabel } from '@/lib/regions';
 import { changeTakeaway } from '@/lib/takeaways';
 import { InsightPanel } from '@/components/ui/InsightPanel';
@@ -25,6 +26,12 @@ const rowsIn = (raw: unknown, region: Region): DeltaDeal[] => asArray<unknown>(r
   .filter(isRecord)
   .filter(d => region === 'all' || normalizeRegionKey(String(d.region ?? '')) === region) as unknown as DeltaDeal[];
 
+/** An LLM mrr: strings as written, a bare number formatted as money, nothing for zero or junk. */
+const mrrText = (mrr: unknown): string => {
+  if (typeof mrr === 'number') return parseMoney(mrr) > 0 ? formatCurrency(parseMoney(mrr)) : '';
+  return text(mrr);
+};
+
 const DealRow: React.FC<{ deal: DeltaDeal; prefix?: string }> = ({ deal, prefix }) => {
   const region = text(deal.region).trim();
   return (
@@ -32,7 +39,7 @@ const DealRow: React.FC<{ deal: DeltaDeal; prefix?: string }> = ({ deal, prefix 
       {text(deal.deal) && <div style={{ fontWeight: 700 }}>{text(deal.deal)}</div>}
       <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{[prefix, text(deal.change)].filter(Boolean).join(' ')}</div>
       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-        {[text(deal.rep), region ? regionLabel(region) : '', text(deal.mrr)].filter(Boolean).join(' · ')}
+        {[text(deal.rep), region ? regionLabel(region) : '', mrrText(deal.mrr)].filter(Boolean).join(' · ')}
       </div>
     </div>
   );

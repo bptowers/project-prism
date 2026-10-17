@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { DeltaIntelligence } from './DeltaIntelligence';
+import { DeltaIntelligence, hasChangeDetail } from './DeltaIntelligence';
 import type { DeltaIntelligenceData } from '@/lib/types';
 
 const malformed = {
@@ -66,6 +66,13 @@ describe('DeltaIntelligence hideSummary', () => {
     expect(screen.getByText('JobLogic')).toBeInTheDocument();
     expect(screen.queryByText('Pipeline softening')).not.toBeInTheDocument();
     expect(screen.queryByText(/vs 7 Sep 2026/)).not.toBeInTheDocument();
+  });
+
+  it('does not count prose entries in competitor momentum as detail', () => {
+    const prose = { ...malformed, competitiveMomentumShift: { gaining: ['None'], losing: [null] } } as unknown as DeltaIntelligenceData;
+    expect(hasChangeDetail(prose)).toBe(false);
+    const { container } = render(<DeltaIntelligence data={prose} isLive hideSummary />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it('renders nothing rather than a not-generated panel when there is no extra detail', () => {
