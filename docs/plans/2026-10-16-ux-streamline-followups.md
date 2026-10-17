@@ -48,3 +48,4 @@
 - T15: "Read full briefing" toggle shows even when text fits in 3 lines (show only if scrollHeight > clientHeight); briefing label could be an h2.
 - T15: KPI values themselves untested (pipeline sum, at-risk value/count/high, avg days).
 - T15 BACKEND: stamp deltaComparedToDate (from fetchPreviousReport doc id) on the report so the strip can show 'Since last run (date)' from code.
+- T15: deal-popup ErrorBoundary key switches to 'none' on close, killing DealDetailModal's exit animation; key on last-opened deal via ref.
