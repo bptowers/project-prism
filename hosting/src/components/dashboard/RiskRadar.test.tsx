@@ -69,27 +69,3 @@ describe('RiskRadar deal cards', () => {
     expect(within(legend).getByText('Green')).toBeInTheDocument();
   });
 });
-
-describe('RiskRadar revenue confidence gauge', () => {
-  function arcPaths() {
-    const gauge = screen.getByLabelText(/Revenue confidence: \d+ out of 100/);
-    return Array.from(gauge.querySelectorAll('path')).map(p => p.getAttribute('d') ?? '');
-  }
-
-  it.each([30, 54, 90])('draws the arc above the baseline at confidence %i', (health) => {
-    render(<RiskRadar risks={[{ ...acme, healthScore: health }]} />);
-    const fg = arcPaths()[1];
-    // A half-circle gauge never sweeps more than 180°, so the large-arc flag must be 0;
-    // a 1 makes the arc loop below the baseline and out of the viewBox.
-    expect(fg).toMatch(/A 60 60 0 0 1 /);
-  });
-
-  it('keeps the /100 label inside the drawing area', () => {
-    render(<RiskRadar risks={[acme]} />);
-    const gauge = screen.getByLabelText(/Revenue confidence: \d+ out of 100/);
-    const viewBoxHeight = Number(gauge.getAttribute('viewBox')!.split(' ')[3]);
-    const label = Array.from(gauge.querySelectorAll('text')).find(t => t.textContent === '/100')!;
-    // fontSize 11: the glyphs descend ~3 units below the baseline y.
-    expect(Number(label.getAttribute('y')) + 3).toBeLessThanOrEqual(viewBoxHeight);
-  });
-});

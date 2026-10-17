@@ -130,6 +130,8 @@ code, pre { font-family: var(--font-mono); font-size: 0.9em; }
 :focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--accent); }
 /* Tabs sit in an overflow-x strip that clips the outset ring, so draw it inside instead. */
 [role="tab"]:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+/* box-shadow does not paint on SVG shapes, so focusable chart marks get an accent stroke. */
+circle[role="button"]:focus-visible { stroke: var(--accent); stroke-width: 3px; }
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {

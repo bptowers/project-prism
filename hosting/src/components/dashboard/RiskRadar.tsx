@@ -6,6 +6,8 @@ import { useDealReviews } from '@/hooks/useDealReviews';
 import { formatCurrency, normalizeStage, isLateStage, STAGE_ORDER } from '@/lib/format';
 import { regionLabel, REGION_LABEL_ORDER } from '@/lib/regions';
 import { riskScore, riskBand, dealValue, weightedValue, buildRiskDimensions, revenueConfidence, type RiskBand, type RiskDimension } from '@/lib/dealMetrics';
+import { RiskDriversRadar } from '@/components/charts/RiskDriversRadar';
+import { ConfidenceGauge } from '@/components/charts/ConfidenceGauge';
 
 interface Props {
   risks: RiskDeal[];
@@ -339,97 +341,6 @@ function PipelineRiskMap({ risks }: { risks: RiskDeal[] }) {
   );
 }
 
-function RiskDriversRadar({
-  dimensions,
-  valueTotal,
-}: {
-  dimensions: RiskDimension[];
-  valueTotal: number;
-}) {
-  const size = 300;
-  const center = size / 2;
-  const radius = 96;
-  const chartDrivers = dimensions;
-  const angleStep = (Math.PI * 2) / Math.max(chartDrivers.length, 1);
-
-  const pointFor = (index: number, scale: number) => {
-    const angle = -Math.PI / 2 + index * angleStep;
-    return {
-      x: center + Math.cos(angle) * radius * scale,
-      y: center + Math.sin(angle) * radius * scale,
-    };
-  };
-
-  const gridLevels = [0.25, 0.5, 0.75, 1];
-  const polygonPoints = chartDrivers
-    .map(({ value }, index) => {
-      const point = pointFor(index, clamp(value / 100, 0.05, 1));
-      return `${point.x},${point.y}`;
-    })
-    .join(' ');
-
-  if (chartDrivers.every(driver => driver.value === 0)) {
-    return (
-      <div>
-        <h3 style={{ margin: 0, marginBottom: 4, fontSize: '1rem', fontWeight: 800 }}>Top Risk Drivers</h3>
-        <div style={{ color: 'var(--text-secondary)', fontSize: '0.76rem' }}>No risk drivers match the current filters.</div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <h3 style={{ margin: 0, marginBottom: 4, fontSize: '1rem', fontWeight: 800 }}>Top Risk Drivers</h3>
-      <div style={{ color: 'var(--text-secondary)', fontSize: '0.76rem', marginBottom: 10 }}>Driver radar weighted by risk severity and pipeline</div>
-
-      <svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Top risk drivers radar chart" style={{ width: '100%', maxWidth: 340, height: 'auto', display: 'block', margin: '0 auto 0.85rem' }}>
-        {gridLevels.map(level => (
-          <polygon
-            key={level}
-            points={chartDrivers.map((_, index) => {
-              const point = pointFor(index, level);
-              return `${point.x},${point.y}`;
-            }).join(' ')}
-            fill="none"
-            stroke="var(--border)"
-            strokeWidth="1"
-          />
-        ))}
-        {chartDrivers.map(({ label }, index) => {
-          const edge = pointFor(index, 1);
-          const labelPoint = pointFor(index, 1.28);
-          const anchor = Math.abs(labelPoint.x - center) < 10 ? 'middle' : labelPoint.x > center ? 'start' : 'end';
-          return (
-            <g key={label}>
-              <line x1={center} y1={center} x2={edge.x} y2={edge.y} stroke="var(--border)" strokeWidth="1" opacity="0.75" />
-              <text
-                x={labelPoint.x}
-                y={labelPoint.y}
-                textAnchor={anchor}
-                dominantBaseline="middle"
-                fill="var(--text-secondary)"
-                fontSize="10"
-                fontWeight="700"
-              >
-                {label}
-              </text>
-            </g>
-          );
-        })}
-        <polygon points={polygonPoints} fill="rgba(37, 99, 235, 0.18)" stroke="var(--prism-blue)" strokeWidth="2.5" />
-        {chartDrivers.map(({ label, value, pipeline }, index) => {
-          const point = pointFor(index, clamp(value / 100, 0.05, 1));
-          return (
-            <circle key={label} cx={point.x} cy={point.y} r="4.5" fill="var(--prism-blue)" stroke="var(--bg-surface)" strokeWidth="2">
-              <title>{`${label}: ${value}/100${valueTotal > 0 ? `, ${formatCurrency(pipeline)} pipeline` : ''}`}</title>
-            </circle>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
 function RiskDriverRanking({ dimensions }: { dimensions: RiskDimension[] }) {
   const ranked = [...dimensions].sort((a, b) => b.value - a.value).slice(0, 6);
 
@@ -655,67 +566,7 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', letterSpacing: '0.08em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 10 }}>
             Revenue Confidence
           </div>
-          {(() => {
-            const conf = summary.confidence;
-            const arcColor = conf >= 70 ? 'var(--success)' : conf >= 40 ? 'var(--warning)' : 'var(--error)';
-            const cx = 80, cy = 80, r = 60;
-            // Foreground arc: sweeps from 180° (left) toward 0° (right) proportional to conf/100
-            const angle = Math.PI - (conf / 100) * Math.PI;
-            const endX = cx + r * Math.cos(angle);
-            const endY = cy - r * Math.sin(angle);
-            // A half-circle gauge never sweeps more than 180°, so large-arc is always 0.
-            const fgPath = `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${endX.toFixed(2)} ${endY.toFixed(2)}`;
-            return (
-              <svg viewBox="0 0 160 100" style={{ width: '100%', maxWidth: 160, display: 'block' }} aria-label={`Revenue confidence: ${conf} out of 100`}>
-                {/* Background arc */}
-                <path
-                  d={`M 20 80 A 60 60 0 0 1 140 80`}
-                  fill="none"
-                  stroke="var(--border)"
-                  strokeWidth={10}
-                  strokeLinecap="round"
-                />
-                {/* Foreground arc */}
-                {conf > 0 && (
-                  <path
-                    d={fgPath}
-                    fill="none"
-                    stroke={arcColor}
-                    strokeWidth={10}
-                    strokeLinecap="round"
-                  />
-                )}
-                {/* Confidence number */}
-                <text
-                  x={cx}
-                  y={cy - 2}
-                  textAnchor="middle"
-                  dominantBaseline="auto"
-                  fontSize={28}
-                  fontWeight={850}
-                  fill={arcColor}
-                  fontFamily="inherit"
-                >
-                  {conf}
-                </text>
-                {/* /100 label */}
-                <text
-                  x={cx}
-                  y={cy + 14}
-                  textAnchor="middle"
-                  dominantBaseline="auto"
-                  fontSize={11}
-                  fill="var(--text-muted)"
-                  fontFamily="inherit"
-                >
-                  /100
-                </text>
-              </svg>
-            );
-          })()}
-          <div style={{ marginTop: 4, color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
-            Weighted by deal value
-          </div>
+          <ConfidenceGauge value={summary.confidence} />
         </div>
 
         <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', padding: '1.25rem' }}>
@@ -804,7 +655,11 @@ export const RiskRadar: React.FC<Props> = ({ risks, onFilteredRisksChange, delta
         <PipelineRiskMap risks={filteredRisks} />
 
         <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', padding: '1.25rem', display: 'grid', gap: '1.5rem' }}>
-          <RiskDriversRadar dimensions={summary.dimensions} valueTotal={summary.valueTotal} />
+          <div>
+            {/* The extracted radar leaves headings to its container. */}
+            <h3 style={{ margin: 0, marginBottom: 10, fontSize: '1rem', fontWeight: 800 }}>Top Risk Drivers</h3>
+            <RiskDriversRadar dimensions={summary.dimensions} valueTotal={summary.valueTotal} />
+          </div>
         </div>
 
         <RiskDriverRanking dimensions={summary.dimensions} />
