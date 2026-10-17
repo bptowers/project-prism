@@ -130,15 +130,27 @@ describe('App shell', () => {
 });
 
 describe('App tab content', () => {
-  it('clears the Deals tab\'s own filters when the region changes', () => {
+  it('drops the Deals tab\'s rep filter when the region changes', () => {
+    regionState = liveState(makeRegionData([
+      makeDeal({ value: 'UK Deal', region: 'uk', rep: 'Ana', level: 'HIGH', stage: 'Commit', healthScore: 20 }),
+      makeDeal({ value: 'NA Deal', region: 'na', rep: 'Ben', level: 'LOW', stage: 'Discovery', healthScore: 85 }),
+    ]));
     render(<App />);
     fireEvent.click(screen.getByRole('tab', { name: 'Deals' }));
-    // RiskRadar's own stage chip: narrows to the UK deal's stage.
-    fireEvent.click(within(screen.getByRole('main')).getByRole('button', { name: 'Commit' }));
+    fireEvent.change(screen.getByLabelText('Rep'), { target: { value: 'Ana' } });
+    expect(window.location.hash).toContain('rep=Ana');
     expect(screen.queryByRole('button', { name: 'Open NA Deal' })).not.toBeInTheDocument();
 
     fireEvent.click(within(screen.getByRole('group', { name: 'Region' })).getByRole('button', { name: /^North America/ }));
+    expect(window.location.hash).not.toContain('rep=');
     expect(screen.getByRole('button', { name: 'Open NA Deal' })).toBeInTheDocument();
+  });
+
+  it('shows the deals-load error on the Deals tab', () => {
+    regionState = { ...regionState, dealsError: 'Missing or insufficient permissions.' };
+    render(<App />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Deals' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not load deals: Missing or insufficient permissions. Showing the capped list embedded in the report.');
   });
 
   it('keeps a sibling widget on screen when one widget throws', () => {

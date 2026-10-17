@@ -3,7 +3,7 @@ import { dimensionSignals, RISK_DIMENSION_LABELS } from './riskSignals';
 
 /**
  * Deal scoring shared by every chart, takeaway and list. Extracted from
- * RiskRadar so the Overview, Deals tab and takeaways agree on one definition.
+ * the retired Risk Radar widget so the Overview, Deals tab and takeaways agree on one definition.
  */
 
 export type RiskBand = 'Green' | 'Yellow' | 'Red';

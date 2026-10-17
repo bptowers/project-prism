@@ -10,7 +10,6 @@ import { PrismBar } from '@/components/layout/PrismBar';
 import { DashboardNav } from '@/components/layout/DashboardNav';
 import { ProcessingFooter } from '@/components/layout/ProcessingFooter';
 import { PipelineFunnel } from '@/components/dashboard/PipelineFunnel';
-import { RiskRadar } from '@/components/dashboard/RiskRadar';
 import { RiskByStage } from '@/components/dashboard/RiskByStage';
 import { ActivityHealth } from '@/components/dashboard/ActivityHealth';
 import { ForecastIntegrity } from '@/components/dashboard/ForecastIntegrity';
@@ -21,6 +20,7 @@ import { CompetitiveDisplacement } from '@/components/dashboard/CompetitiveDispl
 import { DeltaIntelligence } from '@/components/dashboard/DeltaIntelligence';
 import { UploadModal } from '@/components/dashboard/UploadModal';
 import { OverviewTab } from '@/components/tabs/OverviewTab';
+import { DealsTab } from '@/components/tabs/DealsTab';
 import { Panel } from '@/components/ui/Panel';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import type { RegionData } from '@/lib/types';
@@ -136,11 +136,7 @@ export default function App() {
           </div>
         );
       case 'deals':
-        return (
-          <Panel title="Deals" accent="amber" meta={`${regionDeals.length} deals · ${view.region === 'all' ? 'All regions' : regionLabel(view.region)}`} maxHeight="none">
-            <RiskRadar risks={regionDeals} deltaIntelligence={deltaIntelligence} dealsError={dealsError} />
-          </Panel>
-        );
+        return <DealsTab deals={regionDeals} region={view.region} filters={view} onFiltersChange={setFilters} dealsError={dealsError} />;
       case 'health':
         return (
           <div style={stack}>
