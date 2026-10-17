@@ -17,9 +17,13 @@ function cell(v: string): string {
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
-/** A number is written bare; anything else that turns up in a numeric column goes through cell(). */
+/**
+ * A finite number is written bare; NaN or Infinity is an empty cell, not the text "NaN".
+ * Anything else that turns up in a numeric column goes through cell().
+ */
 function num(v: unknown): string {
-  return typeof v === 'number' && Number.isFinite(v) ? String(v) : cell(String(v ?? ''));
+  if (typeof v === 'number') return Number.isFinite(v) ? String(v) : cell('');
+  return cell(String(v ?? ''));
 }
 
 /** Every free-text field is quoted (the old exporter left names unquoted, so a comma split the row). */

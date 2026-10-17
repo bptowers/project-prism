@@ -11,6 +11,11 @@ describe('riskScore', () => {
     expect(riskScore(makeDeal({ healthScore: undefined, level: 'HIGH', daysStalled: 3 }))).toBe(74);
     expect(riskScore(makeDeal({ healthScore: undefined, level: 'MEDIUM', daysStalled: 20 }))).toBe(54);
   });
+
+  it('ignores a non-finite health score and falls back to the level', () => {
+    expect(riskScore(makeDeal({ healthScore: NaN, level: 'HIGH', daysStalled: 0 }))).toBe(68);
+    expect(riskScore(makeDeal({ healthScore: Infinity, level: 'MEDIUM', daysStalled: 0 }))).toBe(36);
+  });
 });
 
 describe('riskBand', () => {
@@ -22,6 +27,11 @@ describe('riskBand', () => {
 
   it('bands by level without a health score', () => {
     expect(riskBand(makeDeal({ healthScore: undefined, level: 'HIGH' }))).toBe('Red');
+  });
+
+  it('ignores a non-finite health score and bands by level', () => {
+    expect(riskBand(makeDeal({ healthScore: NaN, level: 'HIGH' }))).toBe('Red');
+    expect(riskBand(makeDeal({ healthScore: -Infinity, level: 'MEDIUM' }))).toBe('Yellow');
   });
 });
 

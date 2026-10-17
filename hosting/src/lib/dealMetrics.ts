@@ -9,8 +9,13 @@ import { dimensionSignals, RISK_DIMENSION_LABELS } from './riskSignals';
 export type RiskBand = 'Green' | 'Yellow' | 'Red';
 export type RiskDimension = { label: string; value: number; pipeline: number };
 
+// A NaN or infinite health score (bad upstream data) falls back to the level-based path.
+function hasHealthScore(risk: RiskDeal): risk is RiskDeal & { healthScore: number } {
+  return typeof risk.healthScore === 'number' && Number.isFinite(risk.healthScore);
+}
+
 export function riskScore(risk: RiskDeal): number {
-  if (typeof risk.healthScore === 'number') return Math.max(0, Math.min(100, 100 - risk.healthScore));
+  if (hasHealthScore(risk)) return Math.max(0, Math.min(100, 100 - risk.healthScore));
   const stalledPressure = Math.min(18, Math.max(0, risk.daysStalled || 0) * 2);
   return risk.level === 'HIGH' ? 68 + stalledPressure : 36 + stalledPressure;
 }
@@ -22,7 +27,7 @@ function bandForHealth(health: number): RiskBand {
 }
 
 export function riskBand(risk: RiskDeal): RiskBand {
-  if (typeof risk.healthScore === 'number') return bandForHealth(risk.healthScore);
+  if (hasHealthScore(risk)) return bandForHealth(risk.healthScore);
   if (risk.level === 'HIGH') return 'Red';
   if (risk.level === 'MEDIUM') return 'Yellow';
   return 'Green';

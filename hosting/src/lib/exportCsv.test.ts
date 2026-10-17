@@ -46,7 +46,13 @@ describe('dealsToCsv', () => {
     const odd = makeDeal({ healthScore: undefined, confidence: '=1+1' as unknown as number, daysStalled: Number.NaN });
     const row = rowsOf(dealsToCsv([odd]))[1];
     // Health, value, days stalled, confidence.
-    expect(row).toContain(`,"",10000,"NaN","'=1+1",`);
+    expect(row).toContain(`,"",10000,"","'=1+1",`);
+  });
+
+  it('writes a non-finite number as an empty cell, not "NaN" or "Infinity"', () => {
+    const row = rowsOf(dealsToCsv([makeDeal({ healthScore: Number.NaN, pipelineValue: Infinity, daysStalled: -Infinity, confidence: 40 })]))[1];
+    expect(row).toContain(`,"","","",40,`);
+    expect(row).not.toMatch(/NaN|Infinity/);
   });
 });
 

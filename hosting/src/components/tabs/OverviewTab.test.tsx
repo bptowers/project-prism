@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { makeDeal } from '@/test/fixtures';
 import { MemoryReviewsProvider } from '@/components/reviews/ReviewsContext';
 import { dealKey, type DealReview } from '@/lib/reviews';
@@ -128,6 +128,16 @@ describe('OverviewTab', () => {
     setup();
     fireEvent.click(screen.getByRole('button', { name: /^Commit Deal: \$40K/ }));
     expect(screen.getByText('Risk Assessment')).toBeInTheDocument();
+  });
+
+  it('keeps the deal popup mounted on close so its exit animation can run', async () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: /^Commit Deal: \$40K/ }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    // Still there while AnimatePresence plays the exit (a boundary remount would drop it at once)…
+    expect(screen.getByText('Risk Assessment')).toBeInTheDocument();
+    // …then gone.
+    await waitFor(() => expect(screen.queryByText('Risk Assessment')).not.toBeInTheDocument());
   });
 
   it('summarises changes since the last run, filtered to the region, with no LLM-authored numbers', () => {

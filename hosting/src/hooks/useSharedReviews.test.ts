@@ -115,11 +115,13 @@ describe('useSharedReviews', () => {
     expect(result.current.isDone(deal)).toBe(true);
   });
 
-  it('writes the maximum risk when the score is not a number', async () => {
+  it('writes the level-based risk when the health score is not a number', async () => {
+    // riskScore ignores a NaN health score and falls back to the level (HIGH, not stalled: 68),
+    // so the rule always gets a real number.
     const { result } = renderHook(() => useSharedReviews());
-    act(() => result.current.toggle(makeDeal({ opportunityId: 'OPP-9', healthScore: Number.NaN })));
+    act(() => result.current.toggle(makeDeal({ opportunityId: 'OPP-9', healthScore: Number.NaN, level: 'HIGH', daysStalled: 0 })));
     await waitFor(() => expect(setDoc).toHaveBeenCalled());
-    expect(setDoc.mock.calls[0][1]).toMatchObject({ riskAtReview: 100 });
+    expect(setDoc.mock.calls[0][1]).toMatchObject({ riskAtReview: 68 });
   });
 
   it('reads reviews from the snapshot and deletes on un-tick', async () => {

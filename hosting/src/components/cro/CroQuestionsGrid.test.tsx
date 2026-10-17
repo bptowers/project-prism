@@ -73,6 +73,15 @@ describe('CroQuestionsGrid', () => {
     expect(screen.getByText('Bottleneck:')).toBeInTheDocument();
   });
 
+  it("labels the competitor table's deal counts as the AI's", () => {
+    const q6 = { question6: { label: 'Threats', answer: 'Two competitors.', threats: [
+      { competitor: 'Rival', region: 'UK', affectedDeals: 3, mrrAtRisk: '$12K', displacementPattern: 'Price' },
+    ] } } as unknown as TwentyQuestionsData;
+    render(<CroQuestionsGrid data={q6} region="all" isLive />);
+    fireEvent.click(screen.getByRole('button', { name: 'View 1 →' }));
+    expect(screen.getByRole('columnheader', { name: 'Deals (AI count)' })).toBeInTheDocument();
+  });
+
   it('renders object cell values as blank instead of crashing', () => {
     const odd = { question2: { label: 'Slippage', answer: '', deals: [
       { name: { first: 'Acme' }, rep: ['Jo'], region: 7, mrr: '$1K', currentCloseDate: { d: 1 }, slippageSignal: 'Pushed twice' },

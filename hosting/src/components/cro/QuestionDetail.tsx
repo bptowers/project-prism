@@ -159,7 +159,7 @@ export function QuestionDetail({ qKey, question, region = 'all' }: { qKey: strin
             columns={[
               { header: 'Competitor', cell: (t) => dealCell(t.competitor) },
               { header: 'Region', cell: (t) => regionCell(t.region) },
-              { header: 'Deals', align: 'right', cell: (t) => text(t.affectedDeals) },
+              { header: 'Deals (AI count)', align: 'right', cell: (t) => text(t.affectedDeals) },
               { header: 'MRR at Risk', align: 'right', cell: (t) => mrrCell(t.mrrAtRisk) },
               { header: 'Displacement Pattern', cell: (t) => text(t.displacementPattern) },
             ]}

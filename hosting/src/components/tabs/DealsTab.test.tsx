@@ -97,6 +97,22 @@ describe('DealsTab', () => {
     expect(screen.getAllByRole('button', { name: /^Open / })).toHaveLength(24);
   });
 
+  it('stays expanded when the deals and filters are re-created but unchanged', () => {
+    const many = Array.from({ length: 30 }, (_, i) => makeDeal({ value: `Deal ${i}`, healthScore: i }));
+    const view = (deals: typeof many, filters: React.ComponentProps<typeof DealsTab>['filters']) => (
+      <MemoryReviewsProvider><DealsTab deals={deals} region="uk" filters={filters} onFiltersChange={() => undefined} /></MemoryReviewsProvider>
+    );
+    const { rerender } = render(view(many, { stage: undefined }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 30 deals' }));
+
+    // A fresh hash parse or report snapshot hands over new objects with the same content.
+    rerender(view([...many], {}));
+    expect(screen.getAllByRole('button', { name: /^Open / })).toHaveLength(30);
+
+    rerender(view(many.slice(0, 28), {}));
+    expect(screen.getAllByRole('button', { name: /^Open / })).toHaveLength(24);
+  });
+
   describe('focus when a reviewed deal is hidden', () => {
     const c = makeDeal({ value: 'C', rep: 'Jo', level: 'LOW', healthScore: 95, stage: 'Discovery' });
     const review = (name: string) => {
@@ -122,6 +138,18 @@ describe('DealsTab', () => {
       setup({ deals: [a], filters: { hideReviewed: true } });
       review('A');
       expect(screen.getByRole('region', { name: 'Deal list' })).toHaveFocus();
+    });
+
+    it('forgets a pending focus move when the filters change first', () => {
+      // No provider: the default reviews store is inert, so the review never lands.
+      const { rerender } = render(<DealsTab deals={[a, b, c]} region="uk" filters={{ hideReviewed: true }} onFiltersChange={() => undefined} />);
+      review('A');
+      expect(screen.getByRole('button', { name: 'Open A' })).toBeInTheDocument();
+
+      // A filter change hides A for another reason: that is not the review landing, so focus stays put.
+      rerender(<DealsTab deals={[a, b, c]} region="uk" filters={{ hideReviewed: true, rep: 'Sam' }} onFiltersChange={() => undefined} />);
+      expect(screen.queryByRole('button', { name: 'Open A' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Open B' })).not.toHaveFocus();
     });
   });
 

@@ -16,6 +16,10 @@ import { RepSummary } from '@/components/deals/RepSummary';
 
 const PAGE_SIZE = 24;
 
+// The filter fields that shape the list, in a fixed order. `filters` is the whole view (tab and
+// region too) and is re-created on every hash parse, so its identity can't stand for "changed".
+const FILTER_KEYS = ['rep', 'stage', 'band', 'activity', 'riskOnly', 'lateOnly', 'hideReviewed'] as const satisfies readonly (keyof DealsTabFilters)[];
+
 interface Props {
   /** Deals in the selected region. */
   deals: RiskDeal[];
@@ -31,10 +35,10 @@ export const DealsTab: React.FC<Props> = ({ deals, region, filters, onFiltersCha
   const listRef = useRef<HTMLDivElement>(null);
   const pendingFocus = useRef<{ key: string; index: number } | null>(null);
 
-  // "Show all" applies to one list: new deals, region or filters start collapsed again,
+  // "Show all" applies to one list: a new region, filters or deal count starts collapsed again,
   // without an effect that would first paint the long list and then shrink it.
-  const listScope = useMemo(() => ({}), [deals, region, filters]);
-  const [expandedFor, setExpandedFor] = useState<object | null>(null);
+  const listScope = `${region}|${JSON.stringify(FILTER_KEYS.map(k => filters[k] ?? null))}|${deals.length}`;
+  const [expandedFor, setExpandedFor] = useState<string | null>(null);
   const showAll = expandedFor === listScope;
 
   const filtered = useMemo(() => applyDealFilters(deals, filters), [deals, filters]);
@@ -46,6 +50,12 @@ export const DealsTab: React.FC<Props> = ({ deals, region, filters, onFiltersCha
   );
   const shown = showAll ? visible : visible.slice(0, PAGE_SIZE);
   const scope = region === 'all' ? 'all regions' : regionLabel(region);
+
+  // A focus move belongs to the list it was queued on: if the filters change first, a card that
+  // vanishes was filtered out, not reviewed away. Declared before the effect below so it runs first.
+  useLayoutEffect(() => {
+    pendingFocus.current = null;
+  }, [listScope]);
 
   // With "Hide reviewed" on, reviewing a card removes it and focus would fall to <body>.
   // Once it has gone (the shared write may land a moment later), focus the card that took

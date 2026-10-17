@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { makeDeal } from '@/test/fixtures';
 import { MemoryReviewsProvider } from '@/components/reviews/ReviewsContext';
@@ -17,6 +17,11 @@ function setup() {
 }
 
 describe('DealCard', () => {
+  // Restored here, not at the end of a test, so a failing assertion can't leak a spy into the next one.
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('is a named, non-interactive card whose open and review buttons are siblings', () => {
     const { card, open } = setup();
     expect(card).not.toHaveAttribute('role');
@@ -47,7 +52,6 @@ describe('DealCard', () => {
     vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => 'Champion' } as Selection);
     fireEvent.click(screen.getByText('Champion has gone dark.'));
     expect(onOpen).not.toHaveBeenCalled();
-    vi.restoreAllMocks();
   });
 
   it('reviewing does not open the deal', () => {

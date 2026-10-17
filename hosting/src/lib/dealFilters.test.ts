@@ -47,4 +47,9 @@ describe('repsIn / stagesIn / repName', () => {
     expect(stagesIn(deals)).toEqual(['Discovery', 'Commit', 'Odd Stage']);
     expect(repName(makeDeal({ rep: '  ' }))).toBe('Unassigned');
   });
+
+  it('sorts unknown stages by locale, not code point', () => {
+    const deals = [makeDeal({ stage: 'Zebra Stage' }), makeDeal({ stage: 'apple stage' }), makeDeal({ stage: 'Discovery' })];
+    expect(stagesIn(deals)).toEqual(['Discovery', 'apple stage', 'Zebra Stage']);
+  });
 });

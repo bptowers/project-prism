@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import type { DeltaIntelligenceData, Region, RiskDeal } from '@/lib/types';
 import type { DealFilters } from '@/lib/dealFilters';
 import { buildRiskDimensions, revenueConfidence, sumValue } from '@/lib/dealMetrics';
@@ -36,6 +36,10 @@ export const OverviewTab: React.FC<Props> = ({
   deals, allDeals, region, briefing, delta, dealsError, onGoToDeals, onSelectRegion, onSeeChanges,
 }) => {
   const [selected, setSelected] = useState<RiskDeal | null>(null);
+  // The popup's boundary is keyed on the last-opened deal, not the open one: a key change on close
+  // would remount the modal mid-exit and cut its exit animation. A new deal still gets a fresh boundary.
+  const popupKey = useRef('none');
+  if (selected) popupKey.current = `${selected.id}-${selected.value}`;
   const confidence = useMemo(() => revenueConfidence(deals), [deals]);
   const dimensions = useMemo(() => buildRiskDimensions(deals), [deals]);
 
@@ -85,7 +89,7 @@ export const OverviewTab: React.FC<Props> = ({
         <RegionCards allDeals={allDeals} region={region} onSelectRegion={onSelectRegion} />
       </ErrorBoundary>
       {/* Keyed on the deal so a crash in one deal's popup doesn't stick when another opens. */}
-      <ErrorBoundary key={selected ? `${selected.id}-${selected.value}` : 'none'} section="Deal Details">
+      <ErrorBoundary key={popupKey.current} section="Deal Details">
         <DealDetailModal deal={selected} onClose={() => setSelected(null)} />
       </ErrorBoundary>
     </div>

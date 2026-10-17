@@ -58,6 +58,6 @@ export function repsIn(deals: RiskDeal[]): string[] {
 export function stagesIn(deals: RiskDeal[]): string[] {
   const present = new Set(deals.map(d => normalizeStage(d.stage)));
   const known = STAGE_ORDER.filter(s => present.has(s));
-  const other = [...present].filter(s => !STAGE_ORDER.includes(s)).sort();
+  const other = [...present].filter(s => !STAGE_ORDER.includes(s)).sort((a, b) => a.localeCompare(b));
   return [...known, ...other];
 }
